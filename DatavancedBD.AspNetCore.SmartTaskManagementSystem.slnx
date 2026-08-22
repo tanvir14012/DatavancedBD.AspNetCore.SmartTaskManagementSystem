@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+  </Folder>
+  <Project Path="Api/Api.csproj" Id="62393283-3ca4-4d98-9010-f1ee5122ba5b" />
+  <Project Path="Application/Application.csproj" Id="e85652ac-0dcd-4001-ad69-e2c240338b6b" />
+  <Project Path="Domain/Domain.csproj" Id="a96a9333-9899-47d9-b359-c44f229861ba" />
+  <Project Path="Infrastructure/Infrastructure.csproj" Id="7f838a6e-7acb-4b27-b4ae-dd2e6452973e" />
+  <Project Path="Shared/Shared.csproj" Id="fc6a3353-c6b7-4e02-a6bf-478a97474482" />
+</Solution>

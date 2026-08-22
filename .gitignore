@@ -1,0 +1,51 @@
+# Build artifacts
+[Bb]in/
+[Oo]bj/
+out/
+publish/
+
+# User and IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+logs/
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# Test
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Local settings and secrets
+appsettings.Development.json
+appsettings.Local.json
+*.pfx
+*.snk
+.env
+.env.*
+!.env.example
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Frontend (Angular)
+Frontend/Angular/node_modules/
+Frontend/Angular/dist/
+Frontend/Angular/.angular/
+Frontend/Angular/coverage/
+Frontend/Angular/.sass-cache/
+Frontend/Angular/.cache/
+Frontend/Angular/certs/

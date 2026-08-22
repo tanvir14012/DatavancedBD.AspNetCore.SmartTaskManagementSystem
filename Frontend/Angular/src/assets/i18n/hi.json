@@ -1,0 +1,227 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "exportPdf": "Export PDF",
+    "import": "Import",
+    "close": "Close",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No",
+    "loading": "Loading...",
+    "noData": "No data available",
+    "error": "An error occurred",
+    "success": "Operation completed successfully",
+    "actions": "Actions",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "page": "Page",
+    "of": "of",
+    "rowsPerPage": "Rows per page",
+    "total": "Total",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "reset": "Reset",
+    "clear": "Clear",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "preview": "Preview",
+    "download": "Download",
+    "upload": "Upload",
+    "uploadFile": "Upload File",
+    "dragDropHint": "Drag & drop a file here, or click to select",
+    "fileSelected": "File selected: {{name}}",
+    "invalidFileType": "Invalid file type. Accepted: {{types}}",
+    "fileTooLarge": "File is too large. Max size: {{size}}",
+    "importSuccess": "{{count}} records imported successfully",
+    "importErrors": "Import completed with {{count}} errors",
+    "downloadErrorReport": "Download Error Report",
+    "columnMapping": "Column Mapping",
+    "mapColumn": "Map \"{{column}}\" to",
+    "previewImport": "Preview Import",
+    "rowsToImport": "{{count}} rows ready to import",
+    "processing": "Processing...",
+    "darkMode": "Dark Mode",
+    "lightMode": "Light Mode",
+    "language": "Language",
+    "profile": "Profile",
+    "logout": "Logout",
+    "settings": "Settings",
+    "notifications": "Notifications",
+    "theme": "Theme",
+    "colorPalette": "Color Palette"
+  },
+  "languages": {
+    "en": "अंग्रेज़ी",
+    "zh": "चीनी",
+    "hi": "हिंदी",
+    "es": "स्पेनिश",
+    "fr": "फ़्रेंच",
+    "ar": "अरबी",
+    "bn": "बंगाली",
+    "pt": "पुर्तगाली",
+    "ru": "रूसी"
+  },
+  "public": {
+    "nav": {
+      "mission": "मिशन",
+      "capabilities": "क्षमताएं",
+      "gallery": "गैलरी",
+      "security": "सुरक्षा"
+    },
+    "hero": {
+      "badge": "अमेरिकी सैन्य आपूर्ति श्रृंखला प्रबंधन",
+      "subtitle": "ऑपरेशनल रिसोर्स और डिफेंस इन्वेंटरी सप्लाई सिस्टम",
+      "description": "आधुनिक सैनिक के लिए सुरक्षित और मिशन-तैयार इन्वेंटरी प्रबंधन। DoD मानकों पर निर्मित और बड़े पैमाने पर तैनात।",
+      "accessSystem": "सिस्टम एक्सेस करें",
+      "learnMore": "और जानें ↓"
+    },
+    "cta": {
+      "signInNow": "अभी साइन इन करें"
+    }
+  },
+  "loginPage": {
+    "accessSystem": "ORDISS सप्लाई चेन सिस्टम एक्सेस करें",
+    "backPublicSite": "पब्लिक साइट देखें",
+    "cacCard": "CAC कार्ड",
+    "fido2Key": "FIDO2 कुंजी",
+    "usernameRequired": "यूज़रनेम आवश्यक है",
+    "passwordRequired": "पासवर्ड आवश्यक है",
+    "usernamePlaceholder": "यूज़रनेम दर्ज करें",
+    "passwordPlaceholder": "पासवर्ड दर्ज करें",
+    "signInWithPassword": "पासवर्ड से साइन इन करें",
+    "authenticateWithCac": "CAC से प्रमाणित करें",
+    "authenticateWithSecurityKey": "सिक्योरिटी की से प्रमाणित करें",
+    "signingIn": "साइन इन हो रहा है...",
+    "authenticating": "प्रमाणित किया जा रहा है...",
+    "waitingForKey": "कुंजी की प्रतीक्षा हो रही है...",
+    "invalidCredentials": "अमान्य क्रेडेंशियल्स। कृपया यूज़रनेम और पासवर्ड जांचें।",
+    "cacFailed": "CAC प्रमाणीकरण विफल। कार्ड और प्रमाणपत्र की जाँच करें।",
+    "fido2Failed": "FIDO2 विफल। अपनी सिक्योरिटी की जांचकर फिर प्रयास करें।",
+    "webauthnUnavailable": "इस ब्राउज़र में WebAuthn उपलब्ध नहीं है।"
+  },
+  "validation": {
+    "required": "{{field}} is required",
+    "minLength": "{{field}} must be at least {{min}} characters",
+    "maxLength": "{{field}} must not exceed {{max}} characters",
+    "email": "Invalid email address",
+    "pattern": "{{field}} format is invalid",
+    "min": "{{field}} must be at least {{min}}",
+    "max": "{{field}} must not exceed {{max}}",
+    "mustMatch": "{{field}} does not match",
+    "serverError": "{{message}}"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "username": "Username",
+    "password": "Password",
+    "forgotPassword": "Forgot Password?",
+    "rememberMe": "Remember Me",
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "unauthorized": "You are not authorized to view this page.",
+    "forbidden": "Access denied.",
+    "loginWith": "Sign in with",
+    "cac": "CAC / Smart Card",
+    "fido2": "Security Key (FIDO2)",
+    "passwordLogin": "Password"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "administration": "Administration",
+    "departments": "Departments",
+    "iam": "Identity & Access",
+    "roles": "Roles",
+    "users": "Users",
+    "identity": "Identity",
+    "moduleNavigation": "Module Navigation",
+    "operations": "Operations",
+    "procurement": "Procurement",
+    "storeHouse": "Store House",
+    "issueReceipt": "Issue & Receipt",
+    "reporting": "Reporting",
+    "settings": "Settings"
+  },
+  "administration": {
+    "departments": {
+      "title": "Departments",
+      "addNew": "Add Department",
+      "editTitle": "Edit Department",
+      "deleteConfirm": "Are you sure you want to delete department \"{{name}}\"?",
+      "fields": {
+        "nameEn": "Name (English)",
+        "nameAr": "Name (Arabic)",
+        "code": "Code",
+        "parentId": "Parent Department",
+        "isActive": "Active"
+      }
+    },
+    "moduleNavigation": {
+      "title": "Military Module Navigation",
+      "topNavHint": "Top navigation menus for the selected building block",
+      "editorTitle": "Add or Update Module",
+      "sidebarPreviewTitle": "Sidebar Preview",
+      "actions": {
+        "importDefault": "Import US Military Template",
+        "export": "Export JSON"
+      },
+      "fields": {
+        "buildingBlock": "Building Block",
+        "systemName": "System Name",
+        "menuId": "Menu Id",
+        "localizedName": "Localized Name",
+        "displayOrder": "Display Order",
+        "materialIconName": "Material Icon Name",
+        "isActive": "Is Active",
+        "sidebarItemsJson": "Sidebar Items (JSON, 2-Level Hierarchy)"
+      }
+    }
+  },
+  "iam": {
+    "roles": {
+      "title": "Roles",
+      "addNew": "Add Role",
+      "fields": {
+        "name": "Role Name",
+        "description": "Description",
+        "permissions": "Permissions"
+      }
+    }
+  },
+  "operations": {
+    "headers": {
+      "orderNumber": "Order Number",
+      "supplier": "Supplier",
+      "amount": "Amount",
+      "expectedDate": "Expected Date",
+      "item": "Item",
+      "unit": "Unit",
+      "onHand": "On Hand",
+      "reorderLevel": "Reorder Level",
+      "reorderAlert": "Reorder Alert",
+      "transactionNumber": "Transaction Number",
+      "transactionType": "Transaction Type",
+      "counterparty": "Counterparty",
+      "quantity": "Quantity",
+      "date": "Date",
+      "description": "Description",
+      "reportedDate": "Reported Date",
+      "completedDate": "Completed Date",
+      "vehicle": "Vehicle",
+      "inspectionDate": "Inspection Date",
+      "nextInspectionDate": "Next Inspection",
+      "remarks": "Remarks"
+    }
+  }
+}

@@ -1,0 +1,227 @@
+{
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "add": "إضافة",
+    "search": "بحث",
+    "filter": "تصفية",
+    "export": "تصدير",
+    "exportPdf": "تصدير PDF",
+    "import": "استيراد",
+    "close": "إغلاق",
+    "confirm": "تأكيد",
+    "yes": "نعم",
+    "no": "لا",
+    "loading": "جاري التحميل...",
+    "noData": "لا توجد بيانات",
+    "error": "حدث خطأ",
+    "success": "تمت العملية بنجاح",
+    "actions": "إجراءات",
+    "status": "الحالة",
+    "active": "نشط",
+    "inactive": "غير نشط",
+    "createdAt": "تاريخ الإنشاء",
+    "updatedAt": "تاريخ التحديث",
+    "page": "صفحة",
+    "of": "من",
+    "rowsPerPage": "صفوف في الصفحة",
+    "total": "الإجمالي",
+    "back": "رجوع",
+    "next": "التالي",
+    "previous": "السابق",
+    "submit": "إرسال",
+    "reset": "إعادة تعيين",
+    "clear": "مسح",
+    "selectAll": "تحديد الكل",
+    "deselectAll": "إلغاء تحديد الكل",
+    "preview": "معاينة",
+    "download": "تنزيل",
+    "upload": "رفع",
+    "uploadFile": "رفع ملف",
+    "dragDropHint": "اسحب وأفلت ملفاً هنا، أو انقر للاختيار",
+    "fileSelected": "الملف المحدد: {{name}}",
+    "invalidFileType": "نوع الملف غير صالح. المقبول: {{types}}",
+    "fileTooLarge": "الملف كبير جداً. الحد الأقصى: {{size}}",
+    "importSuccess": "تم استيراد {{count}} سجل بنجاح",
+    "importErrors": "اكتمل الاستيراد مع {{count}} أخطاء",
+    "downloadErrorReport": "تنزيل تقرير الأخطاء",
+    "columnMapping": "ربط الأعمدة",
+    "mapColumn": "ربط \"{{column}}\" بـ",
+    "previewImport": "معاينة الاستيراد",
+    "rowsToImport": "{{count}} صف جاهز للاستيراد",
+    "processing": "جاري المعالجة...",
+    "darkMode": "الوضع الداكن",
+    "lightMode": "الوضع الفاتح",
+    "language": "اللغة",
+    "profile": "الملف الشخصي",
+    "logout": "تسجيل الخروج",
+    "settings": "الإعدادات",
+    "notifications": "الإشعارات",
+    "theme": "المظهر",
+    "colorPalette": "لوحة الألوان"
+  },
+  "languages": {
+    "en": "الإنجليزية",
+    "zh": "الصينية",
+    "hi": "الهندية",
+    "es": "الإسبانية",
+    "fr": "الفرنسية",
+    "ar": "العربية",
+    "bn": "البنغالية",
+    "pt": "البرتغالية",
+    "ru": "الروسية"
+  },
+  "public": {
+    "nav": {
+      "mission": "المهمة",
+      "capabilities": "القدرات",
+      "gallery": "المعرض",
+      "security": "الأمان"
+    },
+    "hero": {
+      "badge": "إدارة سلسلة الإمداد العسكرية الأمريكية",
+      "subtitle": "نظام موارد التشغيل والدفاع لإمداد المخزون",
+      "description": "إدارة مخزون آمنة وجاهزة للمهمة للمقاتل الحديث. مبنية وفق معايير وزارة الدفاع وقابلة للنشر على نطاق واسع.",
+      "accessSystem": "الدخول إلى النظام",
+      "learnMore": "اعرف المزيد ↓"
+    },
+    "cta": {
+      "signInNow": "سجل الدخول الآن"
+    }
+  },
+  "loginPage": {
+    "accessSystem": "الوصول إلى نظام الإمداد ORDISS",
+    "backPublicSite": "عرض الموقع العام",
+    "cacCard": "بطاقة CAC",
+    "fido2Key": "مفتاح FIDO2",
+    "usernameRequired": "اسم المستخدم مطلوب",
+    "passwordRequired": "كلمة المرور مطلوبة",
+    "usernamePlaceholder": "أدخل اسم المستخدم",
+    "passwordPlaceholder": "أدخل كلمة المرور",
+    "signInWithPassword": "تسجيل الدخول بكلمة المرور",
+    "authenticateWithCac": "المصادقة عبر CAC",
+    "authenticateWithSecurityKey": "المصادقة بمفتاح الأمان",
+    "signingIn": "جار تسجيل الدخول...",
+    "authenticating": "جار المصادقة...",
+    "waitingForKey": "بانتظار المفتاح...",
+    "invalidCredentials": "بيانات اعتماد غير صحيحة. يرجى التحقق من اسم المستخدم وكلمة المرور.",
+    "cacFailed": "فشلت مصادقة CAC. تأكد من إدخال البطاقة وأن الشهادة موثوقة.",
+    "fido2Failed": "فشلت مصادقة FIDO2. تحقق من مفتاح الأمان وحاول مرة أخرى.",
+    "webauthnUnavailable": "WebAuthn غير متاح في هذا المتصفح."
+  },
+  "validation": {
+    "required": "{{field}} مطلوب",
+    "minLength": "يجب أن يكون {{field}} {{min}} أحرف على الأقل",
+    "maxLength": "يجب ألا يتجاوز {{field}} {{max}} حرفاً",
+    "email": "عنوان البريد الإلكتروني غير صالح",
+    "pattern": "تنسيق {{field}} غير صالح",
+    "min": "يجب أن يكون {{field}} {{min}} على الأقل",
+    "max": "يجب ألا يتجاوز {{field}} {{max}}",
+    "mustMatch": "{{field}} لا يتطابق",
+    "serverError": "{{message}}"
+  },
+  "auth": {
+    "signIn": "تسجيل الدخول",
+    "signOut": "تسجيل الخروج",
+    "username": "اسم المستخدم",
+    "password": "كلمة المرور",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "rememberMe": "تذكرني",
+    "sessionExpired": "انتهت جلستك. يرجى تسجيل الدخول مرة أخرى.",
+    "unauthorized": "غير مصرح لك بعرض هذه الصفحة.",
+    "forbidden": "الوصول مرفوض.",
+    "loginWith": "تسجيل الدخول بـ",
+    "cac": "بطاقة CAC / البطاقة الذكية",
+    "fido2": "مفتاح الأمان (FIDO2)",
+    "passwordLogin": "كلمة المرور"
+  },
+  "navigation": {
+    "dashboard": "لوحة التحكم",
+    "administration": "الإدارة",
+    "departments": "الأقسام",
+    "iam": "الهوية والوصول",
+    "roles": "الأدوار",
+    "users": "المستخدمون",
+    "identity": "الهوية",
+    "moduleNavigation": "تنقل الوحدات",
+    "operations": "العمليات",
+    "procurement": "المشتريات",
+    "storeHouse": "المستودع",
+    "issueReceipt": "الصرف والاستلام",
+    "reporting": "التقارير",
+    "settings": "الإعدادات"
+  },
+  "administration": {
+    "departments": {
+      "title": "الأقسام",
+      "addNew": "إضافة قسم",
+      "editTitle": "تعديل القسم",
+      "deleteConfirm": "هل أنت متأكد من حذف القسم \"{{name}}\"؟",
+      "fields": {
+        "nameEn": "الاسم (بالإنجليزية)",
+        "nameAr": "الاسم (بالعربية)",
+        "code": "الرمز",
+        "parentId": "القسم الأصل",
+        "isActive": "نشط"
+      }
+    },
+    "moduleNavigation": {
+      "title": "تنقل وحدات الهيكل العسكري",
+      "topNavHint": "قوائم التنقل العلوية للكتلة المختارة",
+      "editorTitle": "إضافة أو تحديث قائمة",
+      "sidebarPreviewTitle": "معاينة القائمة الجانبية",
+      "actions": {
+        "importDefault": "استيراد قالب العمليات العسكري",
+        "export": "تصدير JSON"
+      },
+      "fields": {
+        "buildingBlock": "الكتلة التنظيمية",
+        "systemName": "الاسم النظامي",
+        "menuId": "معرف القائمة",
+        "localizedName": "الاسم المحلي",
+        "displayOrder": "ترتيب العرض",
+        "materialIconName": "أيقونة Material",
+        "isActive": "نشط",
+        "sidebarItemsJson": "عناصر القائمة الجانبية (JSON بهيكل من مستويين)"
+      }
+    }
+  },
+  "iam": {
+    "roles": {
+      "title": "الأدوار",
+      "addNew": "إضافة دور",
+      "fields": {
+        "name": "اسم الدور",
+        "description": "الوصف",
+        "permissions": "الصلاحيات"
+      }
+    }
+  },
+  "operations": {
+    "headers": {
+      "orderNumber": "رقم الأمر",
+      "supplier": "المورّد",
+      "amount": "القيمة",
+      "expectedDate": "تاريخ التوريد المتوقع",
+      "item": "الصنف",
+      "unit": "الوحدة",
+      "onHand": "المتوفر",
+      "reorderLevel": "حد إعادة الطلب",
+      "reorderAlert": "تنبيه إعادة الطلب",
+      "transactionNumber": "رقم الحركة",
+      "transactionType": "نوع الحركة",
+      "counterparty": "الجهة المقابلة",
+      "quantity": "الكمية",
+      "date": "التاريخ",
+      "description": "الوصف",
+      "reportedDate": "تاريخ البلاغ",
+      "completedDate": "تاريخ الإكمال",
+      "vehicle": "المركبة",
+      "inspectionDate": "تاريخ الفحص",
+      "nextInspectionDate": "الفحص القادم",
+      "remarks": "الملاحظات"
+    }
+  }
+}

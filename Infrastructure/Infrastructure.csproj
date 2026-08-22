@@ -1,0 +1,51 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Usm.Inventory.MonoRepo\Shared\BuildingBlocks\Bootstrap\Middleware\AuditLoggingMiddleware.cs" Link="Bootstrap\Middleware\AuditLoggingMiddleware.cs" />
+    <Compile Include="..\..\Usm.Inventory.MonoRepo\Shared\BuildingBlocks\Bootstrap\Middleware\RequestTracingMiddleware.cs" Link="Bootstrap\Middleware\RequestTracingMiddleware.cs" />
+  </ItemGroup>
+    
+    <ItemGroup>
+      <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>  
+
+  <ItemGroup>
+      <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+      <PackageReference Include="OpenTelemetry.Exporter.Console" />
+      <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+      <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+      <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+      <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+      <PackageReference Include="Scrutor" />
+      <PackageReference Include="FluentValidation.AspNetCore" />
+      <PackageReference Include="MediatR" />
+      <PackageReference Include="Serilog.AspNetCore" />
+      <PackageReference Include="Serilog.Sinks.Console" />
+      <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+      <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+      <PackageReference Include="Asp.Versioning.Http" />
+      <PackageReference Include="Serilog.Sinks.File" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Application\Application.csproj" />
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Bootstrap\Middleware\" />
+    <Folder Include="Bootstrap\Options\" />
+    <Folder Include="Data\EfCore\Persistence\Migrations\" />
+    <Folder Include="Data\EfCore\Persistence\EntityTypeConfigurations\" />
+  </ItemGroup>
+
+</Project>

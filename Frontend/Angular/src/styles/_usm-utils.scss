@@ -1,0 +1,107 @@
+@use 'sass:map';
+@use 'sass:math';
+@use 'sass:meta';
+
+$usm-breakpoints: (
+  xs: 0,
+  sm: 36rem,
+  md: 48rem,
+  lg: 64rem,
+  xl: 80rem,
+  xxl: 96rem,
+) !default;
+
+@function strip-unit($value) {
+  @if meta.type-of($value) == 'number' and not math.is-unitless($value) {
+    @return math.div($value, $value * 0 + 1);
+  }
+
+  @return $value;
+}
+
+@function rem($px, $base: 16px) {
+  @return math.div(strip-unit($px), strip-unit($base)) * 1rem;
+}
+
+@function em($px, $base: 16px) {
+  @return math.div(strip-unit($px), strip-unit($base)) * 1em;
+}
+
+@function breakpoint($name) {
+  @if not map.has-key($usm-breakpoints, $name) {
+    @error 'Unknown breakpoint `#{$name}`. Available: #{map.keys($usm-breakpoints)}';
+  }
+
+  @return map.get($usm-breakpoints, $name);
+}
+
+@function fluid($min-size, $max-size, $min-width: 20rem, $max-width: 90rem) {
+  $slope: math.div(strip-unit($max-size - $min-size), strip-unit($max-width - $min-width));
+  $intersection: $min-size - $slope * $min-width;
+
+  @return clamp(#{$min-size}, #{$intersection} + #{$slope * 100}vw, #{$max-size});
+}
+
+@function spacing($step, $base: 0.25rem) {
+  @return $step * $base;
+}
+
+@mixin respond-up($name) {
+  @media (min-width: breakpoint($name)) {
+    @content;
+  }
+}
+
+@mixin respond-down($name) {
+  @media (max-width: calc(#{breakpoint($name)} - .02px)) {
+    @content;
+  }
+}
+
+@mixin respond-between($from, $to) {
+  @media (min-width: breakpoint($from)) and (max-width: calc(#{breakpoint($to)} - .02px)) {
+    @content;
+  }
+}
+
+@mixin page-container($max-width: 80rem, $padding: fluid(1rem, 2rem)) {
+  width: 100%;
+  max-width: $max-width;
+  margin-inline: auto;
+  padding-inline: $padding;
+  box-sizing: border-box;
+}
+
+@mixin focus-ring($color: currentColor, $offset: 2px) {
+  outline: 2px solid transparent;
+  outline-offset: $offset;
+
+  &:focus-visible {
+    outline-color: $color;
+  }
+}
+
+@mixin text-truncate($lines: 1) {
+  overflow: hidden;
+
+  @if $lines == 1 {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  } @else {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: $lines;
+  }
+}
+
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
