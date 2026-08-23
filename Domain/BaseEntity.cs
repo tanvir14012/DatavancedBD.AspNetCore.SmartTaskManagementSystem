@@ -1,4 +1,4 @@
-namespace Infrastructure.Data.EfCore.Models;
+namespace Domain;
 
 public abstract class BaseEntity<TId> where TId : struct
 {

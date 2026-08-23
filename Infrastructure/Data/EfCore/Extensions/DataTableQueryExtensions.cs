@@ -134,10 +134,29 @@ public static class DataTableQueryExtensions
         var entityType = dbContext.Model.FindEntityType(typeof(TEntity))
             ?? throw new InvalidOperationException($"Entity {typeof(TEntity).Name} was not found in EF model.");
 
-        var search = request.Search.Trim();
+        var search = request.Search.Trim().ToLower();
         var searchConstant = Expression.Constant(search, typeof(string));
-
         var parameter = Expression.Parameter(typeof(TEntity), "e");
+
+        // 1. Preferred Path: Check if entity has indexed shadow property "SearchVector"
+        var shadowSearchProp = entityType.FindProperty("SearchVector");
+        if (shadowSearchProp != null)
+        {
+            // Generates: EF.Property<string>(e, "SearchVector")
+            var searchVectorAccess = Expression.Call(
+                null,
+                EfPropertyMethod,
+                parameter,
+                Expression.Constant("SearchVector"));
+
+            // Generates: EF.Property<string>(e, "SearchVector").Contains(searchConstant)
+            var shadowContainsCall = Expression.Call(searchVectorAccess, StringContainsMethod, searchConstant);
+            var shadowLambda = Expression.Lambda<Func<TEntity, bool>>(shadowContainsCall, parameter);
+
+            return source.Where(shadowLambda);
+        }
+
+        // 2. Fallback Path: Standard Property-by-Property Search
         Expression? predicateBody = null;
 
         foreach (var column in configuration.SearchableColumns)
@@ -259,4 +278,8 @@ public static class DataTableQueryExtensions
                               && method.GetParameters().Length == 2);
     private static readonly MethodInfo StringContainsMethod = typeof(string)
         .GetMethod(nameof(string.Contains), new[] { typeof(string) })!;
+
+    private static readonly MethodInfo EfPropertyMethod = typeof(EF)
+        .GetMethod(nameof(EF.Property), BindingFlags.Public | BindingFlags.Static)!
+        .MakeGenericMethod(typeof(string));
 }

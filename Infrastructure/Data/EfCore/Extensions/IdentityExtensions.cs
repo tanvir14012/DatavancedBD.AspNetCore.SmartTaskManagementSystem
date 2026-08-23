@@ -1,4 +1,4 @@
-using Infrastructure.Data.EfCore.Models;
+using Domain;
 using Infrastructure.Data.EfCore.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;

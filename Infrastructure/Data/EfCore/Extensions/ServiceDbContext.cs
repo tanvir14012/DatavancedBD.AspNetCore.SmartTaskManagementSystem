@@ -1,3 +1,4 @@
+using Domain.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -37,7 +38,7 @@ public abstract class ServiceDbContext(DbContextOptions options, string schema) 
     private void StampAuditFields()
     {
         var actorId = AuditActorContext.ActorId;
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTime.UtcNow;
 
         foreach (var entry in ChangeTracker.Entries())
         {
@@ -47,27 +48,19 @@ public abstract class ServiceDbContext(DbContextOptions options, string schema) 
                 {
                     auditable.CreatedAt = now;
                     if (actorId.HasValue)
-                        auditable.CreatedBy = actorId.Value;
+                        auditable.CreatedById = actorId.Value;
                 }
                 else if (entry.State == EntityState.Modified)
                 {
                     auditable.UpdatedAt = now;
                     if (actorId.HasValue)
-                        auditable.UpdatedBy = actorId.Value;
+                        auditable.UpdatedById = actorId.Value;
                 }
             }
         }
     }
 }
 
-public interface IAuditable
-{
-    DateTimeOffset CreatedAt { get; set; }
-    DateTimeOffset? UpdatedAt { get; set; }
-
-    int? CreatedBy { get; set; }
-    int? UpdatedBy { get; set; }
-}
 
 public static class AuditActorContext
 {

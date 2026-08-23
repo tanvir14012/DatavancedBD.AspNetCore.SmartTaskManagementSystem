@@ -44,8 +44,8 @@
   <ItemGroup>
     <Folder Include="Bootstrap\Middleware\" />
     <Folder Include="Bootstrap\Options\" />
+    <Folder Include="Data\EfCore\Models\" />
     <Folder Include="Data\EfCore\Persistence\Migrations\" />
-    <Folder Include="Data\EfCore\Persistence\EntityTypeConfigurations\" />
   </ItemGroup>
 
 </Project>

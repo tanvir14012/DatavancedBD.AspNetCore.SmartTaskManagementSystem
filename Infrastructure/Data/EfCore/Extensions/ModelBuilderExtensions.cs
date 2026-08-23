@@ -1,18 +1,9 @@
 using System.Linq.Expressions;
+using Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Infrastructure.Data.EfCore.Extensions;
-
-public interface IMultiTenant
-{
-    Guid TenantId { get; }
-}
-
-public interface ISoftDeletable
-{
-    bool IsDeleted { get; }
-}
 
 public static class ModelBuilderExtensions
 {
