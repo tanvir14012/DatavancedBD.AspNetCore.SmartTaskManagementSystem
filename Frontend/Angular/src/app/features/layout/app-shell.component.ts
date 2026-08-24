@@ -1,5 +1,4 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Component, inject, OnInit } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
@@ -12,36 +11,25 @@ import { SideNavComponent } from './side-nav.component';
   standalone: true,
   imports: [TopNavComponent, SideNavComponent, RouterOutlet],
   templateUrl: './app-shell.component.html',
-  styleUrls: ['./app-shell.component.scss'],
+  styleUrls: ['./app-shell.component.scss']
 })
 export class AppShellComponent implements OnInit {
   readonly menuService = inject(MenuService);
   readonly authService = inject(AuthService);
-
   private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
     this.router.events
-      .pipe(
-        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-        takeUntilDestroyed(this.destroyRef),
-      )
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event) => {
-        const route = event.urlAfterRedirects || this.router.url || '/dashboard';
-        this.menuService.setCurrentRoute(route);
-
-        if (this.authService.isAuthenticated()) {
-          this.menuService.ensureMenusLoaded();
-        }
+        this.menuService.setCurrentRoute(event.urlAfterRedirects || this.router.url);
       });
   }
 
   ngOnInit(): void {
-    this.menuService.setCurrentRoute(this.router.url || '/dashboard');
-
     if (this.authService.isAuthenticated()) {
-      this.menuService.ensureMenusLoaded();
+      this.menuService.setCurrentRoute(this.router.url);
+      this.menuService.loadMenus().subscribe();
     }
   }
 }
