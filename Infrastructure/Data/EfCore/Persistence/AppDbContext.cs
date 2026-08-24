@@ -1,3 +1,4 @@
+using Domain;
 using Infrastructure.Data.EfCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 
@@ -5,6 +6,13 @@ namespace Infrastructure.Data.EfCore.Persistence;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : ServiceDbContext(options, Shared.Constants.ServicePrefix), IAppDbContext
 {
+    public DbSet<MenuItem> MenuItems => Set<MenuItem>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ProjectTask> ProjectTasks => Set<ProjectTask>();
+    public DbSet<UserProject> UserProjects => Set<UserProject>();
+    public DbSet<UserTask> UserTasks => Set<UserTask>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

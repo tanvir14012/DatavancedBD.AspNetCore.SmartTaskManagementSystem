@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace Infrastructure.Data.EfCore.Persistence.Migrations
 {
     /// <inheritdoc />
@@ -15,7 +17,37 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 name: "stms");
 
             migrationBuilder.CreateTable(
-                name: "AppUser",
+                name: "MenuItems",
+                schema: "stms",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Route = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Icon = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    Type = table.Column<int>(type: "int", nullable: false),
+                    ParentId = table.Column<int>(type: "int", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedById = table.Column<int>(type: "int", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedById = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MenuItems", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_MenuItems_MenuItems_ParentId",
+                        column: x => x.ParentId,
+                        principalSchema: "stms",
+                        principalTable: "MenuItems",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Users",
                 schema: "stms",
                 columns: table => new
                 {
@@ -28,54 +60,6 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedById = table.Column<int>(type: "int", nullable: true),
                     UpdatedById = table.Column<int>(type: "int", nullable: true),
-                    UserName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    NormalizedUserName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Email = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    NormalizedEmail = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    EmailConfirmed = table.Column<bool>(type: "bit", nullable: false),
-                    PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    SecurityStamp = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    PhoneNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    PhoneNumberConfirmed = table.Column<bool>(type: "bit", nullable: false),
-                    TwoFactorEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    LockoutEnd = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    LockoutEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    AccessFailedCount = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AppUser", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_AppUser_AppUser_CreatedById",
-                        column: x => x.CreatedById,
-                        principalSchema: "stms",
-                        principalTable: "AppUser",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Roles",
-                schema: "stms",
-                columns: table => new
-                {
-                    Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    NormalizedName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(max)", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Roles", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Users",
-                schema: "stms",
-                columns: table => new
-                {
-                    Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
                     UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
@@ -94,38 +78,17 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Users", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AppRole",
-                schema: "stms",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedById = table.Column<int>(type: "int", nullable: true),
-                    UpdatedById = table.Column<int>(type: "int", nullable: true),
-                    Name = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    NormalizedName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(max)", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AppRole", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_AppRole_AppUser_CreatedById",
+                        name: "FK_Users_Users_CreatedById",
                         column: x => x.CreatedById,
                         principalSchema: "stms",
-                        principalTable: "AppUser",
+                        principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
-                name: "Project",
+                name: "Projects",
                 schema: "stms",
                 columns: table => new
                 {
@@ -145,18 +108,18 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Project", x => x.Id);
+                    table.PrimaryKey("PK_Projects", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Project_AppUser_CreatedById",
+                        name: "FK_Projects_Users_CreatedById",
                         column: x => x.CreatedById,
                         principalSchema: "stms",
-                        principalTable: "AppUser",
+                        principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
-                name: "RefreshToken",
+                name: "RefreshTokens",
                 schema: "stms",
                 columns: table => new
                 {
@@ -171,37 +134,42 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_RefreshToken", x => x.Id);
+                    table.PrimaryKey("PK_RefreshTokens", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_RefreshToken_AppUser_UserId",
+                        name: "FK_RefreshTokens_Users_UserId",
                         column: x => x.UserId,
                         principalSchema: "stms",
-                        principalTable: "AppUser",
+                        principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
-                name: "RoleClaims",
+                name: "Roles",
                 schema: "stms",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    RoleId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    ClaimType = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ClaimValue = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedById = table.Column<int>(type: "int", nullable: true),
+                    UpdatedById = table.Column<int>(type: "int", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    NormalizedName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_RoleClaims", x => x.Id);
+                    table.PrimaryKey("PK_Roles", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_RoleClaims_Roles_RoleId",
-                        column: x => x.RoleId,
+                        name: "FK_Roles_Users_CreatedById",
+                        column: x => x.CreatedById,
                         principalSchema: "stms",
-                        principalTable: "Roles",
+                        principalTable: "Users",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -211,7 +179,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    UserId = table.Column<int>(type: "int", nullable: false),
                     ClaimType = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ClaimValue = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
@@ -235,7 +203,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     LoginProvider = table.Column<string>(type: "nvarchar(450)", nullable: false),
                     ProviderKey = table.Column<string>(type: "nvarchar(450)", nullable: false),
                     ProviderDisplayName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false)
+                    UserId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -250,12 +218,125 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "UserTokens",
+                schema: "stms",
+                columns: table => new
+                {
+                    UserId = table.Column<int>(type: "int", nullable: false),
+                    LoginProvider = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Value = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserTokens", x => new { x.UserId, x.LoginProvider, x.Name });
+                    table.ForeignKey(
+                        name: "FK_UserTokens_Users_UserId",
+                        column: x => x.UserId,
+                        principalSchema: "stms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectTasks",
+                schema: "stms",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    Priority = table.Column<int>(type: "int", nullable: false),
+                    DueDate = table.Column<DateOnly>(type: "date", nullable: true),
+                    ProjectId = table.Column<int>(type: "int", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    SearchVector = table.Column<string>(type: "nvarchar(450)", nullable: true, computedColumnSql: "LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], ''))", stored: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedById = table.Column<int>(type: "int", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedById = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectTasks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProjectTasks_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalSchema: "stms",
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ProjectTasks_Users_CreatedById",
+                        column: x => x.CreatedById,
+                        principalSchema: "stms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserProjects",
+                schema: "stms",
+                columns: table => new
+                {
+                    UserId = table.Column<int>(type: "int", nullable: false),
+                    ProjectId = table.Column<int>(type: "int", nullable: false),
+                    ProjectRole = table.Column<int>(type: "int", nullable: false),
+                    JoinedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserProjects", x => new { x.UserId, x.ProjectId });
+                    table.ForeignKey(
+                        name: "FK_UserProjects_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalSchema: "stms",
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_UserProjects_Users_UserId",
+                        column: x => x.UserId,
+                        principalSchema: "stms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RoleClaims",
+                schema: "stms",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RoleId = table.Column<int>(type: "int", nullable: false),
+                    ClaimType = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ClaimValue = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RoleClaims", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RoleClaims_Roles_RoleId",
+                        column: x => x.RoleId,
+                        principalSchema: "stms",
+                        principalTable: "Roles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "UserRoles",
                 schema: "stms",
                 columns: table => new
                 {
-                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    RoleId = table.Column<string>(type: "nvarchar(450)", nullable: false)
+                    UserId = table.Column<int>(type: "int", nullable: false),
+                    RoleId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -277,97 +358,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "UserTokens",
-                schema: "stms",
-                columns: table => new
-                {
-                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    LoginProvider = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Value = table.Column<string>(type: "nvarchar(max)", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_UserTokens", x => new { x.UserId, x.LoginProvider, x.Name });
-                    table.ForeignKey(
-                        name: "FK_UserTokens_Users_UserId",
-                        column: x => x.UserId,
-                        principalSchema: "stms",
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "ProjectTask",
-                schema: "stms",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    Status = table.Column<int>(type: "int", nullable: false),
-                    Priority = table.Column<int>(type: "int", nullable: false),
-                    DueDate = table.Column<DateOnly>(type: "date", nullable: true),
-                    ProjectId = table.Column<int>(type: "int", nullable: false),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    SearchVector = table.Column<string>(type: "nvarchar(450)", nullable: true, computedColumnSql: "LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], ''))", stored: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CreatedById = table.Column<int>(type: "int", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedById = table.Column<int>(type: "int", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ProjectTask", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_ProjectTask_AppUser_CreatedById",
-                        column: x => x.CreatedById,
-                        principalSchema: "stms",
-                        principalTable: "AppUser",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_ProjectTask_Project_ProjectId",
-                        column: x => x.ProjectId,
-                        principalSchema: "stms",
-                        principalTable: "Project",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "UserProject",
-                schema: "stms",
-                columns: table => new
-                {
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    ProjectId = table.Column<int>(type: "int", nullable: false),
-                    ProjectRole = table.Column<int>(type: "int", nullable: false),
-                    JoinedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_UserProject", x => new { x.UserId, x.ProjectId });
-                    table.ForeignKey(
-                        name: "FK_UserProject_AppUser_UserId",
-                        column: x => x.UserId,
-                        principalSchema: "stms",
-                        principalTable: "AppUser",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_UserProject_Project_ProjectId",
-                        column: x => x.ProjectId,
-                        principalSchema: "stms",
-                        principalTable: "Project",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "UserTask",
+                name: "UserTasks",
                 schema: "stms",
                 columns: table => new
                 {
@@ -379,90 +370,102 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_UserTask", x => new { x.UserId, x.TaskId });
+                    table.PrimaryKey("PK_UserTasks", x => new { x.UserId, x.TaskId });
                     table.ForeignKey(
-                        name: "FK_UserTask_AppUser_AssignedById",
-                        column: x => x.AssignedById,
+                        name: "FK_UserTasks_ProjectTasks_TaskId",
+                        column: x => x.TaskId,
                         principalSchema: "stms",
-                        principalTable: "AppUser",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_UserTask_AppUser_UserId",
-                        column: x => x.UserId,
-                        principalSchema: "stms",
-                        principalTable: "AppUser",
+                        principalTable: "ProjectTasks",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_UserTask_ProjectTask_TaskId",
-                        column: x => x.TaskId,
+                        name: "FK_UserTasks_Users_AssignedById",
+                        column: x => x.AssignedById,
                         principalSchema: "stms",
-                        principalTable: "ProjectTask",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_UserTasks_Users_UserId",
+                        column: x => x.UserId,
+                        principalSchema: "stms",
+                        principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_AppRole_CreatedById",
+            migrationBuilder.InsertData(
                 schema: "stms",
-                table: "AppRole",
+                table: "MenuItems",
+                columns: new[] { "Id", "CreatedAt", "CreatedById", "DisplayOrder", "Icon", "Name", "ParentId", "Route", "Type", "UpdatedAt", "UpdatedById" },
+                values: new object[,]
+                {
+                    { 1, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 1, "dashboard", "Dashboard", null, "/dashboard", 1, null, null },
+                    { 2, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 2, "folder", "Projects", null, "/projects", 1, null, null },
+                    { 3, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 3, "assignment", "Tasks", null, "/tasks", 1, null, null },
+                    { 4, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 4, "people", "Users", null, "/users", 1, null, null },
+                    { 10, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 1, "analytics", "Overview", 1, "/dashboard", 2, null, null },
+                    { 20, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 1, "list_alt", "All Projects", 2, "/projects", 2, null, null },
+                    { 21, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 2, "create_new_folder", "New Project", 2, "/projects/new", 2, null, null },
+                    { 30, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 1, "table_chart", "All Tasks", 3, "/tasks", 2, null, null },
+                    { 31, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 2, "view_kanban", "Task Board", 3, "/tasks/board", 2, null, null },
+                    { 40, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 1, "manage_accounts", "All Users", 4, "/users", 2, null, null }
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MenuItems_ParentId",
+                schema: "stms",
+                table: "MenuItems",
+                column: "ParentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Projects_CreatedById",
+                schema: "stms",
+                table: "Projects",
                 column: "CreatedById");
 
             migrationBuilder.CreateIndex(
-                name: "IX_AppUser_CreatedById",
+                name: "IX_Projects_SearchVector",
                 schema: "stms",
-                table: "AppUser",
-                column: "CreatedById");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Project_CreatedById",
-                schema: "stms",
-                table: "Project",
-                column: "CreatedById");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Project_SearchVector",
-                schema: "stms",
-                table: "Project",
+                table: "Projects",
                 column: "SearchVector");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ProjectTask_CreatedById",
+                name: "IX_ProjectTasks_CreatedById",
                 schema: "stms",
-                table: "ProjectTask",
+                table: "ProjectTasks",
                 column: "CreatedById");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ProjectTask_DueDate",
+                name: "IX_ProjectTasks_DueDate",
                 schema: "stms",
-                table: "ProjectTask",
+                table: "ProjectTasks",
                 column: "DueDate");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ProjectTask_ProjectId_Status_Priority",
+                name: "IX_ProjectTasks_ProjectId_Status_Priority",
                 schema: "stms",
-                table: "ProjectTask",
+                table: "ProjectTasks",
                 columns: new[] { "ProjectId", "Status", "Priority" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_ProjectTask_SearchVector",
+                name: "IX_ProjectTasks_SearchVector",
                 schema: "stms",
-                table: "ProjectTask",
+                table: "ProjectTasks",
                 column: "SearchVector")
                 .Annotation("SqlServer:Include", new[] { "ProjectId", "Status", "Priority" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_RefreshToken_TokenHash",
+                name: "IX_RefreshTokens_TokenHash",
                 schema: "stms",
-                table: "RefreshToken",
+                table: "RefreshTokens",
                 column: "TokenHash",
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_RefreshToken_UserId",
+                name: "IX_RefreshTokens_UserId",
                 schema: "stms",
-                table: "RefreshToken",
+                table: "RefreshTokens",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
@@ -470,6 +473,12 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 schema: "stms",
                 table: "RoleClaims",
                 column: "RoleId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Roles_CreatedById",
+                schema: "stms",
+                table: "Roles",
+                column: "CreatedById");
 
             migrationBuilder.CreateIndex(
                 name: "RoleNameIndex",
@@ -492,9 +501,9 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_UserProject_ProjectId",
+                name: "IX_UserProjects_ProjectId",
                 schema: "stms",
-                table: "UserProject",
+                table: "UserProjects",
                 column: "ProjectId");
 
             migrationBuilder.CreateIndex(
@@ -510,6 +519,12 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 column: "NormalizedEmail");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Users_CreatedById",
+                schema: "stms",
+                table: "Users",
+                column: "CreatedById");
+
+            migrationBuilder.CreateIndex(
                 name: "UserNameIndex",
                 schema: "stms",
                 table: "Users",
@@ -518,15 +533,15 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 filter: "[NormalizedUserName] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_UserTask_AssignedById",
+                name: "IX_UserTasks_AssignedById",
                 schema: "stms",
-                table: "UserTask",
+                table: "UserTasks",
                 column: "AssignedById");
 
             migrationBuilder.CreateIndex(
-                name: "IX_UserTask_TaskId",
+                name: "IX_UserTasks_TaskId",
                 schema: "stms",
-                table: "UserTask",
+                table: "UserTasks",
                 column: "TaskId");
         }
 
@@ -534,11 +549,11 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "AppRole",
+                name: "MenuItems",
                 schema: "stms");
 
             migrationBuilder.DropTable(
-                name: "RefreshToken",
+                name: "RefreshTokens",
                 schema: "stms");
 
             migrationBuilder.DropTable(
@@ -554,7 +569,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 schema: "stms");
 
             migrationBuilder.DropTable(
-                name: "UserProject",
+                name: "UserProjects",
                 schema: "stms");
 
             migrationBuilder.DropTable(
@@ -562,7 +577,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 schema: "stms");
 
             migrationBuilder.DropTable(
-                name: "UserTask",
+                name: "UserTasks",
                 schema: "stms");
 
             migrationBuilder.DropTable(
@@ -574,19 +589,15 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 schema: "stms");
 
             migrationBuilder.DropTable(
-                name: "ProjectTask",
+                name: "ProjectTasks",
+                schema: "stms");
+
+            migrationBuilder.DropTable(
+                name: "Projects",
                 schema: "stms");
 
             migrationBuilder.DropTable(
                 name: "Users",
-                schema: "stms");
-
-            migrationBuilder.DropTable(
-                name: "Project",
-                schema: "stms");
-
-            migrationBuilder.DropTable(
-                name: "AppUser",
                 schema: "stms");
         }
     }

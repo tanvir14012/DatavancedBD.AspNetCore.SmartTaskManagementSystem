@@ -1,3 +1,4 @@
+using Infrastructure.Data.EfCore.Persistence.Seeding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -43,6 +44,19 @@ public sealed class MigrationHostedService<TDbContext>(
             var db = scope.ServiceProvider.GetRequiredService<TDbContext>();
             await db.Database.MigrateAsync(cancellationToken);
             logger.LogInformation("Migrations for {DbContext} applied successfully.", typeof(TDbContext).Name);
+
+            int retries = 5;
+            while (retries > 0 && !await db.Database.CanConnectAsync(cancellationToken))
+            {
+                await Task.Delay(1000, cancellationToken);
+                retries--;
+            }
+
+            // 3. Call Seed Extensions directly
+            logger.LogInformation("Starting database seeding for {DbContext}...", typeof(TDbContext).Name);
+            await scope.ServiceProvider.SeedRolesAndAdminAsync();
+            await scope.ServiceProvider.SeedProjectsAndTasksAsync();
+            logger.LogInformation("Database seeding completed successfully.");
         }
         catch (Exception ex)
         {

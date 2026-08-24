@@ -1,3 +1,4 @@
+using Domain;
 using Domain.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -13,7 +14,7 @@ namespace Infrastructure.Data.EfCore.Extensions;
 /// Base DbContext that applies schema isolation and common conventions.
 /// Each service DbContext inherits from this and passes its own schema name.
 /// </summary>
-public abstract class ServiceDbContext(DbContextOptions options, string schema) : IdentityDbContext<IdentityUser>(options)
+public abstract class ServiceDbContext(DbContextOptions options, string schema) : IdentityDbContext<AppUser, AppRole, int>(options)
 {
     protected readonly string Schema = schema;
 

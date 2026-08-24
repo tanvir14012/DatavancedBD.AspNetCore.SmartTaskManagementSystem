@@ -1,3 +1,4 @@
+using System.Text;
 using System.Threading.RateLimiting;
 using Asp.Versioning;
 using Infrastructure.Bootstrap.Middleware;
@@ -12,6 +13,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 namespace Infrastructure.Bootstrap;
@@ -57,9 +59,17 @@ public static class BootstrapExtensions
             .AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                options.Authority = builder.Configuration["Jwt:Authority"];
-                options.Audience = builder.Configuration["Jwt:Audience"];
-                options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = builder.Configuration["Jwt:Issuer"],   // e.g. "https://localhost:7108"
+                    ValidAudience = builder.Configuration["Jwt:Audience"], // e.g. "https://localhost:4200"
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])) // secret key
+                };
             });
 
         builder.Services.AddAuthorization();
@@ -149,6 +159,8 @@ public static class BootstrapExtensions
                 opts.QueueLimit = rateLimitCfg.Strict.QueueLimit;
             });
         });
+
+        builder.Services.AddHealthChecks();
 
         return builder;
     }
