@@ -14,7 +14,7 @@
         Project
         <select [(ngModel)]="selectedProjectId" name="selectedProjectId">
           <option [ngValue]="null" disabled>Select project</option>
-          <option *ngFor="let project of projects" [ngValue]="project.id">{{ project.name }}</option>
+          <option *ngFor="let project of projects()" [ngValue]="project.id">{{ project.name }}</option>
         </select>
       </label>
 
@@ -22,21 +22,21 @@
         User
         <select [(ngModel)]="selectedUserId" name="selectedUserId">
           <option [ngValue]="null" disabled>Select user</option>
-          <option *ngFor="let user of users" [ngValue]="user.id">{{ user.firstName }} {{ user.lastName }} ({{ user.email }})</option>
+          <option *ngFor="let user of users()" [ngValue]="user.id">{{ user.firstName }} {{ user.lastName }} ({{ user.email }})</option>
         </select>
       </label>
 
       <label>
         Role
         <select [(ngModel)]="selectedRole" name="selectedRole">
-          <option *ngFor="let role of allowedRoles" [value]="role">{{ role }}</option>
+          <option *ngFor="let role of allowedRoles()" [value]="role">{{ role }}</option>
         </select>
       </label>
     </div>
 
     <div class="action-row">
-      <button type="button" class="primary" [disabled]="!selectedProjectId || !selectedUserId || isSubmitting" (click)="assignMember()">
-        {{ isSubmitting ? 'Assigning...' : 'Assign member' }}
+      <button type="button" class="primary" [disabled]="!selectedProjectId() || !selectedUserId() || isSubmitting()" (click)="assignMember()">
+        {{ isSubmitting() ? 'Assigning...' : 'Assign member' }}
       </button>
     </div>
   </div>
@@ -52,7 +52,7 @@
         Project
         <select [(ngModel)]="projectFilter" (change)="onFilterChange()">
           <option value="all">All projects</option>
-          <option *ngFor="let project of projects" [value]="project.id">{{ project.name }}</option>
+          <option *ngFor="let project of projects()" [value]="project.id">{{ project.name }}</option>
         </select>
       </label>
 
@@ -69,13 +69,13 @@
     </div>
   </div>
 
-  <div *ngIf="isLoading" class="empty-state">Loading assignments...</div>
+  <div *ngIf="isLoading()" class="empty-state">Loading assignments...</div>
 
-  <div *ngIf="!isLoading && assignments.length === 0" class="empty-state">
+  <div *ngIf="!isLoading() && assignments().length === 0" class="empty-state">
     No project assignments match the current filters.
   </div>
 
-  <div *ngIf="assignments.length > 0" class="table-wrap">
+  <div *ngIf="assignments().length > 0" class="table-wrap">
     <table class="assignment-table">
       <thead>
         <tr>
@@ -87,7 +87,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let assignment of assignments">
+        <tr *ngFor="let assignment of assignments()">
           <td>{{ assignment.projectName }}</td>
           <td>{{ assignment.userName }}</td>
           <td>{{ assignment.email }}</td>
@@ -100,9 +100,9 @@
     </table>
   </div>
 
-  <div class="pagination" *ngIf="totalPages > 1">
-    <button type="button" [disabled]="page === 1" (click)="prevPage()">Previous</button>
-    <span>Page {{ page }} of {{ totalPages }}</span>
-    <button type="button" [disabled]="page >= totalPages" (click)="nextPage()">Next</button>
+  <div class="pagination" *ngIf="totalPages() > 1">
+    <button type="button" [disabled]="page() === 1" (click)="prevPage()">Previous</button>
+    <span>Page {{ page() }} of {{ totalPages() }}</span>
+    <button type="button" [disabled]="page() >= totalPages()" (click)="nextPage()">Next</button>
   </div>
 </section>

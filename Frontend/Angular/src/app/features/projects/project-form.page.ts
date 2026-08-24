@@ -20,17 +20,17 @@ export class ProjectFormPage implements OnInit {
   readonly canManageMembers = signal(false);
   readonly project = signal<ProjectDetail | null>(null);
   readonly members = signal<ProjectItemMember[]>([]);
-  readonly memberForm = signal({
+  readonly memberForm = {
     userId: '',
     role: 'Member',
-  });
-  readonly form = signal({
+  };
+  readonly form = {
     name: '',
     description: '',
     startDate: '',
     endDate: '',
     isArchived: false,
-  });
+  };
 
   allowedRoles = ['Member', 'Manager'];
 
@@ -64,13 +64,11 @@ export class ProjectFormPage implements OnInit {
 
     this.projectService.getProject(id).subscribe((project) => {
       this.project.set(project);
-      this.form.set({
-        name: project.name,
-        description: project.description ?? '',
-        startDate: project.startDate ?? '',
-        endDate: project.endDate ?? '',
-        isArchived: false,
-      });
+      this.form.name = project.name;
+      this.form.description = project.description ?? '';
+      this.form.startDate = project.startDate ?? '';
+      this.form.endDate = project.endDate ?? '';
+      this.form.isArchived = false;
       this.members.set(project.members ?? []);
       this.canManageMembers.set(project.canEdit);
     });
@@ -80,11 +78,11 @@ export class ProjectFormPage implements OnInit {
     this.isSubmitting.set(true);
 
     const payload = {
-      name: this.form().name,
-      description: this.form().description || null,
-      startDate: this.form().startDate || null,
-      endDate: this.form().endDate || null,
-      isArchived: this.form().isArchived,
+      name: this.form.name,
+      description: this.form.description || null,
+      startDate: this.form.startDate || null,
+      endDate: this.form.endDate || null,
+      isArchived: this.form.isArchived,
     };
 
     const id = this.projectId();
@@ -105,7 +103,7 @@ export class ProjectFormPage implements OnInit {
 
   assignMember(): void {
     const id = this.projectId();
-    const userId = this.memberForm().userId;
+    const userId = this.memberForm.userId;
     if (!id || !userId) {
       return;
     }
@@ -113,10 +111,11 @@ export class ProjectFormPage implements OnInit {
     this.projectService
       .assignMember(id, {
         userId: Number(userId),
-        role: this.memberForm().role as 'Owner' | 'Manager' | 'Member' | 'Viewer',
+        role: this.memberForm.role as 'Owner' | 'Manager' | 'Member' | 'Viewer',
       })
       .subscribe(() => {
-        this.memberForm.set({ userId: '', role: this.allowedRoles[0] ?? 'Member' });
+        this.memberForm.userId = '';
+        this.memberForm.role = this.allowedRoles[0] ?? 'Member';
         this.loadProject();
       });
   }

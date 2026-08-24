@@ -34,14 +34,14 @@ export class TasksPage implements OnInit {
   readonly showForm = signal(false);
   readonly editingTaskId = signal<number | null>(null);
   readonly isLoading = signal(false);
-  readonly form = signal({
+  readonly form = {
     projectId: '',
     title: '',
     description: '',
     status: 'Todo',
     priority: 'Medium',
     dueDate: '',
-  });
+  };
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly searchSubject = new Subject<string>();
@@ -76,8 +76,8 @@ export class TasksPage implements OnInit {
     this.projectService.getProjects({ start: 0, length: 200, status: 'all' }).subscribe((result) => {
       const projectsList = result.items.map((project) => ({ id: project.id, name: project.name }));
       this.projects.set(projectsList);
-      if (projectsList.length > 0 && !this.form().projectId) {
-        this.form.update(f => ({ ...f, projectId: String(projectsList[0].id) }));
+      if (projectsList.length > 0 && !this.form.projectId) {
+        this.form.projectId = String(projectsList[0].id);
       }
     });
   }
@@ -127,32 +127,28 @@ export class TasksPage implements OnInit {
 
   openCreateForm(): void {
     this.editingTaskId.set(null);
-    this.form.set({
-      projectId: this.projects()[0] ? String(this.projects()[0].id) : '',
-      title: '',
-      description: '',
-      status: 'Todo',
-      priority: 'Medium',
-      dueDate: '',
-    });
+    this.form.projectId = this.projects()[0] ? String(this.projects()[0].id) : '';
+    this.form.title = '';
+    this.form.description = '';
+    this.form.status = 'Todo';
+    this.form.priority = 'Medium';
+    this.form.dueDate = '';
     this.showForm.set(true);
   }
 
   openEditForm(task: TaskListItem): void {
     this.editingTaskId.set(task.id);
-    this.form.set({
-      projectId: String(task.projectId),
-      title: task.title,
-      description: task.description ?? '',
-      status: task.status,
-      priority: task.priority,
-      dueDate: task.dueDate ?? '',
-    });
+    this.form.projectId = String(task.projectId);
+    this.form.title = task.title;
+    this.form.description = task.description ?? '';
+    this.form.status = task.status;
+    this.form.priority = task.priority;
+    this.form.dueDate = task.dueDate ?? '';
     this.showForm.set(true);
   }
 
   submitForm(): void {
-    const currentForm = this.form();
+    const currentForm = this.form;
     if (!currentForm.title.trim() || !currentForm.projectId) {
       return;
     }

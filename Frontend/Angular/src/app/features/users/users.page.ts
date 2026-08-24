@@ -30,13 +30,13 @@ export class UsersPage implements OnInit {
   readonly editingUserId = signal<number | null>(null);
   readonly isLoading = signal(false);
 
-  readonly form = signal({
+  readonly form = {
     firstName: '',
     lastName: '',
     email: '',
     password: '',
     role: 'Team Member',
-  });
+  };
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly searchSubject = new Subject<string>();
@@ -102,30 +102,26 @@ export class UsersPage implements OnInit {
 
   openCreateForm(): void {
     this.editingUserId.set(null);
-    this.form.set({
-      firstName: '',
-      lastName: '',
-      email: '',
-      password: '',
-      role: 'Team Member',
-    });
+    this.form.firstName = '';
+    this.form.lastName = '';
+    this.form.email = '';
+    this.form.password = '';
+    this.form.role = 'Team Member';
     this.showForm.set(true);
   }
 
   openEditForm(user: UserListItem): void {
     this.editingUserId.set(user.id);
-    this.form.set({
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      password: '',
-      role: user.role,
-    });
+    this.form.firstName = user.firstName;
+    this.form.lastName = user.lastName;
+    this.form.email = user.email;
+    this.form.password = '';
+    this.form.role = user.role;
     this.showForm.set(true);
   }
 
   submitForm(): void {
-    const currentForm = this.form();
+    const currentForm = this.form;
     if (!currentForm.firstName.trim() || !currentForm.lastName.trim() || !currentForm.email.trim()) {
       return;
     }

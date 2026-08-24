@@ -2,7 +2,7 @@
   <header class="page-head">
     <div>
       <p class="eyebrow">Project</p>
-      <h1>{{ isEditMode ? 'Edit Project' : 'Create Project' }}</h1>
+      <h1>{{ isEditMode() ? 'Edit Project' : 'Create Project' }}</h1>
     </div>
     <button type="button" class="secondary" (click)="back()">Back</button>
   </header>
@@ -38,15 +38,15 @@
 
       <div class="action-row">
         <button type="button" class="secondary" (click)="back()">Cancel</button>
-        <button type="submit" class="primary" [disabled]="isSubmitting || !form.name.trim()">
-          {{ isSubmitting ? 'Saving...' : (isEditMode ? 'Update Project' : 'Create Project') }}
+        <button type="submit" class="primary" [disabled]="isSubmitting() || !form.name.trim()">
+          {{ isSubmitting() ? 'Saving...' : (isEditMode() ? 'Update Project' : 'Create Project') }}
         </button>
       </div>
     </form>
 
-    <aside *ngIf="isEditMode && projectId" class="member-panel">
+    <aside *ngIf="isEditMode() && projectId()" class="member-panel">
       <h2>Project Members</h2>
-      <div class="member-controls" *ngIf="canManageMembers">
+      <div class="member-controls" *ngIf="canManageMembers()">
         <input type="number" min="1" [(ngModel)]="memberForm.userId" name="userId" placeholder="User Id" />
         <select [(ngModel)]="memberForm.role" name="role">
           <option *ngFor="let role of allowedRoles" [value]="role">{{ role }}</option>
@@ -55,17 +55,17 @@
       </div>
 
       <ul class="member-list">
-        <li *ngFor="let member of members">
+        <li *ngFor="let member of members()">
           <div>
             <strong>{{ member.userName }}</strong>
             <small>{{ member.email }}</small>
           </div>
           <span>{{ member.role }}</span>
-          <button *ngIf="canManageMembers" type="button" class="link-button" (click)="removeMember(member.userId)">Remove</button>
+          <button *ngIf="canManageMembers()" type="button" class="link-button" (click)="removeMember(member.userId)">Remove</button>
         </li>
       </ul>
 
-      <button *ngIf="project?.canDelete" type="button" class="danger" (click)="deleteProject()">Delete Project</button>
+      <button *ngIf="project()?.canDelete" type="button" class="danger" (click)="deleteProject()">Delete Project</button>
     </aside>
   </div>
 </section>

@@ -5,48 +5,48 @@
       <p class="eyebrow">Overview</p>
       <h1>Dashboard</h1>
     </div>
-    <button class="refresh-button" type="button" (click)="loadSummary(true)" [disabled]="isLoading">
-      {{ isLoading ? 'Refreshing...' : 'Refresh' }}
+    <button class="refresh-button" type="button" (click)="loadSummary(true)" [disabled]="isLoading()">
+      {{ isLoading() ? 'Refreshing...' : 'Refresh' }}
     </button>
   </div>
 
-  <div *ngIf="isLoading" class="loading-state">Loading dashboard data...</div>
+  <div *ngIf="isLoading()" class="loading-state">Loading dashboard data...</div>
 
-  <div *ngIf="errorMessage" class="error-state">{{ errorMessage }}</div>
+  <div *ngIf="errorMessage()" class="error-state">{{ errorMessage() }}</div>
 
-  <ng-container *ngIf="!isLoading && summary">
+  <ng-container *ngIf="!isLoading() && summary() as s">
     <div class="stats-grid">
       <article class="stat-card accent">
         <span>Total Projects</span>
-        <strong>{{ summary.totalProjects }}</strong>
+        <strong>{{ s.totalProjects }}</strong>
       </article>
       <article class="stat-card">
         <span>Total Tasks</span>
-        <strong>{{ summary.totalTasks }}</strong>
+        <strong>{{ s.totalTasks }}</strong>
       </article>
       <article class="stat-card warn">
         <span>Pending</span>
-        <strong>{{ summary.pendingTasks }}</strong>
+        <strong>{{ s.pendingTasks }}</strong>
       </article>
       <article class="stat-card success">
         <span>Completed</span>
-        <strong>{{ summary.completedTasks }}</strong>
+        <strong>{{ s.completedTasks }}</strong>
       </article>
     </div>
 
     <div class="summary-grid">
       <article class="panel progress-panel">
         <h2>Completion rate</h2>
-        <div class="progress-ring" [style.--percent]="getCompletionRate()">
-          <span>{{ getCompletionRate() }}%</span>
+        <div class="progress-ring" [style.--percent]="completionRate()">
+          <span>{{ completionRate() }}%</span>
         </div>
-        <p>{{ summary.completedTasks }} of {{ summary.totalTasks }} tasks completed</p>
+        <p>{{ s.completedTasks }} of {{ s.totalTasks }} tasks completed</p>
       </article>
 
       <article class="panel">
         <h2>Task status</h2>
-        <ul *ngIf="statusBreakdown.length; else noStatusData">
-          <li *ngFor="let item of statusBreakdown">
+        <ul *ngIf="statusBreakdown().length; else noStatusData">
+          <li *ngFor="let item of statusBreakdown()">
             <span>{{ formatLabel(item.key) }}</span>
             <strong>{{ item.value }}</strong>
           </li>
@@ -58,8 +58,8 @@
 
       <article class="panel">
         <h2>Priority mix</h2>
-        <ul *ngIf="priorityBreakdown.length; else noPriorityData">
-          <li *ngFor="let item of priorityBreakdown">
+        <ul *ngIf="priorityBreakdown().length; else noPriorityData">
+          <li *ngFor="let item of priorityBreakdown()">
             <span>{{ formatLabel(item.key) }}</span>
             <strong>{{ item.value }}</strong>
           </li>
@@ -72,8 +72,8 @@
 
     <article class="panel full-width-panel">
       <h2>Upcoming due</h2>
-      <ul *ngIf="urgentTasks.length; else noUrgentTasks">
-        <li *ngFor="let task of urgentTasks" class="task-row">
+      <ul *ngIf="urgentTasks().length; else noUrgentTasks">
+        <li *ngFor="let task of urgentTasks()" class="task-row">
           <div>
             <strong>{{ task.title }}</strong>
             <span>{{ formatLabel(task.status) }} · {{ formatLabel(task.priority) }}</span>
