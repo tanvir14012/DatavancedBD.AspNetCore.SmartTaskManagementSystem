@@ -8,10 +8,23 @@
   </header>
 
   <div class="form-shell">
+    @if (successMessage()) {
+      <div class="alert alert-success">
+        {{ successMessage() }}
+      </div>
+    }
+    @if (formErrors()['submit']) {
+      <div class="alert alert-error">
+        {{ formErrors()['submit'] }}
+      </div>
+    }
     <form class="project-form" (ngSubmit)="saveProject()">
       <div class="field">
         <label for="project-name">Project Name</label>
         <input id="project-name" type="text" [(ngModel)]="form.name" name="name" required />
+        @if (formErrors()['name']) {
+          <small class="error">{{ formErrors()['name'] }}</small>
+        }
       </div>
 
       <div class="field">

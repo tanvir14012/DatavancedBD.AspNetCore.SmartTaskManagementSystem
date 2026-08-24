@@ -21,6 +21,8 @@ export class ProjectFormPage implements OnInit {
   readonly project = signal<ProjectDetail | null>(null);
   readonly members = signal<ProjectItemMember[]>([]);
   readonly allowedRoles = signal(['Member', 'Manager']);
+  readonly formErrors = signal<Record<string, string>>({});
+  readonly successMessage = signal<string | null>(null);
   readonly memberForm = {
     userId: '',
     role: 'Member',
@@ -76,11 +78,23 @@ export class ProjectFormPage implements OnInit {
   }
 
   saveProject(): void {
+    const errors: Record<string, string> = {};
+
+    if (!this.form.name.trim()) {
+      errors['name'] = 'Project name is required.';
+    }
+
+    this.formErrors.set(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
     this.isSubmitting.set(true);
+    this.successMessage.set(null);
 
     const payload = {
-      name: this.form.name,
-      description: this.form.description || null,
+      name: this.form.name.trim(),
+      description: this.form.description?.trim() || null,
       startDate: this.form.startDate || null,
       endDate: this.form.endDate || null,
       isArchived: this.form.isArchived,
@@ -94,10 +108,17 @@ export class ProjectFormPage implements OnInit {
     request$.subscribe({
       next: (project) => {
         this.isSubmitting.set(false);
-        this.router.navigate(['/projects', project.id]);
+        this.successMessage.set(
+          this.isEditMode() ? 'Project updated successfully!' : 'Project created successfully!'
+        );
+        setTimeout(() => {
+          this.router.navigate(['/projects/list']);
+        }, 1500);
       },
-      error: () => {
+      error: (error) => {
         this.isSubmitting.set(false);
+        const errorMessage = error?.error?.errors?.['name']?.[0] || error?.error?.message || 'An error occurred while saving the project.';
+        this.formErrors.set({ submit: errorMessage });
       },
     });
   }
