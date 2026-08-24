@@ -11,7 +11,7 @@ public sealed class ImproveDescription : IEndpoint
             .WithTags("AI");
 
         group.MapPost("/improve-description", ImproveText)
-            .WithName("ImproveTaskDescriptionAi")
+            .WithName("ImproveTaskDescription")
             .WithSummary("Enhance raw notes into a clearer task description")
             .RequireAuthorization(policy => policy.RequireRole("Admin", "Project Manager", "Team Member"));
     }
