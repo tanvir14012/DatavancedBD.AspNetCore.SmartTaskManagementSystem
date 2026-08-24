@@ -42,8 +42,17 @@ public sealed class MigrationHostedService<TDbContext>(
         {
             using var scope = scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<TDbContext>();
-            await db.Database.MigrateAsync(cancellationToken);
-            logger.LogInformation("Migrations for {DbContext} applied successfully.", typeof(TDbContext).Name);
+            var pendingMigrations = await db.Database.GetPendingMigrationsAsync(cancellationToken);
+            if (pendingMigrations.Any())
+            {
+                logger.LogInformation("Applying {MigrationCount} pending migrations for {DbContext}...", pendingMigrations.Count(), typeof(TDbContext).Name);
+                await db.Database.MigrateAsync(cancellationToken);
+                logger.LogInformation("Migrations for {DbContext} applied successfully.", typeof(TDbContext).Name);
+            }
+            else
+            {
+                logger.LogInformation("No pending migrations for {DbContext}.", typeof(TDbContext).Name);
+            }
 
             int retries = 5;
             while (retries > 0 && !await db.Database.CanConnectAsync(cancellationToken))

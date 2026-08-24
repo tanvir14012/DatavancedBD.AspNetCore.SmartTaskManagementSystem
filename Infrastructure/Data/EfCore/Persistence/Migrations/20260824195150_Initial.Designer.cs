@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Infrastructure.Data.EfCore.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260824013625_Initial")]
+    [Migration("20260824195150_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -280,7 +280,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                             Icon = "list_alt",
                             Name = "All Projects",
                             ParentId = 2,
-                            Route = "/projects",
+                            Route = "/projects/list",
                             Type = 2
                         },
                         new
@@ -296,13 +296,24 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                         },
                         new
                         {
+                            Id = 41,
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            DisplayOrder = 3,
+                            Icon = "people",
+                            Name = "Assign Member",
+                            ParentId = 2,
+                            Route = "/projects/assign",
+                            Type = 2
+                        },
+                        new
+                        {
                             Id = 30,
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             DisplayOrder = 1,
                             Icon = "table_chart",
                             Name = "All Tasks",
                             ParentId = 3,
-                            Route = "/tasks",
+                            Route = "/tasks/list",
                             Type = 2
                         },
                         new
@@ -324,7 +335,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                             Icon = "manage_accounts",
                             Name = "All Users",
                             ParentId = 4,
-                            Route = "/users",
+                            Route = "/users/list",
                             Type = 2
                         });
                 });

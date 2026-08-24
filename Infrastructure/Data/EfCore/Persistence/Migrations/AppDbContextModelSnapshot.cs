@@ -277,7 +277,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                             Icon = "list_alt",
                             Name = "All Projects",
                             ParentId = 2,
-                            Route = "/projects",
+                            Route = "/projects/list",
                             Type = 2
                         },
                         new
@@ -310,7 +310,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                             Icon = "table_chart",
                             Name = "All Tasks",
                             ParentId = 3,
-                            Route = "/tasks",
+                            Route = "/tasks/list",
                             Type = 2
                         },
                         new
@@ -332,7 +332,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                             Icon = "manage_accounts",
                             Name = "All Users",
                             ParentId = 4,
-                            Route = "/users",
+                            Route = "/users/list",
                             Type = 2
                         });
                 });

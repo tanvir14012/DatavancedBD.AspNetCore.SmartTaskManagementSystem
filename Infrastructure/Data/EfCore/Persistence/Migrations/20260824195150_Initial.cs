@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -409,7 +409,8 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     { 21, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 2, "create_new_folder", "New Project", 2, "/projects/new", 2, null, null },
                     { 30, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 1, "table_chart", "All Tasks", 3, "/tasks/list", 2, null, null },
                     { 31, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 2, "view_kanban", "Task Board", 3, "/tasks/board", 2, null, null },
-                    { 40, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 1, "manage_accounts", "All Users", 4, "/users/list", 2, null, null }
+                    { 40, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 1, "manage_accounts", "All Users", 4, "/users/list", 2, null, null },
+                    { 41, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 3, "people", "Assign Member", 2, "/projects/assign", 2, null, null }
                 });
 
             migrationBuilder.CreateIndex(
