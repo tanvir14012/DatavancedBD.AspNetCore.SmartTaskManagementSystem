@@ -20,6 +20,7 @@ export class ProjectFormPage implements OnInit {
   readonly canManageMembers = signal(false);
   readonly project = signal<ProjectDetail | null>(null);
   readonly members = signal<ProjectItemMember[]>([]);
+  readonly allowedRoles = signal(['Member', 'Manager']);
   readonly memberForm = {
     userId: '',
     role: 'Member',
@@ -32,8 +33,6 @@ export class ProjectFormPage implements OnInit {
     isArchived: false,
   };
 
-  allowedRoles = ['Member', 'Manager'];
-
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly projectService = inject(ProjectService);
@@ -42,11 +41,13 @@ export class ProjectFormPage implements OnInit {
   ngOnInit(): void {
     const role = this.authService.currentUser()?.role ?? '';
     if (role === 'Admin') {
-      this.allowedRoles = ['Manager', 'Member'];
+      this.allowedRoles.set(['Owner', 'Manager', 'Member', 'Viewer']);
+    } else if (role === 'Project Manager') {
+      this.allowedRoles.set(['Manager', 'Member']);
+    } else {
+      this.allowedRoles.set(['Member']);
     }
-    if (role === 'Project Manager') {
-      this.allowedRoles = ['Member'];
-    }
+    this.memberForm.role = this.allowedRoles()[0] ?? 'Member';
 
     const routeId = this.route.snapshot.paramMap.get('id');
     if (routeId) {
@@ -115,7 +116,7 @@ export class ProjectFormPage implements OnInit {
       })
       .subscribe(() => {
         this.memberForm.userId = '';
-        this.memberForm.role = this.allowedRoles[0] ?? 'Member';
+        this.memberForm.role = this.allowedRoles()[0] ?? 'Member';
         this.loadProject();
       });
   }

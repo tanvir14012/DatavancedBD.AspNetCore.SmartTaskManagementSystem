@@ -6,6 +6,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 import { ProjectService } from '../../core/services/project.service';
 import { TaskListItem, TaskService } from '../../core/services/task.service';
+import { UserService } from '../../core/services/user.service';
 
 @Component({
   selector: 'app-tasks-page',
@@ -18,6 +19,8 @@ import { TaskListItem, TaskService } from '../../core/services/task.service';
 export class TasksPage implements OnInit {
   readonly tasks = signal<TaskListItem[]>([]);
   readonly projects = signal<Array<{ id: number; name: string }>>([]);
+  readonly projectMembers = signal<Array<{ userId: string; userName: string; email: string }>>([]);
+  readonly allUsers = signal<Array<{ id: number; firstName: string; lastName: string; email: string }>>([]);
   readonly page = signal(1);
   readonly pageSize = 10;
   readonly totalCount = signal(0);
@@ -26,6 +29,7 @@ export class TasksPage implements OnInit {
   readonly projectFilter = signal('all');
   readonly statusFilter = signal('all');
   readonly priorityFilter = signal('all');
+  readonly assigneeFilter = signal('all');
   readonly sortColumn = signal('CreatedAt');
   readonly sortDirection = signal('desc');
   readonly isAdmin = signal(false);
@@ -34,6 +38,8 @@ export class TasksPage implements OnInit {
   readonly showForm = signal(false);
   readonly editingTaskId = signal<number | null>(null);
   readonly isLoading = signal(false);
+  readonly loadingMembers = signal(false);
+  readonly formErrors = signal<Record<string, string>>({});
   readonly form = {
     projectId: '',
     title: '',
@@ -41,6 +47,7 @@ export class TasksPage implements OnInit {
     status: 'Todo',
     priority: 'Medium',
     dueDate: '',
+    assigneeEmail: '',
   };
 
   private readonly destroyRef = inject(DestroyRef);
@@ -49,6 +56,7 @@ export class TasksPage implements OnInit {
   constructor(
     private readonly taskService: TaskService,
     private readonly projectService: ProjectService,
+    private readonly userService: UserService,
     private readonly authService: AuthService,
   ) {}
 
@@ -62,6 +70,7 @@ export class TasksPage implements OnInit {
       });
 
     this.loadProjects();
+    this.loadUsers();
     this.loadTasks();
   }
 
@@ -72,12 +81,49 @@ export class TasksPage implements OnInit {
     this.canCreateTask.set(role === 'Admin' || role === 'Project Manager');
   }
 
+  readonly Object = Object;
+
   loadProjects(): void {
     this.projectService.getProjects({ start: 0, length: 200, status: 'all' }).subscribe((result) => {
       const projectsList = result.items.map((project) => ({ id: project.id, name: project.name }));
       this.projects.set(projectsList);
       if (projectsList.length > 0 && !this.form.projectId) {
         this.form.projectId = String(projectsList[0].id);
+        this.loadProjectMembers(projectsList[0].id);
+      }
+    });
+  }
+
+  loadProjectMembers(projectId: number): void {
+    this.loadingMembers.set(true);
+    this.projectService.getMembers(projectId).subscribe({
+      next: (members) => {
+        this.projectMembers.set(members.map(m => ({
+          userId: String(m.userId),
+          userName: m.userName,
+          email: m.email
+        })));
+        this.loadingMembers.set(false);
+      },
+      error: () => {
+        this.projectMembers.set([]);
+        this.loadingMembers.set(false);
+      }
+    });
+  }
+
+  loadUsers(): void {
+    this.userService.list({ start: 0, length: 500, status: 'all' }).subscribe({
+      next: (result) => {
+        this.allUsers.set(result.items.map(u => ({
+          id: u.id,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          email: u.email
+        })));
+      },
+      error: () => {
+        this.allUsers.set([]);
       }
     });
   }
@@ -93,6 +139,7 @@ export class TasksPage implements OnInit {
         projectId: this.projectFilter() === 'all' ? undefined : Number(this.projectFilter()),
         status: this.statusFilter() === 'all' ? undefined : this.statusFilter(),
         priority: this.priorityFilter() === 'all' ? undefined : this.priorityFilter(),
+        assigneeId: this.assigneeFilter() === 'all' ? undefined : this.assigneeFilter(),
         sortColumn: this.sortColumn(),
         sortDirection: this.sortDirection(),
       })
@@ -128,12 +175,22 @@ export class TasksPage implements OnInit {
   openCreateForm(): void {
     this.editingTaskId.set(null);
     this.form.projectId = this.projects()[0] ? String(this.projects()[0].id) : '';
+    if (this.form.projectId) {
+      this.loadProjectMembers(Number(this.form.projectId));
+    }
     this.form.title = '';
     this.form.description = '';
     this.form.status = 'Todo';
     this.form.priority = 'Medium';
     this.form.dueDate = '';
+    this.form.assigneeEmail = '';
     this.showForm.set(true);
+  }
+
+  onProjectChange(): void {
+    if (this.form.projectId) {
+      this.loadProjectMembers(Number(this.form.projectId));
+    }
   }
 
   openEditForm(task: TaskListItem): void {
@@ -144,12 +201,32 @@ export class TasksPage implements OnInit {
     this.form.status = task.status;
     this.form.priority = task.priority;
     this.form.dueDate = task.dueDate ?? '';
+    this.form.assigneeEmail = '';
+    this.loadProjectMembers(task.projectId);
     this.showForm.set(true);
   }
 
   submitForm(): void {
     const currentForm = this.form;
-    if (!currentForm.title.trim() || !currentForm.projectId) {
+    const errors: Record<string, string> = {};
+
+    if (!currentForm.projectId) {
+      errors['projectId'] = 'Project is required.';
+    }
+
+    if (!currentForm.title.trim()) {
+      errors['title'] = 'Title is required.';
+    } else if (currentForm.title.trim().length > 200) {
+      errors['title'] = 'Title must be less than 200 characters.';
+    }
+
+    if (currentForm.description && currentForm.description.trim().length > 2000) {
+      errors['description'] = 'Description must be less than 2000 characters.';
+    }
+
+    this.formErrors.set(errors);
+
+    if (Object.keys(errors).length > 0) {
       return;
     }
 
@@ -160,6 +237,7 @@ export class TasksPage implements OnInit {
       status: currentForm.status,
       priority: currentForm.priority,
       dueDate: currentForm.dueDate || null,
+      assigneeEmail: currentForm.assigneeEmail?.trim() || null,
     };
 
     const editingId = this.editingTaskId();
@@ -169,6 +247,7 @@ export class TasksPage implements OnInit {
 
     request$.subscribe(() => {
       this.showForm.set(false);
+      this.formErrors.set({});
       this.loadTasks();
     });
   }
