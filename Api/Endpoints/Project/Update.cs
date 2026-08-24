@@ -65,6 +65,7 @@ public sealed class Update : IEndpoint
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await cacheService.RemoveByPatternAsync("projects:list:*", cancellationToken);
+        await cacheService.RemoveAsync($"ef:Project:{id}", cancellationToken);
 
         var members = await dbContext.UserProjects
             .AsNoTracking()
