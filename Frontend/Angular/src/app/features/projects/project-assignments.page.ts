@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
@@ -34,6 +34,7 @@ export class ProjectAssignmentsPage implements OnInit {
   allowedRoles = ['Member', 'Viewer'];
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly searchSubject = new Subject<string>();
 
   constructor(
@@ -62,7 +63,6 @@ export class ProjectAssignmentsPage implements OnInit {
   loadProjects(): void {
     this.projectService
       .getProjects({ start: 0, length: 200 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
           this.projects = result.items;
@@ -72,9 +72,11 @@ export class ProjectAssignmentsPage implements OnInit {
           if (this.projectFilter !== 'all' && !this.projects.some((project) => project.id === Number(this.projectFilter))) {
             this.projectFilter = 'all';
           }
+          this.cdr.markForCheck();
         },
         error: () => {
           this.projects = [];
+          this.cdr.markForCheck();
         },
       });
   }
@@ -82,22 +84,24 @@ export class ProjectAssignmentsPage implements OnInit {
   loadUsers(): void {
     this.userService
       .list({ start: 0, length: 250 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
           this.users = result.items;
           if (!this.selectedUserId && this.users.length > 0) {
             this.selectedUserId = this.users[0].id;
           }
+          this.cdr.markForCheck();
         },
         error: () => {
           this.users = [];
+          this.cdr.markForCheck();
         },
       });
   }
 
   loadAssignments(): void {
     this.isLoading = true;
+    this.cdr.markForCheck();
     const projectId = this.projectFilter === 'all' ? undefined : Number(this.projectFilter);
 
     this.projectService
@@ -108,21 +112,23 @@ export class ProjectAssignmentsPage implements OnInit {
         role: this.roleFilter,
         projectId,
       })
-      .pipe(
-        finalize(() => (this.isLoading = false)),
-        takeUntilDestroyed(this.destroyRef)
-      )
+      .pipe(finalize(() => {
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe({
         next: (result) => {
           this.assignments = result.items;
           this.totalCount = result.totalCount;
           this.totalPages = result.totalPages || 1;
           this.page = Math.min(this.page, this.totalPages || 1);
+          this.cdr.markForCheck();
         },
         error: () => {
           this.assignments = [];
           this.totalCount = 0;
           this.totalPages = 1;
+          this.cdr.markForCheck();
         },
       });
   }
@@ -146,15 +152,16 @@ export class ProjectAssignmentsPage implements OnInit {
     }
 
     this.isSubmitting = true;
+    this.cdr.markForCheck();
     this.projectService
       .assignMember(this.selectedProjectId, {
         userId: this.selectedUserId,
         role: this.selectedRole as 'Owner' | 'Manager' | 'Member' | 'Viewer',
       })
-      .pipe(
-        finalize(() => (this.isSubmitting = false)),
-        takeUntilDestroyed(this.destroyRef)
-      )
+      .pipe(finalize(() => {
+        this.isSubmitting = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe({
         next: () => {
           this.selectedUserId = this.users.find((user) => user.id !== this.selectedUserId)?.id ?? null;
@@ -173,17 +180,14 @@ export class ProjectAssignmentsPage implements OnInit {
       return;
     }
 
-    this.projectService
-      .removeMember(item.projectId, item.userId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.loadAssignments();
-        },
-        error: () => {
-          window.alert('Unable to remove this user from the project.');
-        },
-      });
+    this.projectService.removeMember(item.projectId, item.userId).subscribe({
+      next: () => {
+        this.loadAssignments();
+      },
+      error: () => {
+        window.alert('Unable to remove this user from the project.');
+      },
+    });
   }
 
   prevPage(): void {

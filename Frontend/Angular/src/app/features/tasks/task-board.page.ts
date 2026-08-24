@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
@@ -26,6 +26,7 @@ export class TaskBoardPage implements OnInit {
   canAccessBoard = false;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly searchSubject = new Subject<string>();
 
   constructor(
@@ -53,16 +54,15 @@ export class TaskBoardPage implements OnInit {
   }
 
   loadProjects(): void {
-    this.projectService
-      .getProjects({ start: 0, length: 200 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result) => {
-        this.projects = result.items.map((project) => ({ id: project.id, name: project.name }));
-      });
+    this.projectService.getProjects({ start: 0, length: 200 }).subscribe((result) => {
+      this.projects = result.items.map((project) => ({ id: project.id, name: project.name }));
+      this.cdr.markForCheck();
+    });
   }
 
   loadBoard(): void {
     this.isLoading = true;
+    this.cdr.markForCheck();
 
     this.taskService
       .board({
@@ -70,16 +70,18 @@ export class TaskBoardPage implements OnInit {
         priority: this.priorityFilter === 'all' ? undefined : this.priorityFilter,
         search: this.search.trim() || undefined,
       })
-      .pipe(
-        finalize(() => (this.isLoading = false)),
-        takeUntilDestroyed(this.destroyRef)
-      )
+      .pipe(finalize(() => {
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe({
         next: (result) => {
           this.columns = result.columns;
+          this.cdr.markForCheck();
         },
         error: () => {
           this.columns = [];
+          this.cdr.markForCheck();
         },
       });
   }
@@ -102,7 +104,6 @@ export class TaskBoardPage implements OnInit {
         priority: task.priority,
         dueDate: task.dueDate ?? null,
       })
-      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.loadBoard());
   }
 

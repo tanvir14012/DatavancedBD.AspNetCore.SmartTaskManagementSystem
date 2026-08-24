@@ -1,9 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { finalize, tap } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
@@ -17,7 +16,7 @@ export class RegisterPage {
   private readonly formBuilder = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly loading = signal(false);
   readonly fieldErrors = signal<Record<string, string[]>>({});
@@ -44,6 +43,7 @@ export class RegisterPage {
     this.loading.set(true);
     this.generalError.set('');
     this.fieldErrors.set({});
+    this.cdr.markForCheck();
 
     this.authService
       .register({
@@ -56,14 +56,20 @@ export class RegisterPage {
         tap(() => {
           this.router.navigateByUrl('/dashboard');
         }),
-        finalize(() => this.loading.set(false)),
-        takeUntilDestroyed(this.destroyRef)
+        finalize(() => {
+          this.loading.set(false);
+          this.cdr.markForCheck();
+        }),
       )
       .subscribe({
+        next: () => {
+          this.cdr.markForCheck();
+        },
         error: (error: unknown) => {
           const parsed = this.parseApiError(error);
           this.fieldErrors.set(parsed.fieldErrors);
           this.generalError.set(parsed.generalError);
+          this.cdr.markForCheck();
         },
       });
   }

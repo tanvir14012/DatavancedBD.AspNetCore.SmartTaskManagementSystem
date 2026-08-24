@@ -1,5 +1,5 @@
 ﻿import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -30,6 +30,7 @@ export class UsersPage implements OnInit {
   isLoading = false;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly searchSubject = new Subject<string>();
 
   form = {
@@ -59,6 +60,7 @@ export class UsersPage implements OnInit {
 
   loadUsers(): void {
     this.isLoading = true;
+    this.cdr.markForCheck();
 
     this.userService
       .list({
@@ -70,21 +72,23 @@ export class UsersPage implements OnInit {
         role: this.roleFilter,
         status: this.statusFilter,
       })
-      .pipe(
-        finalize(() => (this.isLoading = false)),
-        takeUntilDestroyed(this.destroyRef)
-      )
+      .pipe(finalize(() => {
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe({
         next: (result) => {
           this.users = result.items;
           this.totalCount = result.totalCount;
           this.totalPages = result.totalPages || 1;
           this.page = Math.min(this.page, this.totalPages || 1);
+          this.cdr.markForCheck();
         },
         error: () => {
           this.users = [];
           this.totalCount = 0;
           this.totalPages = 1;
+          this.cdr.markForCheck();
         },
       });
   }
@@ -143,7 +147,7 @@ export class UsersPage implements OnInit {
       ? this.userService.create(payload)
       : this.userService.update(this.editingUserId, payload);
 
-    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+    request$.subscribe(() => {
       this.showForm = false;
       this.loadUsers();
     });
@@ -158,7 +162,7 @@ export class UsersPage implements OnInit {
       return;
     }
 
-    this.userService.delete(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+    this.userService.delete(id).subscribe(() => {
       this.loadUsers();
     });
   }
