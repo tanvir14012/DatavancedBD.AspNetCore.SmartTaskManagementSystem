@@ -302,7 +302,7 @@ export class TasksPage implements OnInit {
     this.improvingDescription.set(true);
     this.taskService.improveDescription(this.form.description).subscribe({
       next: (result) => {
-        this.form.description = result.improvedDescription;
+        this.form.description = result.improved;
         this.improvingDescription.set(false);
       },
       error: () => {

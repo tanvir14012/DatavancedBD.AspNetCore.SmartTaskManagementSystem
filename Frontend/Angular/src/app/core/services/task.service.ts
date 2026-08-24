@@ -185,7 +185,7 @@ export class TaskService {
     return this.http.delete<{ message: string; userId: string; taskId: number }>(`${this.baseUrl}/${id}/assign/${userId}`, { withCredentials: true });
   }
 
-  improveDescription(description: string): Observable<{ improvedDescription: string }> {
-    return this.http.post<{ improvedDescription: string }>(`${this.baseUrl}/improve-description`, { description }, { withCredentials: true });
+  improveDescription(description: string): Observable<{ improved: string }> {
+    return this.http.post<{ improved: string }>(`${environment.apiBaseUrl}/ai/improve-description`, { text: description }, { withCredentials: true });
   }
 }
