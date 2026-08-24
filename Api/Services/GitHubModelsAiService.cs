@@ -57,13 +57,16 @@ public sealed class GitHubModelsAiService : IAiService
                     new { role = "user", content = prompt }
                 },
                 model = _options.Model,
-                temperature = 0.3,
+                temperature = 0.7,
                 max_tokens = 500
             };
 
+            var requestJson = JsonSerializer.Serialize(request);
+            _logger.LogDebug("Sending request to Groq: {RequestJson}", requestJson);
+
             using var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{_options.GroqEndpoint}/chat/completions")
             {
-                Content = new StringContent(JsonSerializer.Serialize(request), System.Text.Encoding.UTF8, "application/json")
+                Content = new StringContent(requestJson, System.Text.Encoding.UTF8, "application/json")
             };
 
             requestMessage.Headers.Add("Authorization", $"Bearer {_options.GroqApiKey}");
@@ -72,7 +75,8 @@ public sealed class GitHubModelsAiService : IAiService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("Groq API returned status code {StatusCode}", response.StatusCode);
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Groq API returned status code {StatusCode}: {ErrorContent}", response.StatusCode, errorContent);
                 return null;
             }
 
