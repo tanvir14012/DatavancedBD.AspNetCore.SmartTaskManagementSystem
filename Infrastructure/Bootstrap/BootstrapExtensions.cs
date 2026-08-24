@@ -194,6 +194,7 @@ public static class BootstrapExtensions
         }
 
         app.UseMiddleware<RequestTracingMiddleware>();
+        app.UseCors(); // CORS must be before exception handler to handle preflight requests
 
         app.UseExceptionHandler(errorApp =>
         {
@@ -219,7 +220,6 @@ public static class BootstrapExtensions
         });
 
         app.UseSerilogRequestLogging();
-        app.UseCors();
         app.UseRateLimiter();   // 429 + Retry-After before auth — protects all endpoints
         app.UseHttpResponseCaching();
         app.UseAuthentication();
