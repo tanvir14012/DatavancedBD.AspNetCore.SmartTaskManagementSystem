@@ -1,4 +1,5 @@
 import { Component, Input, inject, signal } from '@angular/core';
+import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { take } from 'rxjs';
 import { MenuItem, UserProfile } from '../../core/models/menu-item.model';
@@ -7,7 +8,7 @@ import { AuthService } from '../../core/services/auth.service';
 @Component({
   selector: 'app-top-nav',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink, RouterLinkActive, MatIconModule],
   templateUrl: './top-nav.component.html',
   styleUrls: ['./top-nav.component.scss']
 })
