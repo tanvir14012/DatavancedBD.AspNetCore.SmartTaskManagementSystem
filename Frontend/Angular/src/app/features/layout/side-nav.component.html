@@ -4,9 +4,8 @@
         <div class="nav-group">
           <a
             class="nav-link"
+            [class.active]="isParentActive(item)"
             [routerLink]="item.route"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{ exact: false }"
             [attr.title]="item.name"
           >
             <mat-icon aria-hidden="true">{{ item.icon || 'circle' }}</mat-icon>
@@ -18,9 +17,8 @@
               @for (child of item.children; track child.id) {
                 <a
                   class="sub-link"
+                  [class.active]="isChildActive(child.route)"
                   [routerLink]="child.route"
-                  routerLinkActive="active"
-                  [routerLinkActiveOptions]="{ exact: false }"
                   [attr.title]="child.name"
                 >
                   <mat-icon aria-hidden="true">{{ child.icon || 'chevron_right' }}</mat-icon>
