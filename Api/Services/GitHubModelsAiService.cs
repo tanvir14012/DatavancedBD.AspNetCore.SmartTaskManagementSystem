@@ -10,7 +10,7 @@ public sealed class GitHubModelsAiService : IAiService
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubModelsAiService> _logger;
 
-    public bool IsEnabled => _options.Enabled && !string.IsNullOrWhiteSpace(_options.GitHubModelsApiKey);
+    public bool IsEnabled => _options.Enabled && !string.IsNullOrWhiteSpace(_options.GroqApiKey);
 
     public GitHubModelsAiService(
         IOptions<AiOptions> options,
@@ -61,18 +61,18 @@ public sealed class GitHubModelsAiService : IAiService
                 max_tokens = 500
             };
 
-            using var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{_options.GitHubModelsEndpoint}/chat/completions")
+            using var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{_options.GroqEndpoint}/chat/completions")
             {
                 Content = new StringContent(JsonSerializer.Serialize(request), System.Text.Encoding.UTF8, "application/json")
             };
 
-            requestMessage.Headers.Add("Authorization", $"Bearer {_options.GitHubModelsApiKey}");
+            requestMessage.Headers.Add("Authorization", $"Bearer {_options.GroqApiKey}");
 
             var response = await _httpClient.SendAsync(requestMessage, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("GitHub Models API returned status code {StatusCode}", response.StatusCode);
+                _logger.LogError("Groq API returned status code {StatusCode}", response.StatusCode);
                 return null;
             }
 
@@ -93,7 +93,7 @@ public sealed class GitHubModelsAiService : IAiService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error calling GitHub Models API");
+            _logger.LogError(ex, "Error calling Groq API");
             return null;
         }
     }
