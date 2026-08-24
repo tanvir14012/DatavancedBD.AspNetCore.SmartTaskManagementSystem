@@ -2,12 +2,14 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Api.Options;
 using Application.Interfaces;
 using Domain;
 using Infrastructure.AssemblyScan;
 using Infrastructure.Data.EfCore.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Api.Services;
@@ -15,7 +17,8 @@ namespace Api.Services;
 public sealed class AuthService(
     AppDbContext dbContext,
     UserManager<AppUser> userManager,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    IOptions<AuthenticationOptions> authOptions)
     : IAuthService, IScopedService
 {
     public async Task<TokenPair> CreateTokenPairAsync(AppUser user, CancellationToken cancellationToken = default)
@@ -29,7 +32,7 @@ public sealed class AuthService(
             User = user,
             TokenHash = HashToken(refreshToken),
             CreatedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(7)
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(authOptions.Value.RefreshTokenExpirationDays)
         };
 
         dbContext.RefreshTokens.Add(userRefreshToken);
@@ -115,7 +118,7 @@ public sealed class AuthService(
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(30),
+            expires: DateTime.UtcNow.AddMinutes(authOptions.Value.AccessTokenExpirationMinutes),
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

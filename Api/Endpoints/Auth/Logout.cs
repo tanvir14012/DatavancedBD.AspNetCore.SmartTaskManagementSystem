@@ -1,6 +1,8 @@
+using Api.Options;
 using Application.Interfaces;
 using Infrastructure.Bootstrap;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Api.Endpoints.Auth;
 
@@ -18,17 +20,25 @@ public sealed class Logout : IEndpoint
     }
 
     private static async Task<IResult> LogoutUser(
-        [FromBody] LogoutRequest request,
+        HttpContext httpContext,
         IAuthService authService,
+        IOptions<AuthenticationOptions> authOptions,
         CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(request.RefreshToken))
+        var refreshToken = httpContext.Request.Cookies[authOptions.Value.RefreshTokenCookieName];
+        if (!string.IsNullOrWhiteSpace(refreshToken))
         {
-            await authService.RevokeRefreshTokenAsync(request.RefreshToken, cancellationToken);
+            await authService.RevokeRefreshTokenAsync(refreshToken, cancellationToken);
         }
+
+        httpContext.Response.Cookies.Delete(authOptions.Value.RefreshTokenCookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.None,
+            Path = "/"
+        });
 
         return Results.Ok(new { message = "Logged out successfully." });
     }
 }
-
-public sealed record LogoutRequest(string? RefreshToken);

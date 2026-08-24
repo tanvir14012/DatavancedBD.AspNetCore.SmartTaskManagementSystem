@@ -6,9 +6,8 @@ export const authGuard: CanActivateFn = () => {
   const isLoggedIn = Boolean(localStorage.getItem('stms.token'));
 
   if (isLoggedIn) {
-    return true;
+    return router.createUrlTree(['/dashboard']);
   }
 
-  router.navigate(['/login']);
-  return false;
+  return router.createUrlTree(['/homepage']);
 };

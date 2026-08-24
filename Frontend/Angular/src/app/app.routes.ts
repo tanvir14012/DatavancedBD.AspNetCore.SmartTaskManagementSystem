@@ -4,8 +4,16 @@ import { AppShellComponent } from './features/layout/app-shell.component';
 
 export const routes: Routes = [
   {
+    path: 'homepage',
+    loadComponent: () => import('./features/home/homepage.page').then((m) => m.HomepagePage),
+  },
+  {
     path: 'login',
     loadComponent: () => import('./features/auth/login.page').then((m) => m.LoginPage),
+  },
+  {
+    path: 'register',
+    loadComponent: () => import('./features/auth/register.page').then((m) => m.RegisterPage),
   },
   {
     path: '',
@@ -31,5 +39,8 @@ export const routes: Routes = [
       },
     ],
   },
-  { path: '**', redirectTo: 'dashboard' },
+  {
+    path: '**',
+    canActivate: [authGuard],
+  },
 ];
