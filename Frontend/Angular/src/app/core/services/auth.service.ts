@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, signal } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, map, of, shareReplay, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { UserProfile } from '../models/menu-item.model';
 
@@ -34,83 +34,107 @@ interface RegisterRequest {
   password: string;
 }
 
+interface AuthState {
+  token: string | null;
+  expiresAt: number | null;
+  user: UserProfile | null;
+  isAuthenticated: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  readonly isAuthenticated = signal(false);
-  readonly currentUser = signal<UserProfile | null>(null);
+  private readonly authStateSubject = new BehaviorSubject<AuthState>(this.readStoredState());
+
+  readonly authState$ = this.authStateSubject.asObservable();
+  readonly isAuthenticated$ = this.authState$.pipe(
+    map((state) => state.isAuthenticated),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
+  readonly currentUser$ = this.authState$.pipe(
+    map((state) => state.user),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
+  readonly isAuthenticated = signal(this.authStateSubject.value.isAuthenticated);
+  readonly currentUser = signal<UserProfile | null>(this.authStateSubject.value.user);
 
   private refreshTimerId: number | null = null;
 
   constructor(private readonly http: HttpClient) {
-    const token = localStorage.getItem('stms.token');
-    const cachedUser = localStorage.getItem('stms.user');
-    const expiresAt = Number(localStorage.getItem('stms.expiresAt'));
-
-    this.isAuthenticated.set(Boolean(token));
-
-    if (cachedUser) {
-      this.currentUser.set(JSON.parse(cachedUser) as UserProfile);
-    }
-
-    if (token && Number.isFinite(expiresAt)) {
-      this.scheduleRefresh(expiresAt);
-    }
+    this.syncSignals(this.authStateSubject.value);
+    this.restoreSession();
   }
 
-  async login(email: string, password: string): Promise<UserProfile> {
-    const payload = await firstValueFrom(
-      this.http.post<LoginResponse>(`${environment.apiBaseUrl}/auth/login`, { email, password } as LoginRequest, {
+  login(email: string, password: string): Observable<UserProfile> {
+    return this.http
+      .post<LoginResponse>(`${environment.apiBaseUrl}/auth/login`, { email, password } as LoginRequest, {
         withCredentials: true,
-      }),
-    );
-
-    const user = this.toUserProfile(payload.user);
-    this.persistSession(payload.accessToken, payload.expiresIn, user);
-    return user;
+      })
+      .pipe(
+        tap((response) => {
+          const user = this.toUserProfile(response.user);
+          this.persistSession(response.accessToken, response.expiresIn, user);
+        }),
+        map((response) => this.toUserProfile(response.user)),
+        shareReplay({ bufferSize: 1, refCount: true }),
+      );
   }
 
-  async register(payload: RegisterRequest): Promise<UserProfile> {
-    const response = await firstValueFrom(
-      this.http.post<LoginResponse>(`${environment.apiBaseUrl}/auth/register`, payload, {
+  register(payload: RegisterRequest): Observable<UserProfile> {
+    return this.http
+      .post<LoginResponse>(`${environment.apiBaseUrl}/auth/register`, payload, {
         withCredentials: true,
-      }),
-    );
-
-    const user = this.toUserProfile(response.user);
-    this.persistSession(response.accessToken, response.expiresIn, user);
-    return user;
+      })
+      .pipe(
+        tap((response) => {
+          const user = this.toUserProfile(response.user);
+          this.persistSession(response.accessToken, response.expiresIn, user);
+        }),
+        map((response) => this.toUserProfile(response.user)),
+        shareReplay({ bufferSize: 1, refCount: true }),
+      );
   }
 
-  async refreshAccessToken(): Promise<string> {
-    const response = await firstValueFrom(
-      this.http.post<RefreshResponse>(`${environment.apiBaseUrl}/auth/refresh`, {}, { withCredentials: true }),
-    );
-
-    const user = this.currentUser();
-    if (user) {
-      localStorage.setItem('stms.user', JSON.stringify(user));
-    }
-
-    localStorage.setItem('stms.token', response.accessToken);
-    localStorage.setItem('stms.expiresAt', String(Date.now() + response.expiresIn * 1000));
-    this.scheduleRefresh(Date.now() + response.expiresIn * 1000);
-    return response.accessToken;
+  refreshAccessToken(): Observable<string> {
+    return this.http
+      .post<RefreshResponse>(`${environment.apiBaseUrl}/auth/refresh`, {}, { withCredentials: true })
+      .pipe(
+        tap((response) => {
+          const expiresAt = Date.now() + response.expiresIn * 1000;
+          this.persistToken(response.accessToken, expiresAt);
+        }),
+        map((response) => response.accessToken),
+        shareReplay({ bufferSize: 1, refCount: true }),
+        catchError((error) => {
+          this.logout().subscribe();
+          return throwError(() => error);
+        }),
+      );
   }
 
-  logout(): void {
+  logout(): Observable<void> {
     this.clearRefreshTimer();
 
-    if (localStorage.getItem('stms.token')) {
-      this.http.post(`${environment.apiBaseUrl}/auth/logout`, {}, { withCredentials: true }).subscribe({
-        error: () => undefined,
-      });
-    }
+    const request$ = localStorage.getItem('stms.token')
+      ? this.http.post<void>(`${environment.apiBaseUrl}/auth/logout`, {}, { withCredentials: true }).pipe(
+          catchError(() => of(void 0)),
+        )
+      : of(void 0);
 
-    localStorage.removeItem('stms.token');
-    localStorage.removeItem('stms.user');
-    localStorage.removeItem('stms.expiresAt');
-    this.currentUser.set(null);
-    this.isAuthenticated.set(false);
+    return request$.pipe(
+      tap(() => {
+        localStorage.removeItem('stms.token');
+        localStorage.removeItem('stms.user');
+        localStorage.removeItem('stms.expiresAt');
+        this.syncSignals({ token: null, expiresAt: null, user: null, isAuthenticated: false });
+      }),
+    );
+  }
+
+  private restoreSession(): void {
+    const state = this.readStoredState();
+    if (state.isAuthenticated && state.expiresAt !== null) {
+      this.scheduleRefresh(state.expiresAt);
+    }
   }
 
   private persistSession(accessToken: string, expiresIn: number, user: UserProfile): void {
@@ -119,9 +143,47 @@ export class AuthService {
     localStorage.setItem('stms.expiresAt', String(expiresAt));
     localStorage.setItem('stms.user', JSON.stringify(user));
 
-    this.currentUser.set(user);
-    this.isAuthenticated.set(true);
+    this.syncSignals({ token: accessToken, expiresAt, user, isAuthenticated: true });
     this.scheduleRefresh(expiresAt);
+  }
+
+  private persistToken(accessToken: string, expiresAt: number): void {
+    localStorage.setItem('stms.token', accessToken);
+    localStorage.setItem('stms.expiresAt', String(expiresAt));
+
+    const currentUser = this.authStateSubject.value.user;
+    if (currentUser) {
+      localStorage.setItem('stms.user', JSON.stringify(currentUser));
+    }
+
+    this.syncSignals({
+      token: accessToken,
+      expiresAt,
+      user: currentUser,
+      isAuthenticated: currentUser !== null,
+    });
+
+    this.scheduleRefresh(expiresAt);
+  }
+
+  private readStoredState(): AuthState {
+    const token = localStorage.getItem('stms.token');
+    const cachedUser = localStorage.getItem('stms.user');
+    const expiresAt = Number(localStorage.getItem('stms.expiresAt'));
+    const user = cachedUser ? (JSON.parse(cachedUser) as UserProfile) : null;
+
+    return {
+      token: token ?? null,
+      expiresAt: Number.isFinite(expiresAt) ? expiresAt : null,
+      user,
+      isAuthenticated: Boolean(token && user),
+    };
+  }
+
+  private syncSignals(state: AuthState): void {
+    this.authStateSubject.next(state);
+    this.currentUser.set(state.user);
+    this.isAuthenticated.set(state.isAuthenticated);
   }
 
   private toUserProfile(user: LoginResponse['user']): UserProfile {
@@ -142,12 +204,12 @@ export class AuthService {
 
     const delayMs = expiresAt - Date.now() - 60_000;
     if (delayMs <= 0) {
-      void this.refreshAccessToken().catch(() => this.logout());
+      this.refreshAccessToken().subscribe();
       return;
     }
 
     this.refreshTimerId = window.setTimeout(() => {
-      void this.refreshAccessToken().catch(() => this.logout());
+      this.refreshAccessToken().subscribe();
     }, delayMs);
   }
 

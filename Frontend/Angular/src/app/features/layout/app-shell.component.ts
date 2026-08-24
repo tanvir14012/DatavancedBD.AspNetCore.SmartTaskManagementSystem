@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { MenuService } from '../../core/services/menu.service';
@@ -12,13 +12,7 @@ import { SideNavComponent } from './side-nav.component';
   templateUrl: './app-shell.component.html',
   styleUrls: ['./app-shell.component.scss']
 })
-export class AppShellComponent implements OnInit {
-  constructor(
-    public readonly menuService: MenuService,
-    public readonly authService: AuthService,
-  ) {}
-
-  async ngOnInit(): Promise<void> {
-    await this.menuService.loadMenus();
-  }
+export class AppShellComponent {
+  readonly menuService = inject(MenuService);
+  readonly authService = inject(AuthService);
 }

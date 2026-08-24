@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { finalize, tap } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
@@ -31,7 +32,7 @@ export class RegisterPage {
     return this.fieldErrors()[controlName] ?? [];
   }
 
-  async submit(): Promise<void> {
+  submit(): void {
     this.form.markAllAsTouched();
 
     if (this.form.invalid) {
@@ -42,31 +43,38 @@ export class RegisterPage {
     this.generalError.set('');
     this.fieldErrors.set({});
 
-    try {
-      await this.authService.register({
+    this.authService
+      .register({
         firstName: this.form.value.firstName ?? '',
         lastName: this.form.value.lastName ?? '',
         email: this.form.value.email ?? '',
         password: this.form.value.password ?? '',
+      })
+      .pipe(
+        tap(() => {
+          this.router.navigateByUrl('/dashboard');
+        }),
+        finalize(() => this.loading.set(false)),
+      )
+      .subscribe({
+        error: (error: unknown) => {
+          const parsed = this.parseApiError(error);
+          this.fieldErrors.set(parsed.fieldErrors);
+          this.generalError.set(parsed.generalError);
+        },
       });
-      await this.router.navigateByUrl('/dashboard');
-    } catch (error) {
-      const parsed = this.parseApiError(error);
-      this.fieldErrors.set(parsed.fieldErrors);
-      this.generalError.set(parsed.generalError);
-    } finally {
-      this.loading.set(false);
-    }
   }
 
   private parseApiError(error: unknown): { fieldErrors: Record<string, string[]>; generalError: string } {
     const httpError = error as HttpErrorResponse;
     const payload = (httpError.error ?? {}) as Record<string, unknown>;
-    const fieldErrors = ((payload['errors'] ?? {}) as Record<string, unknown>);
+    const fieldErrors = payload['errors'] ?? {};
     const normalized: Record<string, string[]> = {};
 
-    for (const [key, value] of Object.entries(fieldErrors)) {
-      normalized[key] = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [String(value)];
+    for (const [key, value] of Object.entries(fieldErrors as Record<string, unknown>)) {
+      normalized[key] = Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === 'string')
+        : [String(value)];
     }
 
     const generalError =
