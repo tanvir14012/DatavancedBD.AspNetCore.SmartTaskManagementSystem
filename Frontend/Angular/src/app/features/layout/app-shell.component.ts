@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { MenuService } from '../../core/services/menu.service';
@@ -12,7 +12,13 @@ import { SideNavComponent } from './side-nav.component';
   templateUrl: './app-shell.component.html',
   styleUrls: ['./app-shell.component.scss']
 })
-export class AppShellComponent {
+export class AppShellComponent implements OnInit {
   readonly menuService = inject(MenuService);
   readonly authService = inject(AuthService);
+
+  ngOnInit(): void {
+    if (this.authService.isAuthenticated()) {
+      this.menuService.loadMenus().subscribe();
+    }
+  }
 }

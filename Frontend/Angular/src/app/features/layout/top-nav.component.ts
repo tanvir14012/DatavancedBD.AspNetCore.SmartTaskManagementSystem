@@ -1,4 +1,4 @@
-import { Component, Input, inject } from '@angular/core';
+import { Component, Input, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { take } from 'rxjs';
 import { MenuItem, UserProfile } from '../../core/models/menu-item.model';
@@ -15,10 +15,17 @@ export class TopNavComponent {
   @Input() menus: MenuItem[] = [];
   @Input() user: UserProfile | null = null;
 
+  readonly userMenuOpen = signal(false);
+
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
+  toggleUserMenu(): void {
+    this.userMenuOpen.update((open) => !open);
+  }
+
   logout(): void {
+    this.userMenuOpen.set(false);
     this.authService
       .logout()
       .pipe(take(1))

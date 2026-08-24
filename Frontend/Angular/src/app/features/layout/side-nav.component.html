@@ -1,5 +1,5 @@
 
-    <aside class="side-nav">
+    <aside class="side-nav" aria-label="Sidebar navigation">
       @for (item of items; track item.id) {
         <div class="nav-group">
           <a
@@ -7,9 +7,10 @@
             [routerLink]="item.route"
             routerLinkActive="active"
             [routerLinkActiveOptions]="{ exact: false }"
+            [attr.title]="item.name"
           >
-            <span class="icon">{{ item.icon }}</span>
-            <span>{{ item.name }}</span>
+            <span class="icon" aria-hidden="true">{{ item.icon || '•' }}</span>
+            <span class="label">{{ item.name }}</span>
           </a>
 
           @if (item.children && item.children.length > 0) {
@@ -20,6 +21,7 @@
                   [routerLink]="child.route"
                   routerLinkActive="active"
                   [routerLinkActiveOptions]="{ exact: false }"
+                  [attr.title]="child.name"
                 >
                   {{ child.name }}
                 </a>
