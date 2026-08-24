@@ -1,6 +1,7 @@
 using Api.Options;
-using Application.Interfaces;
+using Application.Features.Auth.Logout;
 using Infrastructure.Bootstrap;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -21,15 +22,12 @@ public sealed class Logout : IEndpoint
 
     private static async Task<IResult> LogoutUser(
         HttpContext httpContext,
-        IAuthService authService,
         IOptions<AuthenticationOptions> authOptions,
+        [FromServices] ISender sender,
         CancellationToken cancellationToken)
     {
         var refreshToken = httpContext.Request.Cookies[authOptions.Value.RefreshTokenCookieName];
-        if (!string.IsNullOrWhiteSpace(refreshToken))
-        {
-            await authService.RevokeRefreshTokenAsync(refreshToken, cancellationToken);
-        }
+        var result = await sender.Send(new Command(refreshToken), cancellationToken);
 
         httpContext.Response.Cookies.Delete(authOptions.Value.RefreshTokenCookieName, new CookieOptions
         {
@@ -39,6 +37,8 @@ public sealed class Logout : IEndpoint
             Path = "/"
         });
 
-        return Results.Ok(new { message = "Logged out successfully." });
+        return result.Succeeded
+            ? Results.Ok(new { message = "Logged out successfully." })
+            : Results.Ok(new { message = "Logged out successfully." });
     }
 }

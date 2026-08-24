@@ -1,8 +1,7 @@
 using Api.Options;
-using Application.Interfaces;
-using Domain;
+using Application.Features.Auth.Login;
 using Infrastructure.Bootstrap;
-using Microsoft.AspNetCore.Identity;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -23,43 +22,31 @@ public sealed class Login : IEndpoint
     }
 
     private static async Task<IResult> LoginUser(
-        [FromBody] LoginRequest request,
+        [FromBody] Command command,
         HttpContext httpContext,
-        UserManager<AppUser> userManager,
-        IAuthService authService,
         IOptions<AuthenticationOptions> authOptions,
+        [FromServices] ISender sender,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["email"] = ["Email and password are required."]
-            });
-        }
-
-        var user = await userManager.FindByEmailAsync(request.Email.Trim());
-        if (user is null || !await userManager.CheckPasswordAsync(user, request.Password))
+        var result = await sender.Send(command, cancellationToken);
+        if (result is null)
         {
             return Results.Unauthorized();
         }
 
-        var tokens = await authService.CreateTokenPairAsync(user, cancellationToken);
-        var roles = await userManager.GetRolesAsync(user);
-
-        SetRefreshTokenCookie(httpContext, tokens.RefreshToken, authOptions.Value);
+        SetRefreshTokenCookie(httpContext, result.RefreshToken, authOptions.Value);
 
         return Results.Ok(new
         {
             user = new
             {
-                user.Id,
-                user.Email,
-                user.FirstName,
-                user.LastName,
-                roles
+                result.User.Id,
+                result.User.Email,
+                result.User.FirstName,
+                result.User.LastName,
+                roles = result.User.Roles
             },
-            accessToken = tokens.AccessToken,
+            accessToken = result.AccessToken,
             expiresIn = authOptions.Value.AccessTokenExpirationMinutes * 60
         });
     }
@@ -77,5 +64,3 @@ public sealed class Login : IEndpoint
         });
     }
 }
-
-public sealed record LoginRequest(string Email, string Password);

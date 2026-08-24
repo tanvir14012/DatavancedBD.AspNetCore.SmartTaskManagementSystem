@@ -1,6 +1,7 @@
 using Api.Options;
-using Application.Interfaces;
+using Application.Features.Auth.RefreshToken;
 using Infrastructure.Bootstrap;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -21,27 +22,22 @@ public sealed class Refresh : IEndpoint
 
     private static async Task<IResult> RefreshTokens(
         HttpContext httpContext,
-        IAuthService authService,
         IOptions<AuthenticationOptions> authOptions,
+        [FromServices] ISender sender,
         CancellationToken cancellationToken)
     {
         var refreshToken = httpContext.Request.Cookies[authOptions.Value.RefreshTokenCookieName];
-        if (string.IsNullOrWhiteSpace(refreshToken))
+        var result = await sender.Send(new Command(refreshToken), cancellationToken);
+        if (result is null)
         {
             return Results.Unauthorized();
         }
 
-        var rotated = await authService.RotateRefreshTokenAsync(refreshToken, cancellationToken);
-        if (rotated is null)
-        {
-            return Results.Unauthorized();
-        }
-
-        SetRefreshTokenCookie(httpContext, rotated.RefreshToken, authOptions.Value);
+        SetRefreshTokenCookie(httpContext, result.RefreshToken, authOptions.Value);
 
         return Results.Ok(new
         {
-            accessToken = rotated.AccessToken,
+            accessToken = result.AccessToken,
             expiresIn = authOptions.Value.AccessTokenExpirationMinutes * 60
         });
     }
