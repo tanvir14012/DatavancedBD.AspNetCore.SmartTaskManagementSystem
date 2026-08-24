@@ -1,0 +1,88 @@
+<section class="board-page">
+  <header class="page-head">
+    <div>
+      <p class="eyebrow">Execution</p>
+      <h1>Task Board</h1>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <label class="field">
+      <span>Project</span>
+      <select [(ngModel)]="projectFilter" (change)="loadBoard()">
+        <option value="all">All projects</option>
+        <option *ngFor="let project of projects" [value]="project.id">{{ project.name }}</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Priority</span>
+      <select [(ngModel)]="priorityFilter" (change)="loadBoard()">
+        <option value="all">All priorities</option>
+        <option value="Low">Low</option>
+        <option value="Medium">Medium</option>
+        <option value="High">High</option>
+        <option value="Critical">Critical</option>
+      </select>
+    </label>
+
+    <label class="field search-field">
+      <span>Search</span>
+      <input type="search" [(ngModel)]="search" placeholder="Search board" (keyup.enter)="loadBoard()" />
+    </label>
+
+    <button type="button" class="primary" (click)="loadBoard()">Apply</button>
+  </div>
+
+  <div class="board" *ngIf="columns.length > 0; else emptyBoard">
+    <div class="board-column" *ngFor="let column of columns" [ngClass]="'status-' + statusClass(column.status)">
+      <div class="column-header">
+        <span>{{ statusLabel(column.status) }}</span>
+        <span class="count">{{ column.taskCount }}</span>
+      </div>
+
+      <div class="column-body" *ngIf="column.tasks.length > 0; else emptyColumn">
+        <article class="task-card" *ngFor="let task of column.tasks">
+          <div class="task-card-head">
+            <div>
+              <h3>{{ task.title }}</h3>
+              <small>{{ task.projectName }}</small>
+            </div>
+            <span class="pill" [ngClass]="'priority-' + priorityClass(task.priority)">{{ priorityLabel(task.priority) }}</span>
+          </div>
+
+          <p *ngIf="task.description" class="task-description">{{ task.description }}</p>
+
+          <div class="meta-row">
+            <span *ngIf="task.dueDate">Due {{ task.dueDate | date: 'mediumDate' }}</span>
+            <span *ngIf="task.assignees.length > 0">Assignees: {{ task.assignees.join(', ') }}</span>
+          </div>
+
+          <div class="task-actions">
+            <button *ngIf="task.canEdit" type="button" class="secondary" [routerLink]="['/tasks']" [queryParams]="{ taskId: task.id }">Edit</button>
+            <select
+              *ngIf="task.canEdit"
+              [ngModel]="task.status"
+              (change)="updateTaskStatus(task, $any($event.target).value)"
+              class="status-select"
+              aria-label="Move task status"
+            >
+              <option value="Todo">To do</option>
+              <option value="InProgress">In progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+        </article>
+      </div>
+
+      <ng-template #emptyColumn>
+        <div class="empty-column">No tasks in this lane.</div>
+      </ng-template>
+    </div>
+  </div>
+
+  <ng-template #emptyBoard>
+    <div class="empty-state" *ngIf="!isLoading">No tasks match the active filters.</div>
+  </ng-template>
+</section>

@@ -40,6 +40,32 @@ export interface TaskDetail {
   canDelete: boolean;
 }
 
+export interface TaskBoardCard {
+  id: number;
+  projectId: number;
+  projectName: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: string;
+  dueDate?: string | null;
+  assignees: string[];
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
+export interface TaskBoardColumn {
+  status: string;
+  title: string;
+  taskCount: number;
+  tasks: TaskBoardCard[];
+}
+
+export interface TaskBoardResult {
+  totalCount: number;
+  columns: TaskBoardColumn[];
+}
+
 export interface TaskCreateRequest {
   projectId: number;
   title: string;
@@ -63,6 +89,7 @@ export interface TaskUpdateRequest {
 export class TaskService {
   private readonly baseUrl = `${environment.apiBaseUrl}/tasks`;
   private readonly listCache = new Map<string, Observable<TaskListResult>>();
+  private readonly boardCache = new Map<string, Observable<TaskBoardResult>>();
 
   constructor(private readonly http: HttpClient) {}
 
@@ -99,22 +126,49 @@ export class TaskService {
     return request$;
   }
 
+  board(params: { projectId?: number; search?: string; priority?: string } = {}): Observable<TaskBoardResult> {
+    const normalizedParams = { ...params };
+    const key = JSON.stringify(normalizedParams);
+    const cached = this.boardCache.get(key);
+
+    if (cached) {
+      return cached;
+    }
+
+    let httpParams = new HttpParams();
+    Object.entries(normalizedParams).forEach(([keyName, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        httpParams = httpParams.set(keyName, String(value));
+      }
+    });
+
+    const request$ = this.http
+      .get<TaskBoardResult>(`${this.baseUrl}/board`, { params: httpParams, withCredentials: true })
+      .pipe(shareReplay({ bufferSize: 1, refCount: true }));
+
+    this.boardCache.set(key, request$);
+    return request$;
+  }
+
   getTask(id: number): Observable<TaskDetail> {
     return this.http.get<TaskDetail>(`${this.baseUrl}/${id}`, { withCredentials: true });
   }
 
   create(payload: TaskCreateRequest): Observable<TaskDetail> {
     this.listCache.clear();
+    this.boardCache.clear();
     return this.http.post<TaskDetail>(this.baseUrl, payload, { withCredentials: true });
   }
 
   update(id: number, payload: TaskUpdateRequest): Observable<TaskDetail> {
     this.listCache.clear();
+    this.boardCache.clear();
     return this.http.put<TaskDetail>(`${this.baseUrl}/${id}`, payload, { withCredentials: true });
   }
 
   delete(id: number): Observable<{ success: boolean; id: number }> {
     this.listCache.clear();
+    this.boardCache.clear();
     return this.http.delete<{ success: boolean; id: number }>(`${this.baseUrl}/${id}`, { withCredentials: true });
   }
 }
