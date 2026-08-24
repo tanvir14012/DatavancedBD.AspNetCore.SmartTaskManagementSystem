@@ -41,7 +41,11 @@ export class ProjectsPage implements OnInit {
 
   ngOnInit(): void {
     this.searchSubject
-      .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe(() => {
         this.page = 1;
         this.loadProjects();
@@ -62,7 +66,10 @@ export class ProjectsPage implements OnInit {
         sortDirection: this.sortDirection,
         status: this.statusFilter,
       })
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(
+        finalize(() => (this.isLoading = false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (result) => {
           this.projects = result.items;

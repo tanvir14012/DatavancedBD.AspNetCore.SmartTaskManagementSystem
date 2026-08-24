@@ -70,7 +70,10 @@ export class UsersPage implements OnInit {
         role: this.roleFilter,
         status: this.statusFilter,
       })
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(
+        finalize(() => (this.isLoading = false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (result) => {
           this.users = result.items;
@@ -140,7 +143,7 @@ export class UsersPage implements OnInit {
       ? this.userService.create(payload)
       : this.userService.update(this.editingUserId, payload);
 
-    request$.subscribe(() => {
+    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.showForm = false;
       this.loadUsers();
     });
@@ -155,7 +158,7 @@ export class UsersPage implements OnInit {
       return;
     }
 
-    this.userService.delete(id).subscribe(() => {
+    this.userService.delete(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.loadUsers();
     });
   }

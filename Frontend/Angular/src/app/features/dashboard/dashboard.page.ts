@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { DashboardService, DashboardSummary } from '../../core/services/dashboard.service';
 
@@ -12,6 +13,7 @@ import { DashboardService, DashboardSummary } from '../../core/services/dashboar
 })
 export class DashboardPage implements OnInit {
   private readonly dashboardService = inject(DashboardService);
+  private readonly destroyRef = inject(DestroyRef);
 
   summary: DashboardSummary | null = null;
   isLoading = true;
@@ -27,7 +29,10 @@ export class DashboardPage implements OnInit {
 
     this.dashboardService
       .getSummary(undefined, forceReload)
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(
+        finalize(() => (this.isLoading = false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (data) => {
           this.summary = data;

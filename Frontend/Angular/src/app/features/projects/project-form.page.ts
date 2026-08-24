@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 import { ProjectDetail, ProjectItemMember, ProjectService } from '../../core/services/project.service';
 
@@ -33,6 +34,8 @@ export class ProjectFormPage implements OnInit {
     isArchived: false,
   };
 
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor(
     private readonly route: ActivatedRoute,
     private readonly router: Router,
@@ -62,18 +65,21 @@ export class ProjectFormPage implements OnInit {
       return;
     }
 
-    this.projectService.getProject(this.projectId).subscribe((project) => {
-      this.project = project;
-      this.form = {
-        name: project.name,
-        description: project.description ?? '',
-        startDate: project.startDate ?? '',
-        endDate: project.endDate ?? '',
-        isArchived: false,
-      };
-      this.members = project.members ?? [];
-      this.canManageMembers = project.canEdit;
-    });
+    this.projectService
+      .getProject(this.projectId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((project) => {
+        this.project = project;
+        this.form = {
+          name: project.name,
+          description: project.description ?? '',
+          startDate: project.startDate ?? '',
+          endDate: project.endDate ?? '',
+          isArchived: false,
+        };
+        this.members = project.members ?? [];
+        this.canManageMembers = project.canEdit;
+      });
   }
 
   saveProject(): void {
@@ -91,15 +97,17 @@ export class ProjectFormPage implements OnInit {
       ? this.projectService.updateProject(this.projectId, payload)
       : this.projectService.createProject(payload);
 
-    request$.subscribe({
-      next: (project) => {
-        this.isSubmitting = false;
-        this.router.navigate(['/projects', project.id]);
-      },
-      error: () => {
-        this.isSubmitting = false;
-      },
-    });
+    request$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (project) => {
+          this.isSubmitting = false;
+          this.router.navigate(['/projects', project.id]);
+        },
+        error: () => {
+          this.isSubmitting = false;
+        },
+      });
   }
 
   assignMember(): void {
@@ -112,6 +120,7 @@ export class ProjectFormPage implements OnInit {
         userId: Number(this.memberForm.userId),
         role: this.memberForm.role as 'Owner' | 'Manager' | 'Member' | 'Viewer',
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.memberForm.userId = '';
         this.memberForm.role = this.allowedRoles[0] ?? 'Member';
@@ -124,9 +133,12 @@ export class ProjectFormPage implements OnInit {
       return;
     }
 
-    this.projectService.removeMember(this.projectId, userId).subscribe(() => {
-      this.loadProject();
-    });
+    this.projectService
+      .removeMember(this.projectId, userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.loadProject();
+      });
   }
 
   deleteProject(): void {
@@ -139,9 +151,12 @@ export class ProjectFormPage implements OnInit {
       return;
     }
 
-    this.projectService.deleteProject(this.projectId).subscribe(() => {
-      this.router.navigate(['/projects']);
-    });
+    this.projectService
+      .deleteProject(this.projectId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.router.navigate(['/projects']);
+      });
   }
 
   back(): void {
