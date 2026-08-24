@@ -20,6 +20,7 @@ public sealed class ImproveDescription : IEndpoint
     private static async Task<IResult> Improve(
         [FromBody] ImproveDescriptionRequest request,
         IAiService aiService,
+        ILogger<ImproveDescription> logger,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Text))
@@ -30,23 +31,32 @@ public sealed class ImproveDescription : IEndpoint
             });
         }
 
-        try
+        if (aiService.IsEnabled)
         {
-            var improvedDescription = await aiService.ImproveDescriptionAsync(request.Text, cancellationToken);
-
-            if (!string.IsNullOrWhiteSpace(improvedDescription))
+            try
             {
-                return Results.Ok(new
+                var improvedDescription = await aiService.ImproveDescriptionAsync(request.Text, cancellationToken);
+
+                if (!string.IsNullOrWhiteSpace(improvedDescription))
                 {
-                    original = request.Text,
-                    improved = improvedDescription,
-                    summary = "Using GitHub Models AI to enhance clarity and actionability of task descriptions."
-                });
+                    return Results.Ok(new
+                    {
+                        original = request.Text,
+                        improved = improvedDescription,
+                        summary = "Using GitHub Models AI to enhance clarity and actionability of task descriptions."
+                    });
+                }
+
+                logger.LogWarning("AI service returned empty result, falling back to local processing");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "AI service failed, falling back to local processing");
             }
         }
-        catch
+        else
         {
-            // Fall through to fallback implementation
+            logger.LogInformation("AI service is not enabled, using local text processing");
         }
 
         // Fallback: Use local text processing
