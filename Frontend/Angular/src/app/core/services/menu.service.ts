@@ -24,10 +24,7 @@ export class MenuService {
       this.menuRequest$ = this.http
         .get<MenuResponse>(`${environment.apiBaseUrl}/menus/`)
         .pipe(
-          map((response) => ({
-            topBar: response.topBar ?? [],
-            sideBar: response.sideBar ?? [],
-          })),
+          map((response) => this.normalizeMenuResponse(response)),
           tap((response) => this.persistMenus(response)),
           tap((response) => {
             this.topBarMenus.set(response.topBar);
@@ -56,6 +53,19 @@ export class MenuService {
     this.sideBarMenus.set([]);
   }
 
+  private normalizeMenuResponse(response: Partial<MenuResponse> | null | undefined): MenuResponse {
+    const topBar = Array.isArray(response?.topBar) ? (response?.topBar as MenuItem[]) : [];
+    const sideBar = topBar.flatMap((item) => {
+      const children = Array.isArray(item.children) ? item.children : [];
+      return children.length > 0 ? children : [item];
+    });
+
+    return {
+      topBar,
+      sideBar,
+    };
+  }
+
   private persistMenus(menus: MenuResponse): void {
     localStorage.setItem(MenuService.MENU_STORAGE_KEY, JSON.stringify(menus));
   }
@@ -68,10 +78,7 @@ export class MenuService {
       }
 
       const parsed = JSON.parse(cached) as Partial<MenuResponse>;
-      return {
-        topBar: Array.isArray(parsed.topBar) ? (parsed.topBar as MenuItem[]) : [],
-        sideBar: Array.isArray(parsed.sideBar) ? (parsed.sideBar as MenuItem[]) : [],
-      };
+      return this.normalizeMenuResponse(parsed);
     } catch {
       return { topBar: [], sideBar: [] };
     }

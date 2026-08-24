@@ -9,7 +9,7 @@
             [routerLinkActiveOptions]="{ exact: false }"
             [attr.title]="item.name"
           >
-            <span class="icon" aria-hidden="true">{{ item.icon || '•' }}</span>
+            <mat-icon aria-hidden="true">{{ item.icon || 'circle' }}</mat-icon>
             <span class="label">{{ item.name }}</span>
           </a>
 
@@ -23,7 +23,8 @@
                   [routerLinkActiveOptions]="{ exact: false }"
                   [attr.title]="child.name"
                 >
-                  {{ child.name }}
+                  <mat-icon aria-hidden="true">{{ child.icon || 'chevron_right' }}</mat-icon>
+                  <span>{{ child.name }}</span>
                 </a>
               }
             </div>
