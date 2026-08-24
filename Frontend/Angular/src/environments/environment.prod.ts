@@ -1,5 +1,6 @@
 export const environment = {
   production: true,
+  apiBaseUrl: '/api',
   apiGatewayUrl: '/api',
   /** Public CDN base URL served by Nginx edge proxy in production. */
   cdnBaseUrl: 'https://cdn.yourdomain.com',
