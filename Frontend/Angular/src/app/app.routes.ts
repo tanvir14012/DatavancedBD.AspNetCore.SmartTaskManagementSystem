@@ -41,6 +41,7 @@ export const routes: Routes = [
   },
   {
     path: '**',
+    loadComponent: () => import('./features/not-found/not-found.page').then((m) => m.NotFoundPage),
     canActivate: [authGuard],
   },
 ];
