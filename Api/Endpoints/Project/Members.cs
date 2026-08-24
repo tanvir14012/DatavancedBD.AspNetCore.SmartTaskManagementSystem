@@ -165,7 +165,15 @@ public sealed class Members : IEndpoint
             return Results.Forbid();
         }
 
-        if (!isAdmin && request.Role == ProjectRole.Manager)
+        if (!Enum.TryParse<ProjectRole>(request.Role, true, out var parsedRole))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["role"] = ["Invalid role. Must be one of: Owner, Manager, Member, Viewer"]
+            });
+        }
+
+        if (!isAdmin && parsedRole == ProjectRole.Manager)
         {
             return Results.Forbid();
         }
@@ -185,18 +193,18 @@ public sealed class Members : IEndpoint
             {
                 ProjectId = id,
                 UserId = request.UserId,
-                ProjectRole = request.Role,
+                ProjectRole = parsedRole,
                 JoinedAt = DateTime.UtcNow
             });
         }
         else
         {
-            currentMembership.ProjectRole = request.Role;
+            currentMembership.ProjectRole = parsedRole;
             currentMembership.JoinedAt = DateTime.UtcNow;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new { projectId = id, userId = request.UserId, role = request.Role });
+        return Results.Ok(new { projectId = id, userId = request.UserId, role = parsedRole });
     }
 
     private static async Task<IResult> RemoveMember(
@@ -237,5 +245,5 @@ public sealed class Members : IEndpoint
     }
 }
 
-public sealed record AssignProjectMemberRequest(int UserId, ProjectRole Role);
+public sealed record AssignProjectMemberRequest(int UserId, string Role);
 public sealed record ProjectAssignmentSummary(int ProjectId, string ProjectName, int UserId, string UserName, string Email, ProjectRole Role);
