@@ -184,4 +184,8 @@ export class TaskService {
     this.clearListCache();
     return this.http.delete<{ message: string; userId: string; taskId: number }>(`${this.baseUrl}/${id}/assign/${userId}`, { withCredentials: true });
   }
+
+  improveDescription(description: string): Observable<{ improvedDescription: string }> {
+    return this.http.post<{ improvedDescription: string }>(`${this.baseUrl}/improve-description`, { description }, { withCredentials: true });
+  }
 }
