@@ -45,6 +45,12 @@ export class SideNavComponent {
 
   private normalizeRoute(route: string): string {
     const normalized = route.split('?')[0].split('#')[0].trim();
-    return normalized || '/dashboard';
+    const cleaned = normalized.replace(/\/+$/, '');
+
+    if (!cleaned) {
+      return '/dashboard';
+    }
+
+    return cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
   }
 }
