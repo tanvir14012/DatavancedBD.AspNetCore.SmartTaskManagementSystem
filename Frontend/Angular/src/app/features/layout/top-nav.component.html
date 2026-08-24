@@ -1,36 +1,42 @@
-<header class="top-nav">
+<mat-toolbar class="top-nav" color="primary">
   <nav class="nav-left" aria-label="Main navigation">
     @for (item of menus; track item.id) {
       <a
+        mat-flat-button
         class="nav-item"
         [routerLink]="getItemRoute(item)"
         routerLinkActive="active"
         [routerLinkActiveOptions]="{ exact: false }"
       >
-        <mat-icon aria-hidden="true">{{ item.icon }}</mat-icon>
+        <mat-icon aria-hidden="true">{{ item.icon || 'dashboard' }}</mat-icon>
         <span>{{ item.name }}</span>
       </a>
     }
   </nav>
 
   <div class="nav-right">
-    <button class="icon-btn" aria-label="Notifications" type="button">🔔</button>
+    <button mat-icon-button class="icon-btn" aria-label="Notifications" type="button">
+      <mat-icon>notifications</mat-icon>
+    </button>
 
-    <div class="user-menu-wrapper">
-      <button class="user-card" type="button" (click)="toggleUserMenu()" aria-label="Open user menu">
-        <img [src]="user?.imageUrl ?? 'https://api.dicebear.com/7.x/initials/svg?seed=User'" alt="User avatar" />
-        <div class="user-meta">
-          <strong>{{ user?.name ?? 'Guest User' }}</strong>
-          <small>{{ user?.role ?? 'Team Member' }}</small>
-        </div>
-      </button>
+    <button class="user-card" mat-button type="button" [matMenuTriggerFor]="userMenu" aria-label="Open user menu">
+      <img [src]="user?.imageUrl ?? 'https://api.dicebear.com/7.x/initials/svg?seed=User'" alt="User avatar" />
+      <span class="user-meta">
+        <strong>{{ user?.name ?? 'Guest User' }}</strong>
+        <small>{{ user?.role ?? 'Team Member' }}</small>
+      </span>
+      <mat-icon>expand_more</mat-icon>
+    </button>
 
-      @if (userMenuOpen()) {
-        <div class="user-menu" role="menu" aria-label="User actions">
-          <span class="user-email">{{ user?.email ?? 'guest@example.com' }}</span>
-          <button class="logout-btn" type="button" (click)="logout()">Logout</button>
-        </div>
-      }
-    </div>
+    <mat-menu #userMenu="matMenu" xPosition="before" yPosition="below">
+      <div class="user-menu-panel">
+        <span class="user-email">{{ user?.email ?? 'guest@example.com' }}</span>
+        <mat-divider></mat-divider>
+        <button mat-menu-item type="button" (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          <span>Logout</span>
+        </button>
+      </div>
+    </mat-menu>
   </div>
-</header>
+</mat-toolbar>
