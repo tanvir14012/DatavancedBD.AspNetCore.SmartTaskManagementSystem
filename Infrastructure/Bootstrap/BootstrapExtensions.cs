@@ -64,16 +64,19 @@ public static class BootstrapExtensions
             })
             .AddJwtBearer(options =>
             {
+                var issuer = builder.Configuration["Jwt:Issuer"] ?? "https://localhost:7108";
+                var audience = builder.Configuration["Jwt:Audience"] ?? "https://localhost:4200";
+                var key = builder.Configuration["Jwt:Key"] ?? "ThisIsADevelopmentJwtSigningKey_ReplaceInProduction!";
+
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = builder.Configuration["Jwt:Issuer"],   // e.g. "https://localhost:7108"
-                    ValidAudience = builder.Configuration["Jwt:Audience"], // e.g. "https://localhost:4200"
-                    IssuerSigningKey = new SymmetricSecurityKey(
-                                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])) // secret key
+                    ValidIssuer = issuer,
+                    ValidAudience = audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
                 };
             });
 
