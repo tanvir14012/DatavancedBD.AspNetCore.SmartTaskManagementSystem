@@ -53,9 +53,12 @@ export class TaskBoardPage implements OnInit {
   }
 
   loadProjects(): void {
-    this.projectService.getProjects({ start: 0, length: 200 }).subscribe((result) => {
-      this.projects = result.items.map((project) => ({ id: project.id, name: project.name }));
-    });
+    this.projectService
+      .getProjects({ start: 0, length: 200 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        this.projects = result.items.map((project) => ({ id: project.id, name: project.name }));
+      });
   }
 
   loadBoard(): void {
@@ -67,7 +70,10 @@ export class TaskBoardPage implements OnInit {
         priority: this.priorityFilter === 'all' ? undefined : this.priorityFilter,
         search: this.search.trim() || undefined,
       })
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(
+        finalize(() => (this.isLoading = false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (result) => {
           this.columns = result.columns;
@@ -96,6 +102,7 @@ export class TaskBoardPage implements OnInit {
         priority: task.priority,
         dueDate: task.dueDate ?? null,
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.loadBoard());
   }
 

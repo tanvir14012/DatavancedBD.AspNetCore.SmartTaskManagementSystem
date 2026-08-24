@@ -58,7 +58,11 @@ export class TasksPage implements OnInit {
   ngOnInit(): void {
     this.syncRoleFlags();
     this.searchSubject
-      .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe(() => {
         this.page = 1;
         this.loadTasks();
@@ -76,12 +80,15 @@ export class TasksPage implements OnInit {
   }
 
   loadProjects(): void {
-    this.projectService.getProjects({ start: 0, length: 200, status: 'all' }).subscribe((result) => {
-      this.projects = result.items.map((project) => ({ id: project.id, name: project.name }));
-      if (this.projects.length > 0 && !this.form.projectId) {
-        this.form.projectId = String(this.projects[0].id);
-      }
-    });
+    this.projectService
+      .getProjects({ start: 0, length: 200, status: 'all' })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        this.projects = result.items.map((project) => ({ id: project.id, name: project.name }));
+        if (this.projects.length > 0 && !this.form.projectId) {
+          this.form.projectId = String(this.projects[0].id);
+        }
+      });
   }
 
   loadTasks(): void {
@@ -98,7 +105,10 @@ export class TasksPage implements OnInit {
         sortColumn: this.sortColumn,
         sortDirection: this.sortDirection,
       })
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(
+        finalize(() => (this.isLoading = false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (result) => {
           this.tasks = result.items;
@@ -171,7 +181,7 @@ export class TasksPage implements OnInit {
       ? this.taskService.create(payload)
       : this.taskService.update(this.editingTaskId, payload);
 
-    request$.subscribe(() => {
+    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.showForm = false;
       this.loadTasks();
     });
@@ -182,7 +192,7 @@ export class TasksPage implements OnInit {
       return;
     }
 
-    this.taskService.delete(id).subscribe(() => {
+    this.taskService.delete(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.loadTasks();
     });
   }

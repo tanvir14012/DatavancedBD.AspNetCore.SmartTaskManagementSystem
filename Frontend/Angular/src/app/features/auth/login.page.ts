@@ -1,8 +1,9 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { finalize, tap } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
@@ -16,6 +17,7 @@ export class LoginPage {
   private readonly formBuilder = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(false);
   readonly fieldErrors = signal<Record<string, string[]>>({});
@@ -48,6 +50,7 @@ export class LoginPage {
           this.router.navigateByUrl('/dashboard');
         }),
         finalize(() => this.loading.set(false)),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         error: (error: unknown) => {

@@ -62,6 +62,7 @@ export class ProjectAssignmentsPage implements OnInit {
   loadProjects(): void {
     this.projectService
       .getProjects({ start: 0, length: 200 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
           this.projects = result.items;
@@ -81,6 +82,7 @@ export class ProjectAssignmentsPage implements OnInit {
   loadUsers(): void {
     this.userService
       .list({ start: 0, length: 250 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
           this.users = result.items;
@@ -106,7 +108,10 @@ export class ProjectAssignmentsPage implements OnInit {
         role: this.roleFilter,
         projectId,
       })
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(
+        finalize(() => (this.isLoading = false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (result) => {
           this.assignments = result.items;
@@ -146,7 +151,10 @@ export class ProjectAssignmentsPage implements OnInit {
         userId: this.selectedUserId,
         role: this.selectedRole as 'Owner' | 'Manager' | 'Member' | 'Viewer',
       })
-      .pipe(finalize(() => (this.isSubmitting = false)))
+      .pipe(
+        finalize(() => (this.isSubmitting = false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: () => {
           this.selectedUserId = this.users.find((user) => user.id !== this.selectedUserId)?.id ?? null;
@@ -165,14 +173,17 @@ export class ProjectAssignmentsPage implements OnInit {
       return;
     }
 
-    this.projectService.removeMember(item.projectId, item.userId).subscribe({
-      next: () => {
-        this.loadAssignments();
-      },
-      error: () => {
-        window.alert('Unable to remove this user from the project.');
-      },
-    });
+    this.projectService
+      .removeMember(item.projectId, item.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.loadAssignments();
+        },
+        error: () => {
+          window.alert('Unable to remove this user from the project.');
+        },
+      });
   }
 
   prevPage(): void {
