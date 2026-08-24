@@ -7,9 +7,11 @@ import { MenuApiResponse, MenuItem, MenuResponse } from '../models/menu-item.mod
 @Injectable({ providedIn: 'root' })
 export class MenuService {
   private static readonly MENU_STORAGE_KEY = 'stms.menus';
+  private static readonly CURRENT_ROUTE_STORAGE_KEY = 'stms.current-route';
+  private static readonly DEFAULT_ROUTE = '/dashboard';
 
   readonly topBarMenus = signal<MenuItem[]>([]);
-  readonly currentRoute = signal<string>('/dashboard');
+  readonly currentRoute = signal<string>(this.readStoredCurrentRoute());
   readonly sideBarMenus = computed<MenuItem[]>(() => {
     const topBar = this.topBarMenus();
     const route = this.currentRoute();
@@ -24,7 +26,8 @@ export class MenuService {
       return selectedTopBar.children.length > 0 ? selectedTopBar.children : [selectedTopBar];
     }
 
-    return topBar.flatMap((item) => (item.children.length > 0 ? item.children : [item]));
+    const fallbackItem = topBar[0];
+    return fallbackItem.children.length > 0 ? fallbackItem.children : [fallbackItem];
   });
 
   private menuRequest$?: Observable<MenuResponse>;
@@ -32,6 +35,7 @@ export class MenuService {
   constructor(private readonly http: HttpClient) {
     const cachedMenus = this.readStoredMenus();
     this.topBarMenus.set(cachedMenus.topBar);
+    this.currentRoute.set(this.readStoredCurrentRoute());
   }
 
   loadMenus(): Observable<MenuResponse> {
@@ -62,13 +66,16 @@ export class MenuService {
   }
 
   setCurrentRoute(route: string): void {
-    this.currentRoute.set(route || '/dashboard');
+    const normalizedRoute = this.normalizeRoute(route || MenuService.DEFAULT_ROUTE);
+    this.currentRoute.set(normalizedRoute);
+    localStorage.setItem(MenuService.CURRENT_ROUTE_STORAGE_KEY, normalizedRoute);
   }
 
   invalidateCache(): void {
     this.menuRequest$ = undefined;
     this.topBarMenus.set([]);
-    this.currentRoute.set('/dashboard');
+    this.currentRoute.set(MenuService.DEFAULT_ROUTE);
+    localStorage.setItem(MenuService.CURRENT_ROUTE_STORAGE_KEY, MenuService.DEFAULT_ROUTE);
   }
 
   private normalizeMenuResponse(response: Partial<MenuApiResponse> | null | undefined): MenuResponse {
@@ -117,7 +124,8 @@ export class MenuService {
   }
 
   private normalizeRoute(route: string): string {
-    return route.split('?')[0].split('#')[0].trim() || '/';
+    const normalized = route.split('?')[0].split('#')[0].trim();
+    return normalized || MenuService.DEFAULT_ROUTE;
   }
 
   private persistMenus(menus: MenuResponse): void {
@@ -136,5 +144,18 @@ export class MenuService {
     } catch {
       return { menus: [], topBar: [], sideBar: [] };
     }
+  }
+
+  private readStoredCurrentRoute(): string {
+    try {
+      const cachedRoute = localStorage.getItem(MenuService.CURRENT_ROUTE_STORAGE_KEY);
+      if (cachedRoute) {
+        return this.normalizeRoute(cachedRoute);
+      }
+    } catch {
+      // ignore storage access issues and fall back to the browser URL.
+    }
+
+    return this.normalizeRoute(typeof window !== 'undefined' ? window.location.pathname : MenuService.DEFAULT_ROUTE);
   }
 }
