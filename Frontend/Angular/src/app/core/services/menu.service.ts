@@ -199,7 +199,13 @@ export class MenuService {
 
   private normalizeRoute(route: string): string {
     const normalized = route.split('?')[0].split('#')[0].trim();
-    return normalized || MenuService.DEFAULT_ROUTE;
+    const cleaned = normalized.replace(/\/+$/, '');
+
+    if (!cleaned) {
+      return MenuService.DEFAULT_ROUTE;
+    }
+
+    return cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
   }
 
   private persistMenus(menus: MenuResponse): void {
