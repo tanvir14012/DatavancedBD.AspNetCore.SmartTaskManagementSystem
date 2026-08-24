@@ -1,14 +1,14 @@
 :host {
   display: block;
   min-height: 100vh;
-  background: linear-gradient(180deg, #e2ecff 0%, #edf4ff 100%);
+  background: #eef3f1;
 }
 
 .app-shell {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: transparent;
+  background: #f6f8f7;
 }
 
 .content-shell {
@@ -19,9 +19,9 @@
 
 .page-shell {
   flex: 1;
-  padding: 1.5rem 1.75rem 2rem;
+  padding: 24px 28px 32px;
   overflow: auto;
-  background: linear-gradient(180deg, #f6f9fc 0%, #eef4f8 100%);
+  background: #f1f4f3;
 }
 
 @media (max-width: 960px) {
@@ -30,6 +30,6 @@
   }
 
   .page-shell {
-    padding: 1.2rem 1rem 1.5rem;
+    padding: 20px 16px 28px;
   }
 }

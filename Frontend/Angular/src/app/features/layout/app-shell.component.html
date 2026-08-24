@@ -3,7 +3,7 @@
       <app-top-nav [menus]="menuService.topBarMenus()" [user]="authService.currentUser()"></app-top-nav>
 
       <div class="content-shell">
-        <app-side-nav [items]="menuService.sideBarMenus()" [loading]="menuService.isLoading()"></app-side-nav>
+        <app-side-nav [items]="menuService.sideBarMenus()"></app-side-nav>
 
         <main class="page-shell">
           <router-outlet />
