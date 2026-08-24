@@ -39,6 +39,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/projects/projects.page').then((m) => m.ProjectsPage),
       },
       {
+        path: 'projects/list',
+        redirectTo: 'projects',
+        pathMatch: 'full',
+      },
+      {
         path: 'projects/new',
         loadComponent: () => import('./features/projects/project-form.page').then((m) => m.ProjectFormPage),
         canActivate: [projectWriteGuard],
@@ -63,8 +68,18 @@ export const routes: Routes = [
         canActivate: [taskBoardGuard],
       },
       {
+        path: 'tasks/list',
+        redirectTo: 'tasks',
+        pathMatch: 'full',
+      },
+      {
         path: 'tasks',
         loadComponent: () => import('./features/tasks/tasks.page').then((m) => m.TasksPage),
+      },
+      {
+        path: 'users/list',
+        redirectTo: 'users',
+        pathMatch: 'full',
       },
       {
         path: 'users',
