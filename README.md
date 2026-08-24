@@ -10,7 +10,7 @@ This repository contains a .NET 10 backend for a smart task and project manageme
 - JWT authentication with refresh tokens
 - Project and task APIs with search/filter/paging support
 - Dashboard summary and urgency tracking
-- AI description improver endpoint
+- AI description improver endpoint (uses GitHub Models free tier)
 - Security, versioning, rate limiting, tracing, and audit middleware
 
 ## Key routes
@@ -25,17 +25,44 @@ This repository contains a .NET 10 backend for a smart task and project manageme
 - `GET /api/tasks`
 - `POST /api/tasks`
 - `GET /api/dashboard/summary`
-- `POST /api/ai/improve-description`
+- `POST /api/tasks/improve-description` (AI-powered)
 
 ## Run locally
 
 1. Update the `Api/appsettings.json` JWT settings if needed.
 2. Configure a SQL Server connection string in a local secrets file or environment variable.
-3. Run:
+3. **For AI feature (optional):** See [AI_SETUP.md](./AI_SETUP.md) for GitHub Models configuration.
+4. Run:
 
+   ```bash
    dotnet restore
    dotnet build
    dotnet run --project Api/Api.csproj
+   ```
+
+## AI Task Description Improvement
+
+The system includes an AI feature to improve task descriptions. This requires GitHub Models API access:
+
+- **Setup Guide:** [AI_SETUP.md](./AI_SETUP.md)
+- **Features:** Grammar correction, clarity improvement, professionalism enhancement
+- **Free Tier:** Yes, uses GitHub's free models API (gpt-4o-mini)
+- **Configuration:** `Api/appsettings.json` → `"Ai"` section
+
+Quick setup:
+1. Get a GitHub personal access token (with `model-usage` scope)
+2. Add to `appsettings.json`:
+   ```json
+   "Ai": {
+     "Enabled": true,
+     "GitHubModelsApiKey": "github_pat_YOUR_TOKEN_HERE",
+     "GitHubModelsEndpoint": "https://models.inference.ai.azure.com",
+     "Model": "gpt-4o-mini"
+   }
+   ```
+3. Click "Improve with AI" on task create/edit form
+
+See [AI_SETUP.md](./AI_SETUP.md) for detailed instructions.
 
 ## Notes
 
