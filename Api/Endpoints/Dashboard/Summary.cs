@@ -1,4 +1,6 @@
 using Application.Features.Dashboard;
+using Application.Interfaces;
+using Application.Models;
 using Domain.Enums;
 using Infrastructure.Bootstrap;
 using Infrastructure.Data.EfCore.Persistence;
@@ -23,17 +25,51 @@ public sealed class Summary : IEndpoint
     private static async Task<IResult> GetSummary(
         [FromQuery] int? projectId,
         AppDbContext dbContext,
+        ICurrentUser currentUser,
+        ICacheService cacheService,
         CancellationToken cancellationToken)
     {
+        if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
+        {
+            return Results.Unauthorized();
+        }
+
+        var cacheKey = $"dashboard:summary:{currentUser.UserId.Value}:{projectId ?? 0}:{string.Join('|', currentUser.Roles.OrderBy(role => role))}";
+        var cachedSummary = await cacheService.GetAsync<DashboardSummary>(cacheKey, cancellationToken);
+        if (cachedSummary is not null)
+        {
+            return Results.Ok(cachedSummary);
+        }
+
         var projectQuery = dbContext.Projects.AsNoTracking().Where(p => !p.IsDeleted);
+        var taskQuery = dbContext.ProjectTasks.AsNoTracking().Where(t => !t.IsDeleted);
+
+        if (!currentUser.IsInRole("Admin"))
+        {
+            var userId = currentUser.UserId.Value;
+            var projectIds = dbContext.UserProjects
+                .AsNoTracking()
+                .Where(member => member.UserId == userId)
+                .Select(member => member.ProjectId)
+                .Distinct();
+
+            projectQuery = projectQuery.Where(project => projectIds.Contains(project.Id));
+
+            if (currentUser.IsInRole("Project Manager"))
+            {
+                taskQuery = taskQuery.Where(task => task.Project.Members.Any(member =>
+                    member.UserId == userId &&
+                    (member.ProjectRole == ProjectRole.Manager || member.ProjectRole == ProjectRole.Owner)));
+            }
+            else
+            {
+                taskQuery = taskQuery.Where(task => task.Assignees.Any(assignee => assignee.UserId == userId));
+            }
+        }
+
         if (projectId.HasValue)
         {
             projectQuery = projectQuery.Where(p => p.Id == projectId.Value);
-        }
-
-        var taskQuery = dbContext.ProjectTasks.AsNoTracking().Where(t => !t.IsDeleted);
-        if (projectId.HasValue)
-        {
             taskQuery = taskQuery.Where(t => t.ProjectId == projectId.Value);
         }
 
@@ -90,6 +126,12 @@ public sealed class Summary : IEndpoint
                     x.DueDate,
                     x.ProjectId))
                 .ToList());
+
+        await cacheService.SetAsync(
+            cacheKey,
+            summary,
+            new CacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2) },
+            cancellationToken);
 
         return Results.Ok(summary);
     }

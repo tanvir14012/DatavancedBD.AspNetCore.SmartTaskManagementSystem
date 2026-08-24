@@ -28,7 +28,7 @@
 
     <label class="field search-field">
       <span>Search</span>
-      <input type="search" [(ngModel)]="search" placeholder="Search board" (keyup.enter)="loadBoard()" />
+      <input type="search" [(ngModel)]="search" placeholder="Search board" (input)="onSearchInput()" (keyup.enter)="loadBoard()" />
     </label>
 
     <button type="button" class="primary" (click)="loadBoard()">Apply</button>

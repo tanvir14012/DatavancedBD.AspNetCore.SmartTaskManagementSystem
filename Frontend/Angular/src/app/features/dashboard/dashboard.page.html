@@ -5,7 +5,7 @@
       <p class="eyebrow">Overview</p>
       <h1>Dashboard</h1>
     </div>
-    <button class="refresh-button" type="button" (click)="loadSummary()" [disabled]="isLoading">
+    <button class="refresh-button" type="button" (click)="loadSummary(true)" [disabled]="isLoading">
       {{ isLoading ? 'Refreshing...' : 'Refresh' }}
     </button>
   </div>

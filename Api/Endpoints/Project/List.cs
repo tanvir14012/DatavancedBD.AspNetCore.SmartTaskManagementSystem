@@ -49,10 +49,25 @@ public sealed class List : IEndpoint
             query = query.Where(p => p.Members.Any(m => m.UserId == userId));
         }
 
-        if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "all", StringComparison.OrdinalIgnoreCase))
+        var normalizedStatus = NormalizeProjectStatus(status);
+        if (!string.IsNullOrWhiteSpace(normalizedStatus))
         {
-            var isArchived = string.Equals(status, "archived", StringComparison.OrdinalIgnoreCase);
-            query = query.Where(p => p.IsArchived == isArchived);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            switch (normalizedStatus)
+            {
+                case "active":
+                    query = query.Where(p => !p.IsArchived);
+                    break;
+                case "archived":
+                    query = query.Where(p => p.IsArchived);
+                    break;
+                case "planned":
+                    query = query.Where(p => !p.IsArchived && (!p.StartDate.HasValue || p.StartDate.Value > today));
+                    break;
+                case "completed":
+                    query = query.Where(p => !p.IsArchived && p.EndDate.HasValue && p.EndDate.Value <= today);
+                    break;
+            }
         }
 
         var dataTableRequest = new DataTableRequest
@@ -60,7 +75,7 @@ public sealed class List : IEndpoint
             Start = start,
             Length = length,
             Search = search,
-            SortColumn = string.IsNullOrWhiteSpace(sortColumn) ? "CreatedAt" : sortColumn,
+            SortColumn = NormalizeSortColumn(sortColumn, "CreatedAt"),
             SortDirection = string.IsNullOrWhiteSpace(sortDirection) ? "desc" : sortDirection,
         };
 
@@ -71,6 +86,7 @@ public sealed class List : IEndpoint
         configuration.SortableColumns.Add("StartDate");
         configuration.SortableColumns.Add("EndDate");
         configuration.SortableColumns.Add("CreatedAt");
+        configuration.SortableColumns.Add("UpdatedAt");
 
         var page = await query.ToDataTablePageAsync(
             dbContext,
@@ -82,12 +98,38 @@ public sealed class List : IEndpoint
                 p.StartDate,
                 p.EndDate,
                 p.CreatedAt,
+                p.UpdatedAt,
                 currentUser.IsInRole("Admin") || p.Members.Any(m => m.UserId == currentUser.UserId.Value && (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner)),
                 currentUser.IsInRole("Admin"),
                 p.IsArchived,
                 p.Members.Where(m => m.UserId == currentUser.UserId.Value).Select(m => m.ProjectRole).FirstOrDefault()),
             configuration,
             cancellationToken);
+
+        var projectIds = page.Items.Select(item => item.Id).Distinct().ToList();
+        var taskCountsByProjectId = await dbContext.ProjectTasks
+            .AsNoTracking()
+            .Where(task => projectIds.Contains(task.ProjectId) && !task.IsDeleted)
+            .GroupBy(task => task.ProjectId)
+            .Select(group => new { ProjectId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(pair => pair.ProjectId, pair => pair.Count, cancellationToken);
+
+        var items = page.Items.Select(item => new
+        {
+            id = item.Id,
+            name = item.Name,
+            description = item.Description,
+            startDate = item.StartDate,
+            endDate = item.EndDate,
+            createdAt = item.CreatedAt,
+            updatedAt = item.UpdatedAt,
+            canEdit = item.CanEdit,
+            canDelete = item.CanDelete,
+            status = item.IsArchived ? "Archived" : "Active",
+            role = item.CurrentUserRole.ToString(),
+            taskCount = taskCountsByProjectId.TryGetValue(item.Id, out var count) ? count : 0,
+            currentUserRole = item.CurrentUserRole,
+        }).ToList();
 
         return Results.Ok(new
         {
@@ -96,8 +138,39 @@ public sealed class List : IEndpoint
             totalCount = page.TotalCount,
             filteredCount = page.FilteredCount,
             totalPages = (int)Math.Ceiling(page.FilteredCount / (double)Math.Max(length, 1)),
-            items = page.Items
+            items
         });
+    }
+
+    private static string NormalizeSortColumn(string? value, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return fallback;
+
+        return value.Trim() switch
+        {
+            "name" => "Name",
+            "createdat" => "CreatedAt",
+            "updatedat" => "UpdatedAt",
+            "startdate" => "StartDate",
+            "enddate" => "EndDate",
+            _ => value.Trim()
+        };
+    }
+
+    private static string? NormalizeProjectStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status) || string.Equals(status, "all", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return status.Trim().ToLowerInvariant() switch
+        {
+            "active" => "active",
+            "archived" => "archived",
+            "planned" => "planned",
+            "completed" => "completed",
+            _ => status.Trim()
+        };
     }
 }
 
@@ -108,6 +181,7 @@ public sealed record ProjectListItem(
     DateOnly? StartDate,
     DateOnly? EndDate,
     DateTime CreatedAt,
+    DateTime? UpdatedAt,
     bool CanEdit,
     bool CanDelete,
     bool IsArchived,

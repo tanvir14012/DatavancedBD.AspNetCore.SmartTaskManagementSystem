@@ -1,6 +1,8 @@
 ﻿import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 import { UserListItem, UserService } from '../../core/services/user.service';
 
@@ -25,6 +27,10 @@ export class UsersPage implements OnInit {
   isAdmin = false;
   showForm = false;
   editingUserId: number | null = null;
+  isLoading = false;
+
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly searchSubject = new Subject<string>();
 
   form = {
     firstName: '',
@@ -41,31 +47,51 @@ export class UsersPage implements OnInit {
 
   ngOnInit(): void {
     this.isAdmin = this.authService.currentUser()?.role === 'Admin';
+    this.searchSubject
+      .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.page = 1;
+        this.loadUsers();
+      });
+
     this.loadUsers();
   }
 
   loadUsers(): void {
+    this.isLoading = true;
+
     this.userService
       .list({
         start: (this.page - 1) * this.pageSize,
         length: this.pageSize,
-        search: this.search,
+        search: this.search.trim() || undefined,
         sortColumn: this.sortColumn,
         sortDirection: this.sortDirection,
         role: this.roleFilter,
         status: this.statusFilter,
       })
-      .subscribe((result) => {
-        this.users = result.items;
-        this.totalCount = result.totalCount;
-        this.totalPages = result.totalPages || 1;
-        this.page = Math.min(this.page, this.totalPages || 1);
+      .pipe(finalize(() => (this.isLoading = false)))
+      .subscribe({
+        next: (result) => {
+          this.users = result.items;
+          this.totalCount = result.totalCount;
+          this.totalPages = result.totalPages || 1;
+          this.page = Math.min(this.page, this.totalPages || 1);
+        },
+        error: () => {
+          this.users = [];
+          this.totalCount = 0;
+          this.totalPages = 1;
+        },
       });
   }
 
+  onSearchInput(): void {
+    this.searchSubject.next(this.search.trim());
+  }
+
   onSearch(): void {
-    this.page = 1;
-    this.loadUsers();
+    this.searchSubject.next(this.search.trim());
   }
 
   onFilterChange(): void {

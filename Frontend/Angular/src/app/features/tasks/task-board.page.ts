@@ -1,7 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 import { ProjectService } from '../../core/services/project.service';
 import { TaskBoardCard, TaskBoardColumn, TaskService } from '../../core/services/task.service';
@@ -23,6 +25,9 @@ export class TaskBoardPage implements OnInit {
   isLoading = false;
   canAccessBoard = false;
 
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly searchSubject = new Subject<string>();
+
   constructor(
     private readonly taskService: TaskService,
     private readonly projectService: ProjectService,
@@ -38,6 +43,10 @@ export class TaskBoardPage implements OnInit {
       this.router.navigateByUrl('/tasks');
       return;
     }
+
+    this.searchSubject
+      .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.loadBoard());
 
     this.loadProjects();
     this.loadBoard();
@@ -58,16 +67,19 @@ export class TaskBoardPage implements OnInit {
         priority: this.priorityFilter === 'all' ? undefined : this.priorityFilter,
         search: this.search.trim() || undefined,
       })
+      .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
         next: (result) => {
           this.columns = result.columns;
-          this.isLoading = false;
         },
         error: () => {
           this.columns = [];
-          this.isLoading = false;
         },
       });
+  }
+
+  onSearchInput(): void {
+    this.searchSubject.next(this.search.trim());
   }
 
   updateTaskStatus(task: TaskBoardCard, status: string): void {
