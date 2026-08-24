@@ -6,12 +6,18 @@ import { MenuItem, MenuResponse } from '../models/menu-item.model';
 
 @Injectable({ providedIn: 'root' })
 export class MenuService {
+  private static readonly MENU_STORAGE_KEY = 'stms.menus';
+
   readonly topBarMenus = signal<MenuItem[]>([]);
   readonly sideBarMenus = signal<MenuItem[]>([]);
 
   private menuRequest$?: Observable<MenuResponse>;
 
-  constructor(private readonly http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {
+    const cachedMenus = this.readStoredMenus();
+    this.topBarMenus.set(cachedMenus.topBar);
+    this.sideBarMenus.set(cachedMenus.sideBar);
+  }
 
   loadMenus(): Observable<MenuResponse> {
     if (!this.menuRequest$) {
@@ -22,6 +28,7 @@ export class MenuService {
             topBar: response.topBar ?? [],
             sideBar: response.sideBar ?? [],
           })),
+          tap((response) => this.persistMenus(response)),
           tap((response) => {
             this.topBarMenus.set(response.topBar);
             this.sideBarMenus.set(response.sideBar);
@@ -38,9 +45,35 @@ export class MenuService {
     return this.loadMenus();
   }
 
+  clearMenus(): void {
+    this.invalidateCache();
+    localStorage.removeItem(MenuService.MENU_STORAGE_KEY);
+  }
+
   invalidateCache(): void {
     this.menuRequest$ = undefined;
     this.topBarMenus.set([]);
     this.sideBarMenus.set([]);
+  }
+
+  private persistMenus(menus: MenuResponse): void {
+    localStorage.setItem(MenuService.MENU_STORAGE_KEY, JSON.stringify(menus));
+  }
+
+  private readStoredMenus(): MenuResponse {
+    try {
+      const cached = localStorage.getItem(MenuService.MENU_STORAGE_KEY);
+      if (!cached) {
+        return { topBar: [], sideBar: [] };
+      }
+
+      const parsed = JSON.parse(cached) as Partial<MenuResponse>;
+      return {
+        topBar: Array.isArray(parsed.topBar) ? (parsed.topBar as MenuItem[]) : [],
+        sideBar: Array.isArray(parsed.sideBar) ? (parsed.sideBar as MenuItem[]) : [],
+      };
+    } catch {
+      return { topBar: [], sideBar: [] };
+    }
   }
 }

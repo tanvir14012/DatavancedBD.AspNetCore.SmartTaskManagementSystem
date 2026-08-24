@@ -1,13 +1,14 @@
 :host {
   display: block;
   min-height: 100vh;
-  background: #f8fafc;
+  background: #eef3f1;
 }
 
 .app-shell {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background: #f6f8f7;
 }
 
 .content-shell {
@@ -18,8 +19,9 @@
 
 .page-shell {
   flex: 1;
-  padding: 32px;
+  padding: 24px 28px 32px;
   overflow: auto;
+  background: #f1f4f3;
 }
 
 @media (max-width: 960px) {
@@ -28,6 +30,6 @@
   }
 
   .page-shell {
-    padding: 20px 16px 32px;
+    padding: 20px 16px 28px;
   }
 }

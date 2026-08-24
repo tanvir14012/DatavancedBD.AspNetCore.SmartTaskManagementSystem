@@ -5,9 +5,9 @@
         class="nav-item"
         [routerLink]="item.route"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ exact: true }"
+        [routerLinkActiveOptions]="{ exact: false }"
       >
-        <span class="icon">{{ item.icon }}</span>
+        <span class="icon" aria-hidden="true">{{ item.icon }}</span>
         <span>{{ item.name }}</span>
       </a>
     }
@@ -15,13 +15,22 @@
 
   <div class="nav-right">
     <button class="icon-btn" aria-label="Notifications" type="button">🔔</button>
-    <div class="user-card">
-      <img [src]="user?.imageUrl ?? 'https://api.dicebear.com/7.x/initials/svg?seed=User'" alt="User avatar" />
-      <div class="user-meta">
-        <strong>{{ user?.name ?? 'Guest User' }}</strong>
-        <small>{{ user?.role ?? 'Team Member' }}</small>
-      </div>
+
+    <div class="user-menu-wrapper">
+      <button class="user-card" type="button" (click)="toggleUserMenu()" aria-label="Open user menu">
+        <img [src]="user?.imageUrl ?? 'https://api.dicebear.com/7.x/initials/svg?seed=User'" alt="User avatar" />
+        <div class="user-meta">
+          <strong>{{ user?.name ?? 'Guest User' }}</strong>
+          <small>{{ user?.role ?? 'Team Member' }}</small>
+        </div>
+      </button>
+
+      @if (userMenuOpen()) {
+        <div class="user-menu" role="menu" aria-label="User actions">
+          <span class="user-email">{{ user?.email ?? 'guest@example.com' }}</span>
+          <button class="logout-btn" type="button" (click)="logout()">Logout</button>
+        </div>
+      }
     </div>
-    <button class="logout-btn" type="button" (click)="logout()">Logout</button>
   </div>
 </header>

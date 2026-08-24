@@ -1,8 +1,9 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { BehaviorSubject, Observable, catchError, map, of, shareReplay, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { UserProfile } from '../models/menu-item.model';
+import { MenuService } from './menu.service';
 
 interface LoginRequest {
   email: string;
@@ -43,6 +44,8 @@ interface AuthState {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private readonly menuService = inject(MenuService);
+
   private readonly authStateSubject = new BehaviorSubject<AuthState>(this.readStoredState());
 
   readonly authState$ = this.authStateSubject.asObservable();
@@ -125,6 +128,7 @@ export class AuthService {
         localStorage.removeItem('stms.token');
         localStorage.removeItem('stms.user');
         localStorage.removeItem('stms.expiresAt');
+        this.menuService.clearMenus();
         this.syncSignals({ token: null, expiresAt: null, user: null, isAuthenticated: false });
       }),
     );
