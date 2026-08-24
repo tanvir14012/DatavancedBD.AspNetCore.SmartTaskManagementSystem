@@ -1,14 +1,193 @@
-.page { display: flex; flex-direction: column; gap: 24px; }
-      .header-row { display: flex; justify-content: space-between; align-items: center; }
-      .eyebrow { text-transform: uppercase; letter-spacing: .12em; color: #64748b; font-size: 11px; margin: 0 0 6px; }
-      h1 { margin: 0; font-size: 2rem; color: #0f172a; }
-      .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 18px; }
-      .stat-card, .panel { background: white; border: 1px solid #e2e8f0; border-radius: 18px; padding: 20px; box-shadow: 0 8px 22px rgba(15,23,42,.04); }
-      .stat-card { display: flex; flex-direction: column; gap: 12px; color: #334155; }
-      .stat-card strong { font-size: 2rem; color: #0f172a; }
-      .stat-card.accent { background: linear-gradient(135deg,#dbeafe,#eff6ff); }
-      .stat-card.warn { background: linear-gradient(135deg,#fef3c7,#fff7ed); }
-      .stat-card.success { background: linear-gradient(135deg,#dcfce7,#f0fdf4); }
-      .panel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
-      h2 { margin-top: 0; color: #0f172a; }
-      ul { margin: 0; padding-left: 18px; color: #475569; line-height: 1.8; }
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #64748b;
+  font-size: 11px;
+  margin: 0 0 6px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2rem;
+  color: #0f172a;
+}
+
+.refresh-button {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.refresh-button[disabled] {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.stats-grid,
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+}
+
+.summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.stat-card,
+.panel {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #334155;
+}
+
+.stat-card strong {
+  font-size: 2rem;
+  color: #0f172a;
+}
+
+.stat-card.accent {
+  background: linear-gradient(135deg, #dbeafe, #eff6ff);
+}
+
+.stat-card.warn {
+  background: linear-gradient(135deg, #fef3c7, #fff7ed);
+}
+
+.stat-card.success {
+  background: linear-gradient(135deg, #dcfce7, #f0fdf4);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.full-width-panel {
+  width: 100%;
+}
+
+h2 {
+  margin: 0;
+  color: #0f172a;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.task-row {
+  align-items: flex-start;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+
+.task-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.task-row div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-row small {
+  color: #475569;
+  white-space: nowrap;
+}
+
+.progress-panel {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.progress-ring {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(#22c55e 0deg, #22c55e calc(var(--percent) * 3.6deg), #e2e8f0 0deg);
+  position: relative;
+}
+
+.progress-ring::before {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  background: white;
+}
+
+.progress-ring span {
+  position: relative;
+  z-index: 1;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.loading-state,
+.error-state,
+.empty-state {
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #475569;
+  border-radius: 16px;
+  padding: 1rem 1.25rem;
+}
+
+.error-state {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+@media (max-width: 640px) {
+  .header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
