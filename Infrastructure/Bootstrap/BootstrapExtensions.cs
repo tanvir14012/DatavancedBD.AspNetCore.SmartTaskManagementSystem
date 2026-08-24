@@ -48,7 +48,7 @@ public static class BootstrapExtensions
         {
             options.AddDefaultPolicy(policy =>
                 policy
-                    .SetIsOriginAllowed(_ => true)
+                    .WithOrigins("https://localhost:4200", "http://localhost:4200")
                     .AllowAnyMethod()
                     .AllowAnyHeader()
                     .AllowCredentials());
