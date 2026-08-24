@@ -9,7 +9,14 @@ export interface MenuItem {
   children: MenuItem[];
 }
 
+export interface MenuApiResponse {
+  menus?: MenuItem[];
+  topBar?: MenuItem[];
+  sideBar?: MenuItem[];
+}
+
 export interface MenuResponse {
+  menus: MenuItem[];
   topBar: MenuItem[];
   sideBar: MenuItem[];
 }
