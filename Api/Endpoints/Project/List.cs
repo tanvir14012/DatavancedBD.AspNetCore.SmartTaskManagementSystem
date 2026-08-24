@@ -15,7 +15,7 @@ public sealed class List : IEndpoint
         group.MapGet("/", GetProjects)
             .WithName("GetProjects")
             .WithSummary("Get projects with search, sort and paging")
-            .AllowAnonymous();
+            .RequireAuthorization(policy => policy.RequireRole("Admin", "Project Manager", "Team Member"));
     }
 
     private static async Task<IResult> GetProjects(

@@ -16,7 +16,7 @@ public sealed class Summary : IEndpoint
         group.MapGet("/summary", GetSummary)
             .WithName("GetDashboardSummary")
             .WithSummary("Return totals, status breakdown, and urgent items")
-            .AllowAnonymous();
+            .RequireAuthorization(policy => policy.RequireRole("Admin", "Project Manager", "Team Member"));
     }
 
     private static async Task<IResult> GetSummary(

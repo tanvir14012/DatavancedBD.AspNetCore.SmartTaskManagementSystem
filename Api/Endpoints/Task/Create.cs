@@ -18,7 +18,7 @@ public sealed class Create : IEndpoint
             .WithName("CreateTask")
             .WithSummary("Create a task for a project")
             .ProducesValidationProblem()
-            .AllowAnonymous();
+            .RequireAuthorization(policy => policy.RequireRole("Admin", "Project Manager", "Team Member"));
     }
 
     private static async Task<IResult> CreateTask(

@@ -13,7 +13,7 @@ public sealed class ImproveDescription : IEndpoint
         group.MapPost("/improve-description", ImproveText)
             .WithName("ImproveTaskDescription")
             .WithSummary("Enhance raw notes into a clearer task description")
-            .AllowAnonymous();
+            .RequireAuthorization(policy => policy.RequireRole("Admin", "Project Manager", "Team Member"));
     }
 
     private static IResult ImproveText(

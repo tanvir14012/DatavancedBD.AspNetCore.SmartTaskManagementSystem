@@ -19,8 +19,7 @@ public sealed class Create : IEndpoint
                 "Creates a project and assigns the current authenticated user as creator.")
             .Produces<Response>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
-            .AllowAnonymous();
-            //.RequireAuthorization();
+            .RequireAuthorization(policy => policy.RequireRole("Admin", "Project Manager", "Team Member"));
     }
 
     private static async Task<IResult> CreateProject(
