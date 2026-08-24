@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { noAuthGuard } from './core/guards/no-auth.guard';
+import { projectWriteGuard } from './core/guards/project-role.guard';
 import { dashboardResolver } from './core/resolvers/dashboard.resolver';
 import { AppShellComponent } from './features/layout/app-shell.component';
 
@@ -35,6 +36,20 @@ export const routes: Routes = [
       {
         path: 'projects',
         loadComponent: () => import('./features/projects/projects.page').then((m) => m.ProjectsPage),
+      },
+      {
+        path: 'projects/new',
+        loadComponent: () => import('./features/projects/project-form.page').then((m) => m.ProjectFormPage),
+        canActivate: [projectWriteGuard],
+      },
+      {
+        path: 'projects/:id',
+        loadComponent: () => import('./features/projects/project-form.page').then((m) => m.ProjectFormPage),
+      },
+      {
+        path: 'projects/:id/edit',
+        loadComponent: () => import('./features/projects/project-form.page').then((m) => m.ProjectFormPage),
+        canActivate: [projectWriteGuard],
       },
       {
         path: 'tasks',
