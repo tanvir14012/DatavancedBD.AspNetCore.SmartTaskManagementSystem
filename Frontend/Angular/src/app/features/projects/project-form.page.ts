@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
@@ -11,35 +11,33 @@ import { ProjectDetail, ProjectItemMember, ProjectService } from '../../core/ser
   imports: [CommonModule, FormsModule],
   templateUrl: './project-form.page.html',
   styleUrls: ['./project-form.page.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectFormPage implements OnInit {
-  projectId: number | null = null;
-  isEditMode = false;
-  isSubmitting = false;
-  canManageMembers = false;
-  project: ProjectDetail | null = null;
-  members: ProjectItemMember[] = [];
-  memberForm = {
+  readonly projectId = signal<number | null>(null);
+  readonly isEditMode = signal(false);
+  readonly isSubmitting = signal(false);
+  readonly canManageMembers = signal(false);
+  readonly project = signal<ProjectDetail | null>(null);
+  readonly members = signal<ProjectItemMember[]>([]);
+  readonly memberForm = signal({
     userId: '',
     role: 'Member',
-  };
-  allowedRoles = ['Member', 'Manager'];
-
-  form = {
+  });
+  readonly form = signal({
     name: '',
     description: '',
     startDate: '',
     endDate: '',
     isArchived: false,
-  };
+  });
 
-  constructor(
-    private readonly route: ActivatedRoute,
-    private readonly router: Router,
-    private readonly projectService: ProjectService,
-    private readonly authService: AuthService,
-    private readonly cdr: ChangeDetectorRef,
-  ) {}
+  allowedRoles = ['Member', 'Manager'];
+
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly projectService = inject(ProjectService);
+  private readonly authService = inject(AuthService);
 
   ngOnInit(): void {
     const role = this.authService.currentUser()?.role ?? '';
@@ -52,90 +50,92 @@ export class ProjectFormPage implements OnInit {
 
     const routeId = this.route.snapshot.paramMap.get('id');
     if (routeId) {
-      this.projectId = Number(routeId);
-      this.isEditMode = true;
+      this.projectId.set(Number(routeId));
+      this.isEditMode.set(true);
       this.loadProject();
     }
   }
 
   loadProject(): void {
-    if (!this.projectId) {
+    const id = this.projectId();
+    if (!id) {
       return;
     }
 
-    this.projectService.getProject(this.projectId).subscribe((project) => {
-      this.project = project;
-      this.form = {
+    this.projectService.getProject(id).subscribe((project) => {
+      this.project.set(project);
+      this.form.set({
         name: project.name,
         description: project.description ?? '',
         startDate: project.startDate ?? '',
         endDate: project.endDate ?? '',
         isArchived: false,
-      };
-      this.members = project.members ?? [];
-      this.canManageMembers = project.canEdit;
-      this.cdr.markForCheck();
+      });
+      this.members.set(project.members ?? []);
+      this.canManageMembers.set(project.canEdit);
     });
   }
 
   saveProject(): void {
-    this.isSubmitting = true;
-    this.cdr.markForCheck();
+    this.isSubmitting.set(true);
 
     const payload = {
-      name: this.form.name,
-      description: this.form.description || null,
-      startDate: this.form.startDate || null,
-      endDate: this.form.endDate || null,
-      isArchived: this.form.isArchived,
+      name: this.form().name,
+      description: this.form().description || null,
+      startDate: this.form().startDate || null,
+      endDate: this.form().endDate || null,
+      isArchived: this.form().isArchived,
     };
 
-    const request$ = this.isEditMode && this.projectId
-      ? this.projectService.updateProject(this.projectId, payload)
+    const id = this.projectId();
+    const request$ = this.isEditMode() && id
+      ? this.projectService.updateProject(id, payload)
       : this.projectService.createProject(payload);
 
     request$.subscribe({
       next: (project) => {
-        this.isSubmitting = false;
-        this.cdr.markForCheck();
+        this.isSubmitting.set(false);
         this.router.navigate(['/projects', project.id]);
       },
       error: () => {
-        this.isSubmitting = false;
-        this.cdr.markForCheck();
+        this.isSubmitting.set(false);
       },
     });
   }
 
   assignMember(): void {
-    if (!this.projectId || !this.memberForm.userId) {
+    const id = this.projectId();
+    const userId = this.memberForm().userId;
+    if (!id || !userId) {
       return;
     }
 
     this.projectService
-      .assignMember(this.projectId, {
-        userId: Number(this.memberForm.userId),
-        role: this.memberForm.role as 'Owner' | 'Manager' | 'Member' | 'Viewer',
+      .assignMember(id, {
+        userId: Number(userId),
+        role: this.memberForm().role as 'Owner' | 'Manager' | 'Member' | 'Viewer',
       })
       .subscribe(() => {
-        this.memberForm.userId = '';
-        this.memberForm.role = this.allowedRoles[0] ?? 'Member';
+        this.memberForm.set({ userId: '', role: this.allowedRoles[0] ?? 'Member' });
         this.loadProject();
       });
   }
 
   removeMember(userId: number): void {
-    if (!this.projectId) {
+    const id = this.projectId();
+    if (!id) {
       return;
     }
 
-    this.projectService.removeMember(this.projectId, userId).subscribe(() => {
+    this.projectService.removeMember(id, userId).subscribe(() => {
       this.loadProject();
     });
   }
 
   deleteProject(): void {
-    if (!this.projectId || !this.project?.canDelete) {
+    const id = this.projectId();
+    const proj = this.project();
+    if (!id || !proj?.canDelete) {
       return;
     }
 
@@ -144,7 +144,7 @@ export class ProjectFormPage implements OnInit {
       return;
     }
 
-    this.projectService.deleteProject(this.projectId).subscribe(() => {
+    this.projectService.deleteProject(id).subscribe(() => {
       this.router.navigate(['/projects']);
     });
   }

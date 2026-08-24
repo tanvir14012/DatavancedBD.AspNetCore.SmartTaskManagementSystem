@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, Input, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
 import { take } from 'rxjs';
@@ -10,7 +10,8 @@ import { AuthService } from '../../core/services/auth.service';
   standalone: true,
   imports: [RouterLink, MatIconModule],
   templateUrl: './top-nav.component.html',
-  styleUrls: ['./top-nav.component.scss']
+  styleUrls: ['./top-nav.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TopNavComponent {
   @Input() menus: MenuItem[] = [];
@@ -20,7 +21,6 @@ export class TopNavComponent {
 
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly cdr = inject(ChangeDetectorRef);
 
   getItemRoute(item: MenuItem): string {
     return item.route || item.children?.[0]?.route || '/dashboard';
@@ -62,11 +62,9 @@ export class TopNavComponent {
       .pipe(take(1))
       .subscribe({
         next: () => {
-          this.cdr.markForCheck();
           this.router.navigateByUrl('/homepage');
         },
         error: () => {
-          this.cdr.markForCheck();
           this.router.navigateByUrl('/homepage');
         },
       });

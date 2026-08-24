@@ -1,5 +1,5 @@
-﻿import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -12,34 +12,34 @@ import { UserListItem, UserService } from '../../core/services/user.service';
   imports: [CommonModule, FormsModule],
   templateUrl: './users.page.html',
   styleUrls: ['./users.page.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UsersPage implements OnInit {
-  users: UserListItem[] = [];
-  page = 1;
-  pageSize = 10;
-  totalCount = 0;
-  totalPages = 1;
-  search = '';
-  sortColumn = 'CreatedAt';
-  sortDirection = 'desc';
-  roleFilter = 'all';
-  statusFilter = 'all';
-  isAdmin = false;
-  showForm = false;
-  editingUserId: number | null = null;
-  isLoading = false;
+  readonly users = signal<UserListItem[]>([]);
+  readonly page = signal(1);
+  readonly pageSize = 10;
+  readonly totalCount = signal(0);
+  readonly totalPages = signal(1);
+  readonly search = signal('');
+  readonly sortColumn = signal('CreatedAt');
+  readonly sortDirection = signal('desc');
+  readonly roleFilter = signal('all');
+  readonly statusFilter = signal('all');
+  readonly isAdmin = signal(false);
+  readonly showForm = signal(false);
+  readonly editingUserId = signal<number | null>(null);
+  readonly isLoading = signal(false);
 
-  private readonly destroyRef = inject(DestroyRef);
-  private readonly cdr = inject(ChangeDetectorRef);
-  private readonly searchSubject = new Subject<string>();
-
-  form = {
+  readonly form = signal({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
     role: 'Team Member',
-  };
+  });
+
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly searchSubject = new Subject<string>();
 
   constructor(
     private readonly userService: UserService,
@@ -47,11 +47,11 @@ export class UsersPage implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.isAdmin = this.authService.currentUser()?.role === 'Admin';
+    this.isAdmin.set(this.authService.currentUser()?.role === 'Admin');
     this.searchSubject
       .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        this.page = 1;
+        this.page.set(1);
         this.loadUsers();
       });
 
@@ -59,102 +59,98 @@ export class UsersPage implements OnInit {
   }
 
   loadUsers(): void {
-    this.isLoading = true;
-    this.cdr.markForCheck();
+    this.isLoading.set(true);
 
     this.userService
       .list({
-        start: (this.page - 1) * this.pageSize,
+        start: (this.page() - 1) * this.pageSize,
         length: this.pageSize,
-        search: this.search.trim() || undefined,
-        sortColumn: this.sortColumn,
-        sortDirection: this.sortDirection,
-        role: this.roleFilter,
-        status: this.statusFilter,
+        search: this.search().trim() || undefined,
+        sortColumn: this.sortColumn(),
+        sortDirection: this.sortDirection(),
+        role: this.roleFilter(),
+        status: this.statusFilter(),
       })
-      .pipe(finalize(() => {
-        this.isLoading = false;
-        this.cdr.markForCheck();
-      }))
+      .pipe(finalize(() => this.isLoading.set(false)))
       .subscribe({
         next: (result) => {
-          this.users = result.items;
-          this.totalCount = result.totalCount;
-          this.totalPages = result.totalPages || 1;
-          this.page = Math.min(this.page, this.totalPages || 1);
-          this.cdr.markForCheck();
+          this.users.set(result.items);
+          this.totalCount.set(result.totalCount);
+          this.totalPages.set(result.totalPages || 1);
+          this.page.set(Math.min(this.page(), this.totalPages() || 1));
         },
         error: () => {
-          this.users = [];
-          this.totalCount = 0;
-          this.totalPages = 1;
-          this.cdr.markForCheck();
+          this.users.set([]);
+          this.totalCount.set(0);
+          this.totalPages.set(1);
         },
       });
   }
 
   onSearchInput(): void {
-    this.searchSubject.next(this.search.trim());
+    this.searchSubject.next(this.search().trim());
   }
 
   onSearch(): void {
-    this.searchSubject.next(this.search.trim());
+    this.searchSubject.next(this.search().trim());
   }
 
   onFilterChange(): void {
-    this.page = 1;
+    this.page.set(1);
     this.loadUsers();
   }
 
   openCreateForm(): void {
-    this.editingUserId = null;
-    this.form = {
+    this.editingUserId.set(null);
+    this.form.set({
       firstName: '',
       lastName: '',
       email: '',
       password: '',
       role: 'Team Member',
-    };
-    this.showForm = true;
+    });
+    this.showForm.set(true);
   }
 
   openEditForm(user: UserListItem): void {
-    this.editingUserId = user.id;
-    this.form = {
+    this.editingUserId.set(user.id);
+    this.form.set({
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
       password: '',
       role: user.role,
-    };
-    this.showForm = true;
+    });
+    this.showForm.set(true);
   }
 
   submitForm(): void {
-    if (!this.form.firstName.trim() || !this.form.lastName.trim() || !this.form.email.trim()) {
+    const currentForm = this.form();
+    if (!currentForm.firstName.trim() || !currentForm.lastName.trim() || !currentForm.email.trim()) {
       return;
     }
 
     const payload = {
-      firstName: this.form.firstName.trim(),
-      lastName: this.form.lastName.trim(),
-      email: this.form.email.trim(),
-      role: this.form.role,
-      ...(this.editingUserId === null ? { password: this.form.password || 'Datavanced@123' } : {}),
+      firstName: currentForm.firstName.trim(),
+      lastName: currentForm.lastName.trim(),
+      email: currentForm.email.trim(),
+      role: currentForm.role,
+      ...(this.editingUserId() === null ? { password: currentForm.password || 'Datavanced@123' } : {}),
     };
 
-    const request$ = this.editingUserId === null
+    const editingId = this.editingUserId();
+    const request$ = editingId === null
       ? this.userService.create(payload)
-      : this.userService.update(this.editingUserId, payload);
+      : this.userService.update(editingId, payload);
 
     request$.subscribe(() => {
-      this.showForm = false;
+      this.showForm.set(false);
       this.loadUsers();
     });
   }
 
   deleteUser(id: number): void {
-    if (!this.isAdmin) {
+    if (!this.isAdmin()) {
       return;
     }
 
@@ -168,15 +164,15 @@ export class UsersPage implements OnInit {
   }
 
   prevPage(): void {
-    if (this.page > 1) {
-      this.page -= 1;
+    if (this.page() > 1) {
+      this.page.update(p => p - 1);
       this.loadUsers();
     }
   }
 
   nextPage(): void {
-    if (this.page < this.totalPages) {
-      this.page += 1;
+    if (this.page() < this.totalPages()) {
+      this.page.update(p => p + 1);
       this.loadUsers();
     }
   }
