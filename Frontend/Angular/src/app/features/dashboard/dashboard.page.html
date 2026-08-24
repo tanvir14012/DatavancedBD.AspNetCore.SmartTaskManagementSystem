@@ -10,11 +10,15 @@
     </button>
   </div>
 
-  <div *ngIf="isLoading()" class="loading-state">Loading dashboard data...</div>
+  @if (isLoading()) {
+    <div class="loading-state">Loading dashboard data...</div>
+  }
 
-  <div *ngIf="errorMessage()" class="error-state">{{ errorMessage() }}</div>
+  @if (errorMessage()) {
+    <div class="error-state">{{ errorMessage() }}</div>
+  }
 
-  <ng-container *ngIf="!isLoading() && summary() as s">
+  @if (!isLoading() && summary(); as s) {
     <div class="stats-grid">
       <article class="stat-card accent">
         <span>Total Projects</span>
@@ -45,46 +49,55 @@
 
       <article class="panel">
         <h2>Task status</h2>
-        <ul *ngIf="statusBreakdown().length; else noStatusData">
-          <li *ngFor="let item of statusBreakdown()">
-            <span>{{ formatLabel(item.key) }}</span>
-            <strong>{{ item.value }}</strong>
-          </li>
-        </ul>
-        <ng-template #noStatusData>
+        @if (statusBreakdown().length) {
+          <ul>
+            @for (item of statusBreakdown(); track item.key) {
+              <li>
+                <span>{{ formatLabel(item.key) }}</span>
+                <strong>{{ item.value }}</strong>
+              </li>
+            }
+          </ul>
+        } @else {
           <p class="empty-state">No task statuses available.</p>
-        </ng-template>
+        }
       </article>
 
       <article class="panel">
         <h2>Priority mix</h2>
-        <ul *ngIf="priorityBreakdown().length; else noPriorityData">
-          <li *ngFor="let item of priorityBreakdown()">
-            <span>{{ formatLabel(item.key) }}</span>
-            <strong>{{ item.value }}</strong>
-          </li>
-        </ul>
-        <ng-template #noPriorityData>
+        @if (priorityBreakdown().length) {
+          <ul>
+            @for (item of priorityBreakdown(); track item.key) {
+              <li>
+                <span>{{ formatLabel(item.key) }}</span>
+                <strong>{{ item.value }}</strong>
+              </li>
+            }
+          </ul>
+        } @else {
           <p class="empty-state">No task priorities available.</p>
-        </ng-template>
+        }
       </article>
     </div>
 
     <article class="panel full-width-panel">
       <h2>Upcoming due</h2>
-      <ul *ngIf="urgentTasks().length; else noUrgentTasks">
-        <li *ngFor="let task of urgentTasks()" class="task-row">
-          <div>
-            <strong>{{ task.title }}</strong>
-            <span>{{ formatLabel(task.status) }} · {{ formatLabel(task.priority) }}</span>
-          </div>
-          <small>{{ formatDate(task.dueDate) }}</small>
-        </li>
-      </ul>
-      <ng-template #noUrgentTasks>
+      @if (urgentTasks().length) {
+        <ul>
+          @for (task of urgentTasks(); track task.id) {
+            <li class="task-row">
+              <div>
+                <strong>{{ task.title }}</strong>
+                <span>{{ formatLabel(task.status) }} · {{ formatLabel(task.priority) }}</span>
+              </div>
+              <small>{{ formatDate(task.dueDate) }}</small>
+            </li>
+          }
+        </ul>
+      } @else {
         <p class="empty-state">No urgent tasks due in the next 7 days.</p>
-      </ng-template>
+      }
     </article>
-  </ng-container>
+  }
 </section>
   

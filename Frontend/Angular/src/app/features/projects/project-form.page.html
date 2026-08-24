@@ -44,28 +44,40 @@
       </div>
     </form>
 
-    <aside *ngIf="isEditMode() && projectId()" class="member-panel">
-      <h2>Project Members</h2>
-      <div class="member-controls" *ngIf="canManageMembers()">
-        <input type="number" min="1" [(ngModel)]="memberForm.userId" name="userId" placeholder="User Id" />
-        <select [(ngModel)]="memberForm.role" name="role">
-          <option *ngFor="let role of allowedRoles()" [value]="role">{{ role }}</option>
-        </select>
-        <button type="button" class="primary" (click)="assignMember()">Assign</button>
-      </div>
-
-      <ul class="member-list">
-        <li *ngFor="let member of members()">
-          <div>
-            <strong>{{ member.userName }}</strong>
-            <small>{{ member.email }}</small>
+    @if (isEditMode() && projectId()) {
+      <aside class="member-panel">
+        <h2>Project Members</h2>
+        @if (canManageMembers()) {
+          <div class="member-controls">
+            <input type="number" min="1" [(ngModel)]="memberForm.userId" name="userId" placeholder="User Id" />
+            <select [(ngModel)]="memberForm.role" name="role">
+              @for (role of allowedRoles(); track role) {
+                <option [value]="role">{{ role }}</option>
+              }
+            </select>
+            <button type="button" class="primary" (click)="assignMember()">Assign</button>
           </div>
-          <span>{{ member.role }}</span>
-          <button *ngIf="canManageMembers()" type="button" class="link-button" (click)="removeMember(member.userId)">Remove</button>
-        </li>
-      </ul>
+        }
 
-      <button *ngIf="project()?.canDelete" type="button" class="danger" (click)="deleteProject()">Delete Project</button>
-    </aside>
+        <ul class="member-list">
+          @for (member of members(); track member.userId) {
+            <li>
+              <div>
+                <strong>{{ member.userName }}</strong>
+                <small>{{ member.email }}</small>
+              </div>
+              <span>{{ member.role }}</span>
+              @if (canManageMembers()) {
+                <button type="button" class="link-button" (click)="removeMember(member.userId)">Remove</button>
+              }
+            </li>
+          }
+        </ul>
+
+        @if (project()?.canDelete) {
+          <button type="button" class="danger" (click)="deleteProject()">Delete Project</button>
+        }
+      </aside>
+    }
   </div>
 </section>
