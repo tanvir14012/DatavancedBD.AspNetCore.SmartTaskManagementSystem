@@ -27,6 +27,7 @@ public sealed class Update : IEndpoint
         [FromBody] UpdateProjectRequest request,
         AppDbContext dbContext,
         ICurrentUser currentUser,
+        ICacheService cacheService,
         CancellationToken cancellationToken)
     {
         var project = await dbContext.Projects
@@ -63,6 +64,7 @@ public sealed class Update : IEndpoint
         project.UpdatedById = currentUser.UserId;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await cacheService.RemoveByPatternAsync("projects:list:*", cancellationToken);
 
         return Results.Ok(new
         {
@@ -72,7 +74,8 @@ public sealed class Update : IEndpoint
             project.StartDate,
             project.EndDate,
             project.IsArchived,
-            project.CreatedAt
+            project.CreatedAt,
+            project.UpdatedAt
         });
     }
 }

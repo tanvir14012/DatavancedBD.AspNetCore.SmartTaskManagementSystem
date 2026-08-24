@@ -70,7 +70,7 @@ public sealed class Update : IEndpoint
             user.Email ?? string.Empty,
             role,
             user.LockoutEnd is null || user.LockoutEnd <= DateTime.UtcNow,
-            user.CreatedAt));
+            user.UpdatedAt ?? user.CreatedAt));
     }
 }
 
