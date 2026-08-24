@@ -21,8 +21,8 @@ export class LoginPage {
   readonly generalError = signal('');
 
   readonly form = this.formBuilder.nonNullable.group({
-    email: ['admin@stms.local', [Validators.required, Validators.email]],
-    password: ['Password123!', [Validators.required]],
+    email: ['admin@datavanced.com', [Validators.required, Validators.email]],
+    password: ['Datavanced@123', [Validators.required]],
   });
 
   fieldError(controlName: string): string[] {
