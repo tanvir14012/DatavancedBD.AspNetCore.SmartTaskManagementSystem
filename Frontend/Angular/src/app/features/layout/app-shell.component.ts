@@ -1,5 +1,6 @@
-import { Component, effect, inject, OnInit } from '@angular/core';
-import { Router, RouterOutlet } from '@angular/router';
+import { Component, inject, OnInit } from '@angular/core';
+import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { MenuService } from '../../core/services/menu.service';
 import { TopNavComponent } from './top-nav.component';
@@ -18,13 +19,16 @@ export class AppShellComponent implements OnInit {
   private readonly router = inject(Router);
 
   constructor() {
-    effect(() => {
-      this.menuService.setCurrentRoute(this.router.url);
-    });
+    this.router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe((event) => {
+        this.menuService.setCurrentRoute(event.urlAfterRedirects || this.router.url);
+      });
   }
 
   ngOnInit(): void {
     if (this.authService.isAuthenticated()) {
+      this.menuService.setCurrentRoute(this.router.url);
       this.menuService.loadMenus().subscribe();
     }
   }
