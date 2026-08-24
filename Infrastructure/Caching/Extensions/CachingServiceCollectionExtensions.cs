@@ -1,4 +1,4 @@
-using Infrastructure.Caching.Abstractions;
+using Application.Interfaces;
 using Infrastructure.Caching.Keys;
 using Infrastructure.Caching.Options;
 using Infrastructure.Caching.Serialization;

@@ -1,10 +1,10 @@
+using Application.Interfaces;
+using Application.Models;
+using Infrastructure.Data.EfCore.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Infrastructure.Caching.Abstractions;
-using Infrastructure.Caching.Models;
-using Infrastructure.Data.EfCore.Options;
 
 namespace Infrastructure.Data.EfCore.Extensions;
 

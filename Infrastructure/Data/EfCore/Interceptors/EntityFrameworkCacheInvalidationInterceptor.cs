@@ -1,4 +1,4 @@
-using Infrastructure.Caching.Abstractions;
+using Application.Interfaces;
 using Infrastructure.Data.EfCore.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;

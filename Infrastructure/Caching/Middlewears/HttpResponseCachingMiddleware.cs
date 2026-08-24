@@ -1,6 +1,6 @@
-using Infrastructure.Caching.Abstractions;
+using Application.Interfaces;
+using Application.Models;
 using Infrastructure.Caching.Keys;
-using Infrastructure.Caching.Models;
 using Infrastructure.Caching.Options;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;

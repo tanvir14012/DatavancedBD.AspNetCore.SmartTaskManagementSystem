@@ -1,6 +1,6 @@
-using Infrastructure.Caching.Models;
+using Application.Models;
 
-namespace Infrastructure.Caching.Abstractions;
+namespace Application.Interfaces;
 
 public interface ICacheService
 {

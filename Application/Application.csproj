@@ -11,4 +11,33 @@
     <ProjectReference Include="..\Shared\Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Features\Auth\Login\" />
+    <Folder Include="Features\Auth\Logout\" />
+    <Folder Include="Features\Auth\RefreshToken\" />
+    <Folder Include="Features\Dashboard\Overview\" />
+    <Folder Include="Features\MenuItem\List\" />
+    <Folder Include="Features\Project\Delete\" />
+    <Folder Include="Features\Project\List\" />
+    <Folder Include="Features\Project\AssignMember\" />
+    <Folder Include="Features\Project\Update\" />
+    <Folder Include="Features\Task\Create\" />
+    <Folder Include="Features\Task\Delete\" />
+    <Folder Include="Features\Task\Get\" />
+    <Folder Include="Features\Task\List\" />
+    <Folder Include="Features\Task\Assign\" />
+    <Folder Include="Features\Task\Update\" />
+    <Folder Include="Features\User\Create\" />
+    <Folder Include="Features\User\Delete\" />
+    <Folder Include="Features\User\Get\" />
+    <Folder Include="Features\User\List\" />
+    <Folder Include="Features\User\Update\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" />
+      <PackageReference Include="MediatR" />
+      <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
 </Project>

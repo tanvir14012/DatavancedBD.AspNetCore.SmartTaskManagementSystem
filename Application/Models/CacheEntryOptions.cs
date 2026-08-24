@@ -1,4 +1,4 @@
-namespace Infrastructure.Caching.Models;
+namespace Application.Models;
 
 public sealed class CacheEntryOptions
 {

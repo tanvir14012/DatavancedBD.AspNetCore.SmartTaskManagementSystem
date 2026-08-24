@@ -6,6 +6,8 @@ using Infrastructure.Bootstrap.Options;
 using Infrastructure.Caching.Extensions;
 using Infrastructure.Data.EfCore.Extensions;
 using Infrastructure.Data.EfCore.Persistence;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -55,8 +57,11 @@ public static class BootstrapExtensions
         builder.Services.AddCaching(builder.Configuration);
         builder.Services.AddHttpResponseCaching(builder.Configuration);
 
-        builder.Services
-            .AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+       builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
             .AddJwtBearer(options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
@@ -72,7 +77,10 @@ public static class BootstrapExtensions
                 };
             });
 
-        builder.Services.AddAuthorization();
+        builder.Services.AddAuthorizationBuilder()
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build());
 
         // ── API Versioning ────────────────────────────────────────────────────
         // Reads ?api-version= query param and api-version header — matches the
@@ -161,6 +169,10 @@ public static class BootstrapExtensions
         });
 
         builder.Services.AddHealthChecks();
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.CustomSchemaIds(type => type.FullName);
+        });
 
         return builder;
     }
@@ -170,6 +182,8 @@ public static class BootstrapExtensions
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
+            app.UseSwagger();
+            app.UseSwaggerUI();
         }
 
         app.UseMiddleware<RequestTracingMiddleware>();

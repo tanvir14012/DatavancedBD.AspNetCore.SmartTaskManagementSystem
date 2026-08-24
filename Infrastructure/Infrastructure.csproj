@@ -34,6 +34,7 @@
       <PackageReference Include="Asp.Versioning.Http" />
       <PackageReference Include="Serilog.Sinks.File" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" />
+      <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>

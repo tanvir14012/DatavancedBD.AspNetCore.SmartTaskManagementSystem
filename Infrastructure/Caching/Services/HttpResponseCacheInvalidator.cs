@@ -1,3 +1,4 @@
+using Application.Interfaces;
 using Infrastructure.Caching.Abstractions;
 using Infrastructure.Caching.Options;
 using Microsoft.Extensions.Options;

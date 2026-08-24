@@ -1,27 +1,26 @@
+using Application.Interfaces;
 using Infrastructure.AssemblyScan;
 using Infrastructure.Bootstrap;
-using Infrastructure.Data.EfCore.Persistence.Seeding;
+using Infrastructure.Data.EfCore.Persistence;
+using Application;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddDefaultBootstrap();
 
 builder.Services
-    .AddScopedServices(typeof(Program).Assembly)
-    .AddTransientServices(typeof(Program).Assembly)
-    .AddSingletonServices(typeof(Program).Assembly);
+    .AddScopedServices(typeof(Program).Assembly, typeof(ICurrentUser).Assembly, typeof(AppDbContext).Assembly)
+    .AddTransientServices(typeof(Program).Assembly, typeof(ICurrentUser).Assembly, typeof(AppDbContext).Assembly)
+    .AddSingletonServices(typeof(Program).Assembly, typeof(ICurrentUser).Assembly, typeof(AppDbContext).Assembly);
 
 builder.Services.AddEndpoints(typeof(Program).Assembly);
 builder.Services.AddObservability(builder.Configuration, Shared.Constants.ServiceName);
 
+builder.Services.AddApplication();
+builder.Services.AddAutoMapper(cfg => { }, typeof(ICurrentUser).Assembly);
+
 var app = builder.Build()
     .UseDefaultMiddleware();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
 
 app.UseHttpsRedirection();
 
