@@ -4,7 +4,7 @@
       <p class="eyebrow">Directory</p>
       <h1>Users</h1>
     </div>
-    <button *ngIf="isAdmin()" class="primary" type="button" (click)="openCreateForm()">Invite Member</button>
+    <button *ngIf="isAdmin()" class="primary" type="button" (click)="openCreateForm()">Add Member</button>
   </header>
 
   <div class="toolbar" *ngIf="users().length || isAdmin()">
