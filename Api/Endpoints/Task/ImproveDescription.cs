@@ -12,7 +12,7 @@ public sealed class ImproveDescription : IEndpoint
             .WithTags("Tasks");
 
         group.MapPost("/improve-description", Improve)
-            .WithName("ImproveTaskDescription")
+            .WithName("ImproveTaskDescriptionWithAi")
             .WithSummary("Improve task description using AI")
             .RequireAuthorization();
     }
