@@ -4,6 +4,8 @@ import { BehaviorSubject, Observable, catchError, map, of, shareReplay, tap, thr
 import { environment } from '../../../environments/environment';
 import { UserProfile } from '../models/menu-item.model';
 import { MenuService } from './menu.service';
+import { ProjectService } from './project.service';
+import { TaskService } from './task.service';
 
 interface LoginRequest {
   email: string;
@@ -45,6 +47,8 @@ interface AuthState {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly menuService = inject(MenuService);
+  private readonly projectService = inject(ProjectService);
+  private readonly taskService = inject(TaskService);
 
   private readonly authStateSubject = new BehaviorSubject<AuthState>(this.readStoredState());
 
@@ -116,6 +120,9 @@ export class AuthService {
 
   logout(): Observable<void> {
     this.clearRefreshTimer();
+    this.projectService.clearListCache();
+    this.taskService.clearListCache();
+    this.menuService.clearMenus();
 
     const request$ = localStorage.getItem('stms.token')
       ? this.http.post<void>(`${environment.apiBaseUrl}/auth/logout`, {}, { withCredentials: true }).pipe(
@@ -128,7 +135,6 @@ export class AuthService {
         localStorage.removeItem('stms.token');
         localStorage.removeItem('stms.user');
         localStorage.removeItem('stms.expiresAt');
-        this.menuService.clearMenus();
         this.syncSignals({ token: null, expiresAt: null, user: null, isAuthenticated: false });
       }),
     );
@@ -146,6 +152,10 @@ export class AuthService {
     localStorage.setItem('stms.token', accessToken);
     localStorage.setItem('stms.expiresAt', String(expiresAt));
     localStorage.setItem('stms.user', JSON.stringify(user));
+
+    this.projectService.clearListCache();
+    this.taskService.clearListCache();
+    this.menuService.clearMenus();
 
     this.syncSignals({ token: accessToken, expiresAt, user, isAuthenticated: true });
     this.scheduleRefresh(expiresAt);

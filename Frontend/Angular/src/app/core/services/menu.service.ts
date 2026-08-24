@@ -117,10 +117,17 @@ export class MenuService {
   private filterVisibleMenuItems(items: MenuItem[]): MenuItem[] {
     const userRole = this.readStoredUserRole();
     const canAccessBoard = userRole === 'Admin' || userRole === 'Project Manager';
+    const canManageProjects = userRole === 'Admin' || userRole === 'Project Manager';
 
     return items
       .filter((item) => {
-        if (this.normalizeRoute(item.route) === '/tasks/board' && !canAccessBoard) {
+        const route = this.normalizeRoute(item.route);
+
+        if (route === '/tasks/board' && !canAccessBoard) {
+          return false;
+        }
+
+        if ((route === '/projects/new' || route === '/projects/assign') && !canManageProjects) {
           return false;
         }
 

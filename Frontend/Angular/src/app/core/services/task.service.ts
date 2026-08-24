@@ -93,6 +93,11 @@ export class TaskService {
 
   constructor(private readonly http: HttpClient) {}
 
+  clearListCache(): void {
+    this.listCache.clear();
+    this.boardCache.clear();
+  }
+
   list(params: {
     start?: number;
     length?: number;
@@ -155,20 +160,17 @@ export class TaskService {
   }
 
   create(payload: TaskCreateRequest): Observable<TaskDetail> {
-    this.listCache.clear();
-    this.boardCache.clear();
+    this.clearListCache();
     return this.http.post<TaskDetail>(this.baseUrl, payload, { withCredentials: true });
   }
 
   update(id: number, payload: TaskUpdateRequest): Observable<TaskDetail> {
-    this.listCache.clear();
-    this.boardCache.clear();
+    this.clearListCache();
     return this.http.put<TaskDetail>(`${this.baseUrl}/${id}`, payload, { withCredentials: true });
   }
 
   delete(id: number): Observable<{ success: boolean; id: number }> {
-    this.listCache.clear();
-    this.boardCache.clear();
+    this.clearListCache();
     return this.http.delete<{ success: boolean; id: number }>(`${this.baseUrl}/${id}`, { withCredentials: true });
   }
 }
