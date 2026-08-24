@@ -66,17 +66,22 @@ public sealed class Update : IEndpoint
         await dbContext.SaveChangesAsync(cancellationToken);
         await cacheService.RemoveByPatternAsync("projects:list:*", cancellationToken);
 
-        return Results.Ok(new
-        {
+        var members = await dbContext.UserProjects
+            .AsNoTracking()
+            .Where(x => x.ProjectId == id)
+            .Select(x => new ProjectMemberSummary(x.UserId, x.User.UserName ?? x.User.Email ?? string.Empty, x.User.Email ?? string.Empty, x.ProjectRole))
+            .ToListAsync(cancellationToken);
+
+        return Results.Ok(new ProjectDetailResponse(
             project.Id,
             project.Name,
             project.Description,
             project.StartDate,
             project.EndDate,
-            project.IsArchived,
             project.CreatedAt,
-            project.UpdatedAt
-        });
+            currentUser.IsInRole("Admin") || members.Any(x => x.UserId == currentUser.UserId && (x.Role == ProjectRole.Manager || x.Role == ProjectRole.Owner)),
+            currentUser.IsInRole("Admin"),
+            members));
     }
 }
 
