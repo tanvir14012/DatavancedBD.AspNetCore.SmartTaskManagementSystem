@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { noAuthGuard } from './core/guards/no-auth.guard';
+import { dashboardResolver } from './core/resolvers/dashboard.resolver';
 import { AppShellComponent } from './features/layout/app-shell.component';
 
 export const routes: Routes = [
@@ -7,14 +9,17 @@ export const routes: Routes = [
   {
     path: 'homepage',
     loadComponent: () => import('./features/home/homepage.page').then((m) => m.HomepagePage),
+    canActivate: [noAuthGuard],
   },
   {
     path: 'login',
     loadComponent: () => import('./features/auth/login.page').then((m) => m.LoginPage),
+    canActivate: [noAuthGuard],
   },
   {
     path: 'register',
     loadComponent: () => import('./features/auth/register.page').then((m) => m.RegisterPage),
+    canActivate: [noAuthGuard],
   },
   {
     path: '',
@@ -25,6 +30,7 @@ export const routes: Routes = [
       {
         path: 'dashboard',
         loadComponent: () => import('./features/dashboard/dashboard.page').then((m) => m.DashboardPage),
+        resolve: { dashboardData: dashboardResolver },
       },
       {
         path: 'projects',
