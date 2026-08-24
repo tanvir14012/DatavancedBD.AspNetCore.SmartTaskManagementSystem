@@ -48,16 +48,16 @@ public class MenuItemConfig : IEntityTypeConfiguration<MenuItem>
             new MenuItem { Id = 10, Name = "Overview", Route = "/dashboard", Icon = "analytics", DisplayOrder = 1, Type = MenuType.SideBar, ParentId = 1 },
 
             // Projects (Essential views only)
-            new MenuItem { Id = 20, Name = "All Projects", Route = "/projects", Icon = "list_alt", DisplayOrder = 1, Type = MenuType.SideBar, ParentId = 2 },
+            new MenuItem { Id = 20, Name = "All Projects", Route = "/projects/list", Icon = "list_alt", DisplayOrder = 1, Type = MenuType.SideBar, ParentId = 2 },
             new MenuItem { Id = 21, Name = "New Project", Route = "/projects/new", Icon = "create_new_folder", DisplayOrder = 2, Type = MenuType.SideBar, ParentId = 2 },
             new MenuItem { Id = 41, Name = "Assign Member", Route = "/projects/assign", Icon = "people", DisplayOrder = 3, Type = MenuType.SideBar, ParentId = 2 },
 
             // Tasks (Essential management views + AI feature)
-            new MenuItem { Id = 30, Name = "All Tasks", Route = "/tasks", Icon = "table_chart", DisplayOrder = 1, Type = MenuType.SideBar, ParentId = 3 },
+            new MenuItem { Id = 30, Name = "All Tasks", Route = "/tasks/list", Icon = "table_chart", DisplayOrder = 1, Type = MenuType.SideBar, ParentId = 3 },
             new MenuItem { Id = 31, Name = "Task Board", Route = "/tasks/board", Icon = "view_kanban", DisplayOrder = 2, Type = MenuType.SideBar, ParentId = 3 },
 
             // Users (Admin requirement)
-            new MenuItem { Id = 40, Name = "All Users", Route = "/users", Icon = "manage_accounts", DisplayOrder = 1, Type = MenuType.SideBar, ParentId = 4 },
+            new MenuItem { Id = 40, Name = "All Users", Route = "/users/list", Icon = "manage_accounts", DisplayOrder = 1, Type = MenuType.SideBar, ParentId = 4 },
         };
     }
 }
