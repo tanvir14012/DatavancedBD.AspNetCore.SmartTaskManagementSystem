@@ -11,7 +11,7 @@
       <span>Project</span>
       <select [(ngModel)]="projectFilter" (change)="loadBoard()">
         <option value="all">All projects</option>
-        <option *ngFor="let project of projects" [value]="project.id">{{ project.name }}</option>
+        <option *ngFor="let project of projects()" [value]="project.id">{{ project.name }}</option>
       </select>
     </label>
 
@@ -34,8 +34,8 @@
     <button type="button" class="primary" (click)="loadBoard()">Apply</button>
   </div>
 
-  <div class="board" *ngIf="columns.length > 0; else emptyBoard">
-    <div class="board-column" *ngFor="let column of columns" [ngClass]="'status-' + statusClass(column.status)">
+  <div class="board" *ngIf="columns().length > 0; else emptyBoard">
+    <div class="board-column" *ngFor="let column of columns()" [ngClass]="'status-' + statusClass(column.status)">
       <div class="column-header">
         <span>{{ statusLabel(column.status) }}</span>
         <span class="count">{{ column.taskCount }}</span>
@@ -83,6 +83,6 @@
   </div>
 
   <ng-template #emptyBoard>
-    <div class="empty-state" *ngIf="!isLoading">No tasks match the active filters.</div>
+    <div class="empty-state" *ngIf="!isLoading()">No tasks match the active filters.</div>
   </ng-template>
 </section>

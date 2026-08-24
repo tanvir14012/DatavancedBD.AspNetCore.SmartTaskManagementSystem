@@ -4,10 +4,10 @@
       <p class="eyebrow">Execution</p>
       <h1>Tasks</h1>
     </div>
-    <button *ngIf="canCreateTask" type="button" class="primary" (click)="openCreateForm()">Create Task</button>
+    <button *ngIf="canCreateTask()" type="button" class="primary" (click)="openCreateForm()">Create Task</button>
   </header>
 
-  <div class="toolbar" *ngIf="tasks.length || canCreateTask">
+  <div class="toolbar" *ngIf="tasks().length || canCreateTask()">
     <div class="search-box">
       <input type="search" [(ngModel)]="search" placeholder="Search tasks" (input)="onSearchInput()" (keyup.enter)="onSearch()" />
       <button type="button" (click)="onSearch()">Search</button>
@@ -18,7 +18,7 @@
         Project
         <select [(ngModel)]="projectFilter" (change)="onFilterChange()">
           <option value="all">All projects</option>
-          <option *ngFor="let project of projects" [value]="project.id">{{ project.name }}</option>
+          <option *ngFor="let project of projects()" [value]="project.id">{{ project.name }}</option>
         </select>
       </label>
 
@@ -65,8 +65,8 @@
     </div>
   </div>
 
-  <div *ngIf="showForm && (canCreateTask || editingTaskId !== null)" class="panel">
-    <h2>{{ editingTaskId === null ? 'Create Task' : 'Edit Task' }}</h2>
+  <div *ngIf="showForm() && (canCreateTask() || editingTaskId() !== null)" class="panel">
+    <h2>{{ editingTaskId() === null ? 'Create Task' : 'Edit Task' }}</h2>
 
     <form class="task-form" (ngSubmit)="submitForm()">
       <div class="field-grid">
@@ -74,7 +74,7 @@
           Project
           <select [(ngModel)]="form.projectId" name="projectId">
             <option value="">Select a project</option>
-            <option *ngFor="let project of projects" [value]="project.id">{{ project.name }}</option>
+            <option *ngFor="let project of projects()" [value]="project.id">{{ project.name }}</option>
           </select>
         </label>
 
@@ -121,17 +121,17 @@
       </div>
 
       <div class="action-row">
-        <button type="button" class="secondary" (click)="showForm = false">Cancel</button>
-        <button type="submit" class="primary">{{ editingTaskId === null ? 'Create Task' : 'Save Changes' }}</button>
+        <button type="button" class="secondary" (click)="showForm.set(false)">Cancel</button>
+        <button type="submit" class="primary">{{ editingTaskId() === null ? 'Create Task' : 'Save Changes' }}</button>
       </div>
     </form>
   </div>
 
-  <div *ngIf="tasks.length === 0" class="empty-state">
+  <div *ngIf="tasks().length === 0" class="empty-state">
     No tasks match the selected filters.
   </div>
 
-  <div *ngIf="tasks.length > 0" class="table-wrap">
+  <div *ngIf="tasks().length > 0" class="table-wrap">
     <table class="task-table">
       <thead>
         <tr>
@@ -145,7 +145,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let task of tasks">
+        <tr *ngFor="let task of tasks()">
           <td>
             <div class="task-title">{{ task.title }}</div>
             <div *ngIf="task.description" class="task-description">{{ task.description }}</div>
@@ -168,10 +168,10 @@
     </table>
   </div>
 
-  <div class="pagination" *ngIf="totalPages > 1">
-    <button type="button" [disabled]="page === 1" (click)="prevPage()">Previous</button>
-    <span>Page {{ page }} of {{ totalPages }}</span>
-    <button type="button" [disabled]="page >= totalPages" (click)="nextPage()">Next</button>
+  <div class="pagination" *ngIf="totalPages() > 1">
+    <button type="button" [disabled]="page() === 1" (click)="prevPage()">Previous</button>
+    <span>Page {{ page() }} of {{ totalPages() }}</span>
+    <button type="button" [disabled]="page() >= totalPages()" (click)="nextPage()">Next</button>
   </div>
 </section>
   
