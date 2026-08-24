@@ -84,7 +84,7 @@ public sealed class List : IEndpoint
 
         if (!string.IsNullOrWhiteSpace(assigneeId))
         {
-            query = query.Where(t => t.Assignees.Any(a => a.UserId == assigneeId));
+            query = query.Where(t => t.Assignees.Any(a => a.UserId == int.Parse(assigneeId)));
         }
 
         var request = new DataTableRequest

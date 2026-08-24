@@ -167,7 +167,7 @@ public sealed class Assign : IEndpoint
             return Results.Forbid();
         }
 
-        var assignment = task.Assignees.FirstOrDefault(a => a.UserId == userId);
+        var assignment = task.Assignees.FirstOrDefault(a => a.UserId == int.Parse(userId));
         if (assignment is null)
         {
             return Results.NotFound(new { message = "This user is not assigned to this task." });
@@ -177,7 +177,7 @@ public sealed class Assign : IEndpoint
 
         if (assignment.IsPrimary && task.Assignees.Count > 1)
         {
-            var nextAssignment = task.Assignees.FirstOrDefault(a => a.UserId != userId);
+            var nextAssignment = task.Assignees.FirstOrDefault(a => a.UserId != int.Parse(userId));
             if (nextAssignment is not null)
             {
                 nextAssignment.IsPrimary = true;
