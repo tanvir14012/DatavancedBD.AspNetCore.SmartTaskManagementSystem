@@ -3,6 +3,7 @@ import { authGuard } from './core/guards/auth.guard';
 import { AppShellComponent } from './features/layout/app-shell.component';
 
 export const routes: Routes = [
+  { path: '', redirectTo: 'homepage', pathMatch: 'full' },
   {
     path: 'homepage',
     loadComponent: () => import('./features/home/homepage.page').then((m) => m.HomepagePage),
