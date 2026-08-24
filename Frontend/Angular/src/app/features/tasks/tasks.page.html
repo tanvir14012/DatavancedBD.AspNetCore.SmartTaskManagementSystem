@@ -45,6 +45,14 @@
       </label>
 
       <label>
+        Assignee
+        <select [(ngModel)]="assigneeFilter" (change)="onFilterChange()">
+          <option value="all">All</option>
+          <option *ngFor="let user of allUsers()" [value]="user.id">{{ user.firstName }} {{ user.lastName }}</option>
+        </select>
+      </label>
+
+      <label>
         Sort
         <select [(ngModel)]="sortColumn" (change)="onFilterChange()">
           <option value="CreatedAt">Created</option>
@@ -69,18 +77,26 @@
     <h2>{{ editingTaskId() === null ? 'Create Task' : 'Edit Task' }}</h2>
 
     <form class="task-form" (ngSubmit)="submitForm()">
+      <div *ngIf="Object.keys(formErrors()).length > 0" style="color: red; margin-bottom: 1rem;">
+        <ul>
+          <li *ngFor="let error of Object.values(formErrors())">{{ error }}</li>
+        </ul>
+      </div>
+
       <div class="field-grid">
         <label>
           Project
-          <select [(ngModel)]="form.projectId" name="projectId">
+          <select [(ngModel)]="form.projectId" name="projectId" (change)="onProjectChange()">
             <option value="">Select a project</option>
             <option *ngFor="let project of projects()" [value]="project.id">{{ project.name }}</option>
           </select>
+          <small *ngIf="formErrors()['projectId']" style="color: red;">{{ formErrors()['projectId'] }}</small>
         </label>
 
         <label>
           Title
           <input type="text" [(ngModel)]="form.title" name="title" />
+          <small *ngIf="formErrors()['title']" style="color: red;">{{ formErrors()['title'] }}</small>
         </label>
       </div>
 
@@ -110,6 +126,16 @@
         <label>
           Due date
           <input type="date" [(ngModel)]="form.dueDate" name="dueDate" />
+        </label>
+      </div>
+
+      <div class="field-grid single">
+        <label>
+          Assign to
+          <select [(ngModel)]="form.assigneeEmail" name="assigneeEmail" [disabled]="loadingMembers()">
+            <option value="">No assignee</option>
+            <option *ngFor="let member of projectMembers()" [value]="member.email">{{ member.userName || member.email }}</option>
+          </select>
         </label>
       </div>
 

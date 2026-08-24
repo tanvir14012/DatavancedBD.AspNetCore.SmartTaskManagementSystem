@@ -49,7 +49,7 @@
       <div class="member-controls" *ngIf="canManageMembers()">
         <input type="number" min="1" [(ngModel)]="memberForm.userId" name="userId" placeholder="User Id" />
         <select [(ngModel)]="memberForm.role" name="role">
-          <option *ngFor="let role of allowedRoles" [value]="role">{{ role }}</option>
+          <option *ngFor="let role of allowedRoles()" [value]="role">{{ role }}</option>
         </select>
         <button type="button" class="primary" (click)="assignMember()">Assign</button>
       </div>

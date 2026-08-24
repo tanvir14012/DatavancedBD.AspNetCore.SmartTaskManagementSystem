@@ -35,6 +35,7 @@ public sealed class List : IEndpoint
         [FromQuery] int? projectId = null,
         [FromQuery] string? status = null,
         [FromQuery] string? priority = null,
+        [FromQuery] string? assigneeId = null,
         CancellationToken cancellationToken = default)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
@@ -49,7 +50,7 @@ public sealed class List : IEndpoint
                 ? $"pm-{userId}"
                 : $"member-{userId}";
 
-        var cacheKey = $"tasks:list:{roleScope}:{projectId ?? 0}:{status ?? "all"}:{priority ?? "all"}:{search ?? string.Empty}:{start}:{length}:{sortColumn ?? "CreatedAt"}:{sortDirection ?? "desc"}";
+        var cacheKey = $"tasks:list:{roleScope}:{projectId ?? 0}:{status ?? "all"}:{priority ?? "all"}:{assigneeId ?? "all"}:{search ?? string.Empty}:{start}:{length}:{sortColumn ?? "CreatedAt"}:{sortDirection ?? "desc"}";
         var cachedResponse = await cacheService.GetAsync<TaskListResponse>(cacheKey, cancellationToken);
         if (cachedResponse is not null)
         {
@@ -59,6 +60,7 @@ public sealed class List : IEndpoint
         IQueryable<Domain.ProjectTask> query = dbContext.ProjectTasks
             .AsNoTracking()
             .Include(t => t.Project)
+            .ThenInclude(p => p.Members)
             .AsQueryable();
 
         if (!currentUser.IsInRole("Admin"))
@@ -78,6 +80,11 @@ public sealed class List : IEndpoint
         if (projectId.HasValue)
         {
             query = query.Where(t => t.ProjectId == projectId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(assigneeId))
+        {
+            query = query.Where(t => t.Assignees.Any(a => a.UserId == assigneeId));
         }
 
         var request = new DataTableRequest
@@ -120,22 +127,31 @@ public sealed class List : IEndpoint
                 t.Status,
                 t.Priority,
                 t.DueDate,
-                t.CreatedAt),
+                t.CreatedAt,
+                t.Project.Members.Any(m =>
+                    m.UserId == userId &&
+                    (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner))),
             configuration,
             cancellationToken);
 
-        var items = page.Items.Select(item => new TaskListItem(
-            item.Id,
-            item.ProjectId,
-            item.ProjectName,
-            item.Title,
-            item.Description,
-            item.Status.ToString(),
-            item.Priority.ToString(),
-            item.DueDate?.ToString("yyyy-MM-dd"),
-            item.CreatedAt,
-            true,
-            currentUser.IsInRole("Admin") || currentUser.IsInRole("Project Manager"))).ToList();
+        var items = page.Items.Select(item =>
+        {
+            var canDelete = currentUser.IsInRole("Admin") || 
+                (currentUser.IsInRole("Project Manager") && item.UserIsProjectManager);
+
+            return new TaskListItem(
+                item.Id,
+                item.ProjectId,
+                item.ProjectName,
+                item.Title,
+                item.Description,
+                item.Status.ToString(),
+                item.Priority.ToString(),
+                item.DueDate?.ToString("yyyy-MM-dd"),
+                item.CreatedAt,
+                true,
+                canDelete);
+        }).ToList();
 
         var response = new TaskListResponse(
             (start / Math.Max(length, 1)) + 1,
@@ -164,7 +180,8 @@ public sealed record TaskListProjection(
     ProjectTaskStatus Status,
     TaskPriority Priority,
     DateOnly? DueDate,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    bool UserIsProjectManager);
 
 public sealed record TaskListItem(
     int Id,

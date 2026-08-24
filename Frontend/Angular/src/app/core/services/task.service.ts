@@ -105,6 +105,7 @@ export class TaskService {
     projectId?: number;
     status?: string;
     priority?: string;
+    assigneeId?: string;
     sortColumn?: string;
     sortDirection?: string;
   } = {}): Observable<TaskListResult> {
@@ -172,5 +173,15 @@ export class TaskService {
   delete(id: number): Observable<{ success: boolean; id: number }> {
     this.clearListCache();
     return this.http.delete<{ success: boolean; id: number }>(`${this.baseUrl}/${id}`, { withCredentials: true });
+  }
+
+  assignUser(id: number, payload: { userId?: string; email?: string }): Observable<{ message: string; userId: string; taskId: number }> {
+    this.clearListCache();
+    return this.http.post<{ message: string; userId: string; taskId: number }>(`${this.baseUrl}/${id}/assign`, payload, { withCredentials: true });
+  }
+
+  unassignUser(id: number, userId: string): Observable<{ message: string; userId: string; taskId: number }> {
+    this.clearListCache();
+    return this.http.delete<{ message: string; userId: string; taskId: number }>(`${this.baseUrl}/${id}/assign/${userId}`, { withCredentials: true });
   }
 }
