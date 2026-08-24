@@ -1,4 +1,4 @@
-import { Component, Input, inject, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, Input, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
 import { take } from 'rxjs';
@@ -20,6 +20,7 @@ export class TopNavComponent {
 
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   getItemRoute(item: MenuItem): string {
     return item.route || item.children?.[0]?.route || '/dashboard';
@@ -60,8 +61,14 @@ export class TopNavComponent {
       .logout()
       .pipe(take(1))
       .subscribe({
-        next: () => this.router.navigateByUrl('/homepage'),
-        error: () => this.router.navigateByUrl('/homepage'),
+        next: () => {
+          this.cdr.markForCheck();
+          this.router.navigateByUrl('/homepage');
+        },
+        error: () => {
+          this.cdr.markForCheck();
+          this.router.navigateByUrl('/homepage');
+        },
       });
   }
 }

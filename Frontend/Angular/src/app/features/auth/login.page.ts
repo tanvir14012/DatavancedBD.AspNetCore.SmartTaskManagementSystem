@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { finalize, tap } from 'rxjs';
@@ -16,6 +16,7 @@ export class LoginPage {
   private readonly formBuilder = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly loading = signal(false);
   readonly fieldErrors = signal<Record<string, string[]>>({});
@@ -40,6 +41,7 @@ export class LoginPage {
     this.loading.set(true);
     this.generalError.set('');
     this.fieldErrors.set({});
+    this.cdr.markForCheck();
 
     this.authService
       .login(this.form.value.email ?? '', this.form.value.password ?? '')
@@ -47,13 +49,20 @@ export class LoginPage {
         tap(() => {
           this.router.navigateByUrl('/dashboard');
         }),
-        finalize(() => this.loading.set(false)),
+        finalize(() => {
+          this.loading.set(false);
+          this.cdr.markForCheck();
+        }),
       )
       .subscribe({
+        next: () => {
+          this.cdr.markForCheck();
+        },
         error: (error: unknown) => {
           const parsed = this.parseApiError(error);
           this.fieldErrors.set(parsed.fieldErrors);
           this.generalError.set(parsed.generalError);
+          this.cdr.markForCheck();
         },
       });
   }

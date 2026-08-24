@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { finalize } from 'rxjs';
 import { DashboardService, DashboardSummary } from '../../core/services/dashboard.service';
 
@@ -12,6 +12,7 @@ import { DashboardService, DashboardSummary } from '../../core/services/dashboar
 })
 export class DashboardPage implements OnInit {
   private readonly dashboardService = inject(DashboardService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   summary: DashboardSummary | null = null;
   isLoading = true;
@@ -24,16 +25,22 @@ export class DashboardPage implements OnInit {
   loadSummary(forceReload = false): void {
     this.isLoading = true;
     this.errorMessage = null;
+    this.cdr.markForCheck();
 
     this.dashboardService
       .getSummary(undefined, forceReload)
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(finalize(() => {
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe({
         next: (data) => {
           this.summary = data;
+          this.cdr.markForCheck();
         },
         error: () => {
           this.errorMessage = 'Unable to load dashboard details from the server.';
+          this.cdr.markForCheck();
         },
       });
   }

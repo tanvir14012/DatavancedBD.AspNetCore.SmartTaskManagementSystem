@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
@@ -38,6 +38,7 @@ export class ProjectFormPage implements OnInit {
     private readonly router: Router,
     private readonly projectService: ProjectService,
     private readonly authService: AuthService,
+    private readonly cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -73,11 +74,13 @@ export class ProjectFormPage implements OnInit {
       };
       this.members = project.members ?? [];
       this.canManageMembers = project.canEdit;
+      this.cdr.markForCheck();
     });
   }
 
   saveProject(): void {
     this.isSubmitting = true;
+    this.cdr.markForCheck();
 
     const payload = {
       name: this.form.name,
@@ -94,10 +97,12 @@ export class ProjectFormPage implements OnInit {
     request$.subscribe({
       next: (project) => {
         this.isSubmitting = false;
+        this.cdr.markForCheck();
         this.router.navigate(['/projects', project.id]);
       },
       error: () => {
         this.isSubmitting = false;
+        this.cdr.markForCheck();
       },
     });
   }

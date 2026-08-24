@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -38,6 +38,7 @@ export class TasksPage implements OnInit {
   isLoading = false;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly searchSubject = new Subject<string>();
 
   form = {
@@ -81,11 +82,13 @@ export class TasksPage implements OnInit {
       if (this.projects.length > 0 && !this.form.projectId) {
         this.form.projectId = String(this.projects[0].id);
       }
+      this.cdr.markForCheck();
     });
   }
 
   loadTasks(): void {
     this.isLoading = true;
+    this.cdr.markForCheck();
 
     this.taskService
       .list({
@@ -98,18 +101,23 @@ export class TasksPage implements OnInit {
         sortColumn: this.sortColumn,
         sortDirection: this.sortDirection,
       })
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(finalize(() => {
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe({
         next: (result) => {
           this.tasks = result.items;
           this.totalCount = result.totalCount;
           this.totalPages = result.totalPages || 1;
           this.page = Math.min(this.page, this.totalPages || 1);
+          this.cdr.markForCheck();
         },
         error: () => {
           this.tasks = [];
           this.totalCount = 0;
           this.totalPages = 1;
+          this.cdr.markForCheck();
         },
       });
   }

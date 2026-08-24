@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
@@ -28,6 +28,7 @@ export class ProjectsPage implements OnInit {
   readonly canCreateProject: boolean;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly searchSubject = new Subject<string>();
 
   constructor(
@@ -52,6 +53,7 @@ export class ProjectsPage implements OnInit {
 
   loadProjects(): void {
     this.isLoading = true;
+    this.cdr.markForCheck();
 
     this.projectService
       .getProjects({
@@ -62,18 +64,25 @@ export class ProjectsPage implements OnInit {
         sortDirection: this.sortDirection,
         status: this.statusFilter,
       })
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(
+        finalize(() => {
+          this.isLoading = false;
+          this.cdr.markForCheck();
+        })
+      )
       .subscribe({
         next: (result) => {
           this.projects = result.items;
           this.totalCount = result.totalCount;
           this.totalPages = result.totalPages || 1;
           this.page = Math.min(this.page, this.totalPages || 1);
+          this.cdr.markForCheck();
         },
         error: () => {
           this.projects = [];
           this.totalCount = 0;
           this.totalPages = 1;
+          this.cdr.markForCheck();
         },
       });
   }

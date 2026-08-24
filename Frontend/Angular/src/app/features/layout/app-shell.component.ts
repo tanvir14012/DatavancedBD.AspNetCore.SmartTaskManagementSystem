@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
@@ -17,6 +17,7 @@ export class AppShellComponent implements OnInit {
   readonly menuService = inject(MenuService);
   readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   constructor() {
     this.router.events
@@ -29,7 +30,14 @@ export class AppShellComponent implements OnInit {
   ngOnInit(): void {
     if (this.authService.isAuthenticated()) {
       this.menuService.setCurrentRoute(this.router.url);
-      this.menuService.loadMenus().subscribe();
+      this.menuService.loadMenus().subscribe({
+        next: () => {
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.cdr.markForCheck();
+        },
+      });
     }
   }
 }
