@@ -35,13 +35,11 @@ export const routes: Routes = [
         resolve: { dashboardData: dashboardResolver },
       },
       {
-        path: 'projects',
-        loadComponent: () => import('./features/projects/projects.page').then((m) => m.ProjectsPage),
+        path: 'projects', redirectTo: 'projects/list', pathMatch: 'full',
       },
       {
         path: 'projects/list',
-        redirectTo: 'projects',
-        pathMatch: 'full',
+        loadComponent: () => import('./features/projects/projects.page').then((m) => m.ProjectsPage),
       },
       {
         path: 'projects/new',
@@ -69,21 +67,17 @@ export const routes: Routes = [
       },
       {
         path: 'tasks/list',
-        redirectTo: 'tasks',
-        pathMatch: 'full',
-      },
-      {
-        path: 'tasks',
         loadComponent: () => import('./features/tasks/tasks.page').then((m) => m.TasksPage),
       },
       {
-        path: 'users/list',
-        redirectTo: 'users',
-        pathMatch: 'full',
+        path: 'tasks', redirectTo: 'tasks/list', pathMatch: 'full',
       },
       {
-        path: 'users',
-        loadComponent: () => import('./features/users/users.page').then((m) => m.UsersPage),
+        path: 'users/list',
+        loadComponent: () => import('./features/users/users.page').then((m) => m.UsersPage)
+      },
+      {
+        path: 'users', redirectTo: 'users/list', pathMatch: 'full'
       },
     ],
   },
