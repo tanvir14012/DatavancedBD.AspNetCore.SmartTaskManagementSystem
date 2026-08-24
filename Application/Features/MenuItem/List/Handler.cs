@@ -6,12 +6,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.MenuItem.List;
 
-public sealed class Handler(IAppDbContext dbContext, ICacheService cacheService)
+public sealed class Handler(IAppDbContext dbContext, ICacheService cacheService, ICurrentUser currentUser)
     : IRequestHandler<Query, Response>
 {
     public async Task<Response> Handle(Query request, CancellationToken cancellationToken)
     {
-        const string cacheKey = "menu-items:tree:v1";
+        var cacheKey = $"menu-items:tree:{GetRoleScope(currentUser)}";
 
         var cached = await cacheService.GetAsync<Response>(cacheKey, cancellationToken);
         if (cached is not null)
@@ -25,7 +25,8 @@ public sealed class Handler(IAppDbContext dbContext, ICacheService cacheService)
             .ThenBy(x => x.DisplayOrder)
             .ToListAsync(cancellationToken);
 
-        var response = new Response(BuildTree(menuItems, MenuType.TopBar));
+        var visibleItems = FilterVisibleItems(menuItems);
+        var response = new Response(BuildTree(visibleItems, MenuType.TopBar));
 
         await cacheService.SetAsync(
             cacheKey,
@@ -37,6 +38,44 @@ public sealed class Handler(IAppDbContext dbContext, ICacheService cacheService)
             cancellationToken);
 
         return response;
+    }
+
+    private static string GetRoleScope(ICurrentUser currentUser)
+    {
+        if (currentUser.IsInRole("Admin"))
+        {
+            return "admin";
+        }
+
+        if (currentUser.IsInRole("Project Manager"))
+        {
+            return "project-manager";
+        }
+
+        return "team-member";
+    }
+
+    private IReadOnlyList<Domain.MenuItem> FilterVisibleItems(IReadOnlyCollection<Domain.MenuItem> items)
+    {
+        var canAccessBoard = currentUser.IsInRole("Admin") || currentUser.IsInRole("Project Manager");
+        var canManageProjects = currentUser.IsInRole("Admin") || currentUser.IsInRole("Project Manager");
+
+        return items
+            .Where(item =>
+            {
+                if (item.Route == "/tasks/board" && !canAccessBoard)
+                {
+                    return false;
+                }
+
+                if ((item.Route == "/projects/new" || item.Route == "/projects/assign") && !canManageProjects)
+                {
+                    return false;
+                }
+
+                return true;
+            })
+            .ToList();
     }
 
     private static IReadOnlyList<MenuItemNode> BuildTree(IReadOnlyCollection<Domain.MenuItem> items, MenuType type)
