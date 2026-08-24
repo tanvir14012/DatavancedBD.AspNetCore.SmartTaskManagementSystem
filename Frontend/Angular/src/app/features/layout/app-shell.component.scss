@@ -1,23 +1,33 @@
 :host {
-        display: block;
-        min-height: 100vh;
-        background: #f8fafc;
-      }
+  display: block;
+  min-height: 100vh;
+  background: #f8fafc;
+}
 
-      .app-shell {
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-      }
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
 
-      .content-shell {
-        display: flex;
-        flex: 1;
-        min-height: 0;
-      }
+.content-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
 
-      .page-shell {
-        flex: 1;
-        padding: 32px;
-        overflow: auto;
-      }
+.page-shell {
+  flex: 1;
+  padding: 32px;
+  overflow: auto;
+}
+
+@media (max-width: 960px) {
+  .content-shell {
+    flex-direction: column;
+  }
+
+  .page-shell {
+    padding: 20px 16px 32px;
+  }
+}
