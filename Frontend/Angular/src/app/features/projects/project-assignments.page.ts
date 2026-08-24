@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
@@ -13,45 +13,43 @@ import { UserListItem, UserService } from '../../core/services/user.service';
   imports: [CommonModule, FormsModule],
   templateUrl: './project-assignments.page.html',
   styleUrls: ['./project-assignments.page.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectAssignmentsPage implements OnInit {
-  assignments: ProjectAssignmentItem[] = [];
-  projects: ProjectListItem[] = [];
-  users: UserListItem[] = [];
-  page = 1;
-  pageSize = 10;
-  totalCount = 0;
-  totalPages = 1;
-  search = '';
-  roleFilter = 'all';
-  projectFilter = 'all';
-  selectedProjectId: number | null = null;
-  selectedUserId: number | null = null;
-  selectedRole = 'Member';
-  isLoading = false;
-  isSubmitting = false;
-  isAdmin = false;
-  allowedRoles = ['Member', 'Viewer'];
+  readonly assignments = signal<ProjectAssignmentItem[]>([]);
+  readonly projects = signal<ProjectListItem[]>([]);
+  readonly users = signal<UserListItem[]>([]);
+  readonly page = signal(1);
+  readonly pageSize = 10;
+  readonly totalCount = signal(0);
+  readonly totalPages = signal(1);
+  readonly search = signal('');
+  readonly roleFilter = signal('all');
+  readonly projectFilter = signal('all');
+  readonly selectedProjectId = signal<number | null>(null);
+  readonly selectedUserId = signal<number | null>(null);
+  readonly selectedRole = signal('Member');
+  readonly isLoading = signal(false);
+  readonly isSubmitting = signal(false);
+  readonly isAdmin = signal(false);
+  readonly allowedRoles = signal(['Member', 'Viewer']);
 
   private readonly destroyRef = inject(DestroyRef);
-  private readonly cdr = inject(ChangeDetectorRef);
   private readonly searchSubject = new Subject<string>();
-
-  constructor(
-    private readonly projectService: ProjectService,
-    private readonly userService: UserService,
-    private readonly authService: AuthService,
-  ) {}
+  private readonly projectService = inject(ProjectService);
+  private readonly userService = inject(UserService);
+  private readonly authService = inject(AuthService);
 
   ngOnInit(): void {
-    this.isAdmin = this.authService.currentUser()?.role === 'Admin';
-    this.allowedRoles = this.isAdmin ? ['Owner', 'Manager', 'Member', 'Viewer'] : ['Member', 'Viewer'];
-    this.selectedRole = this.allowedRoles[0] ?? 'Member';
+    const role = this.authService.currentUser()?.role ?? '';
+    this.isAdmin.set(role === 'Admin');
+    this.allowedRoles.set(this.isAdmin() ? ['Owner', 'Manager', 'Member', 'Viewer'] : ['Member', 'Viewer']);
+    this.selectedRole.set(this.allowedRoles()[0] ?? 'Member');
 
     this.searchSubject
       .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        this.page = 1;
+        this.page.set(1);
         this.loadAssignments();
       });
 
@@ -65,18 +63,16 @@ export class ProjectAssignmentsPage implements OnInit {
       .getProjects({ start: 0, length: 200 })
       .subscribe({
         next: (result) => {
-          this.projects = result.items;
-          if (!this.selectedProjectId && this.projects.length > 0) {
-            this.selectedProjectId = this.projects[0].id;
+          this.projects.set(result.items);
+          if (!this.selectedProjectId() && result.items.length > 0) {
+            this.selectedProjectId.set(result.items[0].id);
           }
-          if (this.projectFilter !== 'all' && !this.projects.some((project) => project.id === Number(this.projectFilter))) {
-            this.projectFilter = 'all';
+          if (this.projectFilter() !== 'all' && !result.items.some((project) => project.id === Number(this.projectFilter()))) {
+            this.projectFilter.set('all');
           }
-          this.cdr.markForCheck();
         },
         error: () => {
-          this.projects = [];
-          this.cdr.markForCheck();
+          this.projects.set([]);
         },
       });
   }
@@ -86,86 +82,84 @@ export class ProjectAssignmentsPage implements OnInit {
       .list({ start: 0, length: 250 })
       .subscribe({
         next: (result) => {
-          this.users = result.items;
-          if (!this.selectedUserId && this.users.length > 0) {
-            this.selectedUserId = this.users[0].id;
+          this.users.set(result.items);
+          if (!this.selectedUserId() && result.items.length > 0) {
+            this.selectedUserId.set(result.items[0].id);
           }
-          this.cdr.markForCheck();
         },
         error: () => {
-          this.users = [];
-          this.cdr.markForCheck();
+          this.users.set([]);
         },
       });
   }
 
   loadAssignments(): void {
-    this.isLoading = true;
-    this.cdr.markForCheck();
-    const projectId = this.projectFilter === 'all' ? undefined : Number(this.projectFilter);
+    this.isLoading.set(true);
+    const projectId = this.projectFilter() === 'all' ? undefined : Number(this.projectFilter());
 
     this.projectService
       .getAssignments({
-        start: (this.page - 1) * this.pageSize,
+        start: (this.page() - 1) * this.pageSize,
         length: this.pageSize,
-        search: this.search.trim() || undefined,
-        role: this.roleFilter,
+        search: this.search().trim() || undefined,
+        role: this.roleFilter(),
         projectId,
       })
-      .pipe(finalize(() => {
-        this.isLoading = false;
-        this.cdr.markForCheck();
-      }))
+      .pipe(
+        finalize(() => {
+          this.isLoading.set(false);
+        }),
+      )
       .subscribe({
         next: (result) => {
-          this.assignments = result.items;
-          this.totalCount = result.totalCount;
-          this.totalPages = result.totalPages || 1;
-          this.page = Math.min(this.page, this.totalPages || 1);
-          this.cdr.markForCheck();
+          this.assignments.set(result.items);
+          this.totalCount.set(result.totalCount);
+          this.totalPages.set(result.totalPages || 1);
+          this.page.set(Math.min(this.page(), this.totalPages() || 1));
         },
         error: () => {
-          this.assignments = [];
-          this.totalCount = 0;
-          this.totalPages = 1;
-          this.cdr.markForCheck();
+          this.assignments.set([]);
+          this.totalCount.set(0);
+          this.totalPages.set(1);
         },
       });
   }
 
   onSearchInput(): void {
-    this.searchSubject.next(this.search.trim());
+    this.searchSubject.next(this.search().trim());
   }
 
   onSearch(): void {
-    this.searchSubject.next(this.search.trim());
+    this.searchSubject.next(this.search().trim());
   }
 
   onFilterChange(): void {
-    this.page = 1;
+    this.page.set(1);
     this.loadAssignments();
   }
 
   assignMember(): void {
-    if (!this.selectedProjectId || !this.selectedUserId) {
+    if (!this.selectedProjectId() || !this.selectedUserId()) {
       return;
     }
 
-    this.isSubmitting = true;
-    this.cdr.markForCheck();
+    this.isSubmitting.set(true);
     this.projectService
-      .assignMember(this.selectedProjectId, {
-        userId: this.selectedUserId,
-        role: this.selectedRole as 'Owner' | 'Manager' | 'Member' | 'Viewer',
+      .assignMember(this.selectedProjectId()!, {
+        userId: this.selectedUserId()!,
+        role: this.selectedRole() as 'Owner' | 'Manager' | 'Member' | 'Viewer',
       })
-      .pipe(finalize(() => {
-        this.isSubmitting = false;
-        this.cdr.markForCheck();
-      }))
+      .pipe(
+        finalize(() => {
+          this.isSubmitting.set(false);
+        }),
+      )
       .subscribe({
         next: () => {
-          this.selectedUserId = this.users.find((user) => user.id !== this.selectedUserId)?.id ?? null;
-          this.selectedRole = this.allowedRoles[0] ?? 'Member';
+          this.selectedUserId.set(
+            this.users().find((user) => user.id !== this.selectedUserId())?.id ?? null,
+          );
+          this.selectedRole.set(this.allowedRoles()[0] ?? 'Member');
           this.loadAssignments();
         },
         error: () => {
@@ -191,26 +185,26 @@ export class ProjectAssignmentsPage implements OnInit {
   }
 
   prevPage(): void {
-    if (this.page > 1) {
-      this.page -= 1;
+    if (this.page() > 1) {
+      this.page.update((p) => p - 1);
       this.loadAssignments();
     }
   }
 
   nextPage(): void {
-    if (this.page < this.totalPages) {
-      this.page += 1;
+    if (this.page() < this.totalPages()) {
+      this.page.update((p) => p + 1);
       this.loadAssignments();
     }
   }
 
   getProjectName(projectId: number): string {
-    const project = this.projects.find((item) => item.id === projectId);
+    const project = this.projects().find((item) => item.id === projectId);
     return project?.name ?? `Project #${projectId}`;
   }
 
   getUserName(userId: number): string {
-    const user = this.users.find((item) => item.id === userId);
+    const user = this.users().find((item) => item.id === userId);
     return user ? `${user.firstName} ${user.lastName}`.trim() : `User #${userId}`;
   }
 }

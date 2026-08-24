@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
@@ -11,13 +11,13 @@ import { SideNavComponent } from './side-nav.component';
   standalone: true,
   imports: [TopNavComponent, SideNavComponent, RouterOutlet],
   templateUrl: './app-shell.component.html',
-  styleUrls: ['./app-shell.component.scss']
+  styleUrls: ['./app-shell.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppShellComponent implements OnInit {
   readonly menuService = inject(MenuService);
   readonly authService = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly cdr = inject(ChangeDetectorRef);
 
   constructor() {
     this.router.events
@@ -30,14 +30,7 @@ export class AppShellComponent implements OnInit {
   ngOnInit(): void {
     if (this.authService.isAuthenticated()) {
       this.menuService.setCurrentRoute(this.router.url);
-      this.menuService.loadMenus().subscribe({
-        next: () => {
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.cdr.markForCheck();
-        },
-      });
+      this.menuService.loadMenus().subscribe();
     }
   }
 }

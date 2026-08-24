@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
@@ -14,33 +14,30 @@ import { TaskBoardCard, TaskBoardColumn, TaskService } from '../../core/services
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './task-board.page.html',
   styleUrls: ['./task-board.page.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TaskBoardPage implements OnInit {
-  columns: TaskBoardColumn[] = [];
-  projects: Array<{ id: number; name: string }> = [];
-
-  projectFilter = 'all';
-  priorityFilter = 'all';
-  search = '';
-  isLoading = false;
-  canAccessBoard = false;
+  readonly columns = signal<TaskBoardColumn[]>([]);
+  readonly projects = signal<Array<{ id: number; name: string }>>([]);
+  readonly projectFilter = signal('all');
+  readonly priorityFilter = signal('all');
+  readonly search = signal('');
+  readonly isLoading = signal(false);
+  readonly canAccessBoard = signal(false);
 
   private readonly destroyRef = inject(DestroyRef);
-  private readonly cdr = inject(ChangeDetectorRef);
   private readonly searchSubject = new Subject<string>();
-
-  constructor(
-    private readonly taskService: TaskService,
-    private readonly projectService: ProjectService,
-    private readonly authService: AuthService,
-    private readonly router: Router,
-  ) {}
+  private readonly taskService = inject(TaskService);
+  private readonly projectService = inject(ProjectService);
+  private readonly authService = inject(AuthService);
+  private readonly router = inject(Router);
 
   ngOnInit(): void {
     const role = this.authService.currentUser()?.role ?? '';
-    this.canAccessBoard = role === 'Admin' || role === 'Project Manager';
+    const hasAccess = role === 'Admin' || role === 'Project Manager';
+    this.canAccessBoard.set(hasAccess);
 
-    if (!this.canAccessBoard) {
+    if (!hasAccess) {
       this.router.navigateByUrl('/tasks');
       return;
     }
@@ -55,39 +52,36 @@ export class TaskBoardPage implements OnInit {
 
   loadProjects(): void {
     this.projectService.getProjects({ start: 0, length: 200 }).subscribe((result) => {
-      this.projects = result.items.map((project) => ({ id: project.id, name: project.name }));
-      this.cdr.markForCheck();
+      this.projects.set(result.items.map((project) => ({ id: project.id, name: project.name })));
     });
   }
 
   loadBoard(): void {
-    this.isLoading = true;
-    this.cdr.markForCheck();
+    this.isLoading.set(true);
 
     this.taskService
       .board({
-        projectId: this.projectFilter === 'all' ? undefined : Number(this.projectFilter),
-        priority: this.priorityFilter === 'all' ? undefined : this.priorityFilter,
-        search: this.search.trim() || undefined,
+        projectId: this.projectFilter() === 'all' ? undefined : Number(this.projectFilter()),
+        priority: this.priorityFilter() === 'all' ? undefined : this.priorityFilter(),
+        search: this.search().trim() || undefined,
       })
-      .pipe(finalize(() => {
-        this.isLoading = false;
-        this.cdr.markForCheck();
-      }))
+      .pipe(
+        finalize(() => {
+          this.isLoading.set(false);
+        }),
+      )
       .subscribe({
         next: (result) => {
-          this.columns = result.columns;
-          this.cdr.markForCheck();
+          this.columns.set(result.columns);
         },
         error: () => {
-          this.columns = [];
-          this.cdr.markForCheck();
+          this.columns.set([]);
         },
       });
   }
 
   onSearchInput(): void {
-    this.searchSubject.next(this.search.trim());
+    this.searchSubject.next(this.search().trim());
   }
 
   updateTaskStatus(task: TaskBoardCard, status: string): void {

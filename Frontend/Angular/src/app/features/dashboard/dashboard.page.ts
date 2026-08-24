@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 import { DashboardService, DashboardSummary } from '../../core/services/dashboard.service';
 
@@ -9,52 +9,43 @@ import { DashboardService, DashboardSummary } from '../../core/services/dashboar
   imports: [CommonModule],
   templateUrl: './dashboard.page.html',
   styleUrls: ['./dashboard.page.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardPage implements OnInit {
   private readonly dashboardService = inject(DashboardService);
-  private readonly cdr = inject(ChangeDetectorRef);
 
-  summary: DashboardSummary | null = null;
-  isLoading = true;
-  errorMessage: string | null = null;
+  readonly summary = signal<DashboardSummary | null>(null);
+  readonly isLoading = signal(true);
+  readonly errorMessage = signal<string | null>(null);
+
+  readonly statusBreakdown = computed(() => this.summary()?.statusBreakdown ?? []);
+  readonly priorityBreakdown = computed(() => this.summary()?.priorityBreakdown ?? []);
+  readonly urgentTasks = computed(() => this.summary()?.urgentTasks ?? []);
+  readonly completionRate = computed(() => {
+    const summary = this.summary();
+    if (!summary || summary.totalTasks === 0) return 0;
+    return Math.round((summary.completedTasks / summary.totalTasks) * 100);
+  });
 
   ngOnInit(): void {
     this.loadSummary();
   }
 
   loadSummary(forceReload = false): void {
-    this.isLoading = true;
-    this.errorMessage = null;
-    this.cdr.markForCheck();
+    this.isLoading.set(true);
+    this.errorMessage.set(null);
 
     this.dashboardService
       .getSummary(undefined, forceReload)
-      .pipe(finalize(() => {
-        this.isLoading = false;
-        this.cdr.markForCheck();
-      }))
+      .pipe(finalize(() => this.isLoading.set(false)))
       .subscribe({
         next: (data) => {
-          this.summary = data;
-          this.cdr.markForCheck();
+          this.summary.set(data);
         },
         error: () => {
-          this.errorMessage = 'Unable to load dashboard details from the server.';
-          this.cdr.markForCheck();
+          this.errorMessage.set('Unable to load dashboard details from the server.');
         },
       });
-  }
-
-  get statusBreakdown(): Array<{ key: string; value: number }> {
-    return this.summary?.statusBreakdown ?? [];
-  }
-
-  get priorityBreakdown(): Array<{ key: string; value: number }> {
-    return this.summary?.priorityBreakdown ?? [];
-  }
-
-  get urgentTasks() {
-    return this.summary?.urgentTasks ?? [];
   }
 
   formatLabel(value: string): string {
@@ -80,13 +71,5 @@ export class DashboardPage implements OnInit {
       day: 'numeric',
       year: 'numeric',
     }).format(date);
-  }
-
-  getCompletionRate(): number {
-    if (!this.summary || this.summary.totalTasks === 0) {
-      return 0;
-    }
-
-    return Math.round((this.summary.completedTasks / this.summary.totalTasks) * 100);
   }
 }

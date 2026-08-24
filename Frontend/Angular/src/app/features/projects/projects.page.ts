@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
@@ -13,22 +13,24 @@ import { ProjectListItem, ProjectService } from '../../core/services/project.ser
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './projects.page.html',
   styleUrls: ['./projects.page.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectsPage implements OnInit {
-  projects: ProjectListItem[] = [];
-  page = 1;
-  pageSize = 10;
-  totalCount = 0;
-  totalPages = 1;
-  search = '';
-  sortColumn = 'CreatedAt';
-  sortDirection = 'desc';
-  statusFilter = 'all';
-  isLoading = false;
+  readonly projects = signal<ProjectListItem[]>([]);
+  readonly page = signal(1);
+  readonly pageSize = 10;
+  readonly totalCount = signal(0);
+  readonly totalPages = signal(1);
+  readonly search = signal('');
+  readonly sortColumn = signal('CreatedAt');
+  readonly sortDirection = signal('desc');
+  readonly statusFilter = signal('all');
+  readonly isLoading = signal(false);
   readonly canCreateProject: boolean;
 
+  readonly currentUserRole = computed(() => this.authService.currentUser()?.role ?? 'Team Member');
+
   private readonly destroyRef = inject(DestroyRef);
-  private readonly cdr = inject(ChangeDetectorRef);
   private readonly searchSubject = new Subject<string>();
 
   constructor(
@@ -44,7 +46,7 @@ export class ProjectsPage implements OnInit {
     this.searchSubject
       .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        this.page = 1;
+        this.page.set(1);
         this.loadProjects();
       });
 
@@ -52,51 +54,43 @@ export class ProjectsPage implements OnInit {
   }
 
   loadProjects(): void {
-    this.isLoading = true;
-    this.cdr.markForCheck();
+    this.isLoading.set(true);
 
     this.projectService
       .getProjects({
-        start: (this.page - 1) * this.pageSize,
+        start: (this.page() - 1) * this.pageSize,
         length: this.pageSize,
-        search: this.search.trim() || undefined,
-        sortColumn: this.sortColumn,
-        sortDirection: this.sortDirection,
-        status: this.statusFilter,
+        search: this.search().trim() || undefined,
+        sortColumn: this.sortColumn(),
+        sortDirection: this.sortDirection(),
+        status: this.statusFilter(),
       })
-      .pipe(
-        finalize(() => {
-          this.isLoading = false;
-          this.cdr.markForCheck();
-        })
-      )
+      .pipe(finalize(() => this.isLoading.set(false)))
       .subscribe({
         next: (result) => {
-          this.projects = result.items;
-          this.totalCount = result.totalCount;
-          this.totalPages = result.totalPages || 1;
-          this.page = Math.min(this.page, this.totalPages || 1);
-          this.cdr.markForCheck();
+          this.projects.set(result.items);
+          this.totalCount.set(result.totalCount);
+          this.totalPages.set(result.totalPages || 1);
+          this.page.set(Math.min(this.page(), this.totalPages() || 1));
         },
         error: () => {
-          this.projects = [];
-          this.totalCount = 0;
-          this.totalPages = 1;
-          this.cdr.markForCheck();
+          this.projects.set([]);
+          this.totalCount.set(0);
+          this.totalPages.set(1);
         },
       });
   }
 
   onSearchInput(): void {
-    this.searchSubject.next(this.search.trim());
+    this.searchSubject.next(this.search().trim());
   }
 
   onSearch(): void {
-    this.searchSubject.next(this.search.trim());
+    this.searchSubject.next(this.search().trim());
   }
 
   onSortChange(): void {
-    this.page = 1;
+    this.page.set(1);
     this.loadProjects();
   }
 
@@ -105,20 +99,16 @@ export class ProjectsPage implements OnInit {
   }
 
   prevPage(): void {
-    if (this.page > 1) {
-      this.page -= 1;
+    if (this.page() > 1) {
+      this.page.update(p => p - 1);
       this.loadProjects();
     }
   }
 
   nextPage(): void {
-    if (this.page < this.totalPages) {
-      this.page += 1;
+    if (this.page() < this.totalPages()) {
+      this.page.update(p => p + 1);
       this.loadProjects();
     }
-  }
-
-  get currentUserRole(): string {
-    return this.authService.currentUser()?.role ?? 'Team Member';
   }
 }
