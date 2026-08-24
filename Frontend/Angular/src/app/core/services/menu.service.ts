@@ -116,8 +116,8 @@ export class MenuService {
 
   private filterVisibleMenuItems(items: MenuItem[]): MenuItem[] {
     const userRole = this.readStoredUserRole();
-    const canAccessBoard = userRole === 'Admin' || userRole === 'Project Manager';
-    const canManageProjects = userRole === 'Admin' || userRole === 'Project Manager';
+    const canAccessBoard = this.hasRole(userRole, 'Admin', 'Project Manager');
+    const canManageProjects = this.hasRole(userRole, 'Admin', 'Project Manager');
 
     return items
       .filter((item) => {
@@ -146,11 +146,44 @@ export class MenuService {
         return '';
       }
 
-      const parsed = JSON.parse(cachedUser) as { role?: string };
-      return parsed.role ?? '';
+      const parsed = JSON.parse(cachedUser) as {
+        role?: string | string[] | null;
+        roles?: string[] | null;
+      };
+
+      const candidateRoles = [parsed.role, parsed.roles ?? []].flat().filter((value): value is string => Boolean(value));
+      return this.normalizeRole(candidateRoles[0] ?? '');
     } catch {
       return '';
     }
+  }
+
+  private hasRole(userRole: string, ...roles: string[]): boolean {
+    const normalizedUserRole = this.normalizeRole(userRole);
+    return roles.some((role) => this.normalizeRole(role) === normalizedUserRole);
+  }
+
+  private normalizeRole(value: string | null | undefined): string {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) {
+      return '';
+    }
+
+    const compact = trimmed.toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ');
+
+    if (compact === 'admin') {
+      return 'Admin';
+    }
+
+    if (compact === 'project manager' || compact === 'projectmanager') {
+      return 'Project Manager';
+    }
+
+    if (compact === 'team member' || compact === 'teammember' || compact === 'member') {
+      return 'Team Member';
+    }
+
+    return trimmed;
   }
 
   private matchesRoute(menuRoute: string, currentRoute: string): boolean {

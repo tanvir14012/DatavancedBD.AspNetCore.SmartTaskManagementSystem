@@ -203,14 +203,38 @@ export class AuthService {
   private toUserProfile(user: LoginResponse['user']): UserProfile {
     const firstName = user.firstName?.trim() ?? '';
     const lastName = user.lastName?.trim() ?? '';
+    const role = this.normalizeRole(user.role ?? user.roles?.[0] ?? 'Team Member');
 
     return {
       id: user.id,
       name: `${firstName} ${lastName}`.trim() || user.email,
       email: user.email,
-      role: user.role ?? user.roles?.[0] ?? 'Team Member',
+      role,
       imageUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.email)}`,
     };
+  }
+
+  private normalizeRole(value: string | undefined | null): string {
+    const normalized = (value ?? '').trim();
+    if (!normalized) {
+      return 'Team Member';
+    }
+
+    const compact = normalized.toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ');
+
+    if (compact === 'admin') {
+      return 'Admin';
+    }
+
+    if (compact === 'project manager' || compact === 'projectmanager') {
+      return 'Project Manager';
+    }
+
+    if (compact === 'team member' || compact === 'teammember' || compact === 'member') {
+      return 'Team Member';
+    }
+
+    return normalized;
   }
 
   private scheduleRefresh(expiresAt: number): void {
