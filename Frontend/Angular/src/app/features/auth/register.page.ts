@@ -5,19 +5,31 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
-  selector: 'app-login-page',
+  selector: 'app-register-page',
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink],
   template: `
-    <section class="login-shell">
-      <div class="login-card">
+    <section class="auth-shell">
+      <div class="auth-card">
         <div class="brand-block">
           <span class="eyebrow">Smart Task Management System</span>
-          <h1>Welcome back</h1>
-          <p>Sign in to manage projects, tasks, teams, and priorities.</p>
+          <h1>Create your account</h1>
+          <p>Set up your workspace and start organizing projects and tasks.</p>
         </div>
 
-        <form [formGroup]="form" (ngSubmit)="submit()" class="login-form">
+        <form [formGroup]="form" (ngSubmit)="submit()" class="auth-form">
+          <div class="name-row">
+            <label>
+              <span>First name</span>
+              <input formControlName="firstName" type="text" placeholder="Jane" />
+            </label>
+
+            <label>
+              <span>Last name</span>
+              <input formControlName="lastName" type="text" placeholder="Doe" />
+            </label>
+          </div>
+
           <label>
             <span>Email</span>
             <input formControlName="email" type="email" placeholder="name@company.com" />
@@ -37,6 +49,8 @@ import { AuthService } from '../../core/services/auth.service';
               <small class="field-error">{{ fieldError('password')[0] }}</small>
             } @else if (form.controls.password.touched && form.controls.password.hasError('required')) {
               <small class="field-error">Password is required.</small>
+            } @else if (form.controls.password.touched && form.controls.password.hasError('minlength')) {
+              <small class="field-error">Password must be at least 8 characters.</small>
             }
           </label>
 
@@ -45,12 +59,12 @@ import { AuthService } from '../../core/services/auth.service';
           }
 
           <button type="submit" [disabled]="loading() || form.invalid">
-            {{ loading() ? 'Signing in...' : 'Sign in' }}
+            {{ loading() ? 'Creating account...' : 'Create account' }}
           </button>
 
           <p class="auth-link">
-            Need an account?
-            <a routerLink="/register">Create one</a>
+            Already have an account?
+            <a routerLink="/login">Login</a>
           </p>
         </form>
       </div>
@@ -65,14 +79,14 @@ import { AuthService } from '../../core/services/auth.service';
         padding: 32px;
       }
 
-      .login-shell {
+      .auth-shell {
         min-height: 100vh;
         display: grid;
         place-items: center;
       }
 
-      .login-card {
-        width: min(100%, 440px);
+      .auth-card {
+        width: min(100%, 520px);
         background: rgba(15, 23, 42, 0.7);
         border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 24px;
@@ -82,7 +96,7 @@ import { AuthService } from '../../core/services/auth.service';
       }
 
       .brand-block {
-        margin-bottom: 28px;
+        margin-bottom: 24px;
       }
 
       .eyebrow {
@@ -103,10 +117,16 @@ import { AuthService } from '../../core/services/auth.service';
         margin: 0;
       }
 
-      .login-form {
+      .auth-form {
         display: flex;
         flex-direction: column;
         gap: 18px;
+      }
+
+      .name-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
       }
 
       label {
@@ -157,16 +177,23 @@ import { AuthService } from '../../core/services/auth.service';
 
       .auth-link {
         text-align: center;
+        margin-top: 4px;
       }
 
       a {
         color: #93c5fd;
         text-decoration: none;
       }
+
+      @media (max-width: 560px) {
+        .name-row {
+          grid-template-columns: 1fr;
+        }
+      }
     `,
   ],
 })
-export class LoginPage {
+export class RegisterPage {
   private readonly formBuilder = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
@@ -176,8 +203,10 @@ export class LoginPage {
   readonly generalError = signal('');
 
   readonly form = this.formBuilder.nonNullable.group({
-    email: ['admin@stms.local', [Validators.required, Validators.email]],
-    password: ['Password123!', [Validators.required]],
+    firstName: [''],
+    lastName: [''],
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required, Validators.minLength(8)]],
   });
 
   fieldError(controlName: string): string[] {
@@ -196,7 +225,12 @@ export class LoginPage {
     this.fieldErrors.set({});
 
     try {
-      await this.authService.login(this.form.value.email ?? '', this.form.value.password ?? '');
+      await this.authService.register({
+        firstName: this.form.value.firstName ?? '',
+        lastName: this.form.value.lastName ?? '',
+        email: this.form.value.email ?? '',
+        password: this.form.value.password ?? '',
+      });
       await this.router.navigateByUrl('/dashboard');
     } catch (error) {
       const parsed = this.parseApiError(error);
@@ -221,7 +255,7 @@ export class LoginPage {
       (typeof payload['detail'] === 'string' && payload['detail']) ||
       (typeof payload['message'] === 'string' && payload['message']) ||
       (typeof payload['title'] === 'string' && payload['title']) ||
-      'Invalid email or password.';
+      'Unable to create your account right now.';
 
     return { fieldErrors: normalized, generalError };
   }

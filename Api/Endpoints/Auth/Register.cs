@@ -1,8 +1,10 @@
 using Application.Interfaces;
+using Api.Options;
 using Domain;
 using Infrastructure.Bootstrap;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Api.Endpoints.Auth;
 
@@ -22,9 +24,11 @@ public sealed class Register : IEndpoint
 
     private static async Task<IResult> RegisterUser(
         [FromBody] RegisterRequest request,
+        HttpContext httpContext,
         UserManager<AppUser> userManager,
         RoleManager<AppRole> roleManager,
         IAuthService authService,
+        IOptions<AuthenticationOptions> authOptions,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
@@ -68,6 +72,7 @@ public sealed class Register : IEndpoint
         await userManager.AddToRoleAsync(user, roleName);
 
         var tokens = await authService.CreateTokenPairAsync(user, cancellationToken);
+        SetRefreshTokenCookie(httpContext, tokens.RefreshToken, authOptions.Value);
 
         return Results.Ok(new
         {
@@ -80,7 +85,20 @@ public sealed class Register : IEndpoint
                 role = roleName
             },
             accessToken = tokens.AccessToken,
-            refreshToken = tokens.RefreshToken
+            expiresIn = authOptions.Value.AccessTokenExpirationMinutes * 60
+        });
+    }
+
+    private static void SetRefreshTokenCookie(HttpContext context, string refreshToken, AuthenticationOptions options)
+    {
+        context.Response.Cookies.Append(options.RefreshTokenCookieName, refreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.None,
+            Expires = DateTimeOffset.UtcNow.AddDays(options.RefreshTokenExpirationDays),
+            IsEssential = true,
+            Path = "/"
         });
     }
 

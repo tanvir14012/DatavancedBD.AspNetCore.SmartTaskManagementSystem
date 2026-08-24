@@ -1,3 +1,4 @@
+using Api.Options;
 using Application.Interfaces;
 using Infrastructure.AssemblyScan;
 using Infrastructure.Bootstrap;
@@ -7,6 +8,7 @@ using Application;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddDefaultBootstrap();
+builder.Services.Configure<AuthenticationOptions>(builder.Configuration.GetSection(AuthenticationOptions.SectionName));
 
 builder.Services
     .AddScopedServices(typeof(Program).Assembly, typeof(ICurrentUser).Assembly, typeof(AppDbContext).Assembly)

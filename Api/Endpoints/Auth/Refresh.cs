@@ -1,6 +1,8 @@
+using Api.Options;
 using Application.Interfaces;
 using Infrastructure.Bootstrap;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Api.Endpoints.Auth;
 
@@ -18,30 +20,42 @@ public sealed class Refresh : IEndpoint
     }
 
     private static async Task<IResult> RefreshTokens(
-        [FromBody] RefreshRequest request,
+        HttpContext httpContext,
         IAuthService authService,
+        IOptions<AuthenticationOptions> authOptions,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+        var refreshToken = httpContext.Request.Cookies[authOptions.Value.RefreshTokenCookieName];
+        if (string.IsNullOrWhiteSpace(refreshToken))
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["refreshToken"] = ["Refresh token is required."]
-            });
+            return Results.Unauthorized();
         }
 
-        var rotated = await authService.RotateRefreshTokenAsync(request.RefreshToken, cancellationToken);
+        var rotated = await authService.RotateRefreshTokenAsync(refreshToken, cancellationToken);
         if (rotated is null)
         {
             return Results.Unauthorized();
         }
 
+        SetRefreshTokenCookie(httpContext, rotated.RefreshToken, authOptions.Value);
+
         return Results.Ok(new
         {
             accessToken = rotated.AccessToken,
-            refreshToken = rotated.RefreshToken
+            expiresIn = authOptions.Value.AccessTokenExpirationMinutes * 60
+        });
+    }
+
+    private static void SetRefreshTokenCookie(HttpContext context, string refreshToken, AuthenticationOptions options)
+    {
+        context.Response.Cookies.Append(options.RefreshTokenCookieName, refreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.None,
+            Expires = DateTimeOffset.UtcNow.AddDays(options.RefreshTokenExpirationDays),
+            IsEssential = true,
+            Path = "/"
         });
     }
 }
-
-public sealed record RefreshRequest(string RefreshToken);
