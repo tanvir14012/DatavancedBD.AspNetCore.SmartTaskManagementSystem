@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { computed, Injectable, signal } from '@angular/core';
-import { Observable, map, shareReplay, tap } from 'rxjs';
+import { Observable, finalize, map, shareReplay, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { MenuApiResponse, MenuItem, MenuResponse } from '../models/menu-item.model';
 
@@ -12,6 +12,7 @@ export class MenuService {
 
   readonly topBarMenus = signal<MenuItem[]>([]);
   readonly currentRoute = signal<string>(this.readStoredCurrentRoute());
+  readonly isLoading = signal(false);
   readonly sideBarMenus = computed<MenuItem[]>(() => {
     const topBar = this.topBarMenus();
     const route = this.currentRoute();
@@ -20,14 +21,17 @@ export class MenuService {
       return [];
     }
 
-    const selectedTopBar = topBar.find((item) => this.matchesRoute(item.route, route) || this.hasMatchingChildRoute(item, route));
+    const selectedTopBar =
+      topBar.find((item) => this.matchesRoute(item.route, route) || this.hasMatchingChildRoute(item, route)) ??
+      topBar.find((item) => this.matchesRoute(item.route, MenuService.DEFAULT_ROUTE)) ??
+      topBar[0];
 
-    if (selectedTopBar) {
-      return selectedTopBar.children.length > 0 ? selectedTopBar.children : [selectedTopBar];
+    if (!selectedTopBar) {
+      return [];
     }
 
-    const fallbackItem = topBar[0];
-    return fallbackItem.children.length > 0 ? fallbackItem.children : [fallbackItem];
+    const children = (selectedTopBar.children ?? []).filter((child) => child.route && child.name);
+    return children.length > 0 ? children : [selectedTopBar];
   });
 
   private menuRequest$?: Observable<MenuResponse>;
@@ -40,19 +44,36 @@ export class MenuService {
 
   loadMenus(): Observable<MenuResponse> {
     if (!this.menuRequest$) {
+      this.isLoading.set(true);
       this.menuRequest$ = this.http
         .get<MenuApiResponse>(`${environment.apiBaseUrl}/menus/`)
         .pipe(
           map((response) => this.normalizeMenuResponse(response)),
           tap((response) => this.persistMenus(response)),
           tap((response) => {
-            this.topBarMenus.set(response.topBar);
+            this.topBarMenus.set(response.topBar.length ? response.topBar : this.readStoredMenus().topBar);
           }),
+          finalize(() => this.isLoading.set(false)),
           shareReplay({ bufferSize: 1, refCount: true }),
         );
     }
 
     return this.menuRequest$;
+  }
+
+  ensureMenusLoaded(): void {
+    if (this.topBarMenus().length > 0 || this.isLoading()) {
+      return;
+    }
+
+    this.loadMenus().subscribe({
+      error: () => {
+        const cachedMenus = this.readStoredMenus();
+        if (cachedMenus.topBar.length) {
+          this.topBarMenus.set(cachedMenus.topBar);
+        }
+      },
+    });
   }
 
   refreshMenus(): Observable<MenuResponse> {
@@ -62,6 +83,7 @@ export class MenuService {
 
   clearMenus(): void {
     this.invalidateCache();
+    this.isLoading.set(false);
     localStorage.removeItem(MenuService.MENU_STORAGE_KEY);
   }
 
@@ -75,6 +97,7 @@ export class MenuService {
     this.menuRequest$ = undefined;
     this.topBarMenus.set([]);
     this.currentRoute.set(MenuService.DEFAULT_ROUTE);
+    this.isLoading.set(false);
     localStorage.setItem(MenuService.CURRENT_ROUTE_STORAGE_KEY, MenuService.DEFAULT_ROUTE);
   }
 

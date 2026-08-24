@@ -1,35 +1,70 @@
+<aside class="side-nav" aria-label="Sidebar navigation">
+  @if (loading) {
+    <div class="loading-state" aria-live="polite">
+      <mat-spinner diameter="28" />
+      <span>Loading menu</span>
+    </div>
+  } @else if (!items.length) {
+    <div class="empty-state">
+      <mat-icon>info_outline</mat-icon>
+      <span>No menu items available</span>
+    </div>
+  } @else {
+    @for (item of items; track item.id) {
+      @if (item.children.length) {
+        <mat-expansion-panel class="nav-panel" [expanded]="isGroupActive(item)" hideToggle>
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              <span class="nav-label">
+                <mat-icon>{{ item.icon || 'folder' }}</mat-icon>
+                <span>{{ item.name }}</span>
+              </span>
+            </mat-panel-title>
+          </mat-expansion-panel-header>
 
-    <aside class="side-nav" aria-label="Sidebar navigation">
-      @for (item of items; track item.id) {
-        <div class="nav-group">
-          <a
-            class="nav-link"
-            [routerLink]="item.route"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{ exact: false }"
-            [attr.title]="item.name"
-          >
-            <mat-icon aria-hidden="true">{{ item.icon || 'circle' }}</mat-icon>
-            <span class="label">{{ item.name }}</span>
-          </a>
+          <mat-nav-list>
+            <a
+              mat-list-item
+              class="sub-link"
+              [routerLink]="item.route"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: false }"
+              [class.active-link]="isItemActive(item.route)"
+            >
+              <mat-icon matListItemIcon>{{ item.icon || 'dashboard' }}</mat-icon>
+              <span matListItemTitle>{{ item.name }}</span>
+            </a>
 
-          @if (item.children && item.children.length > 0) {
-            <div class="sub-links">
-              @for (child of item.children; track child.id) {
-                <a
-                  class="sub-link"
-                  [routerLink]="child.route"
-                  routerLinkActive="active"
-                  [routerLinkActiveOptions]="{ exact: false }"
-                  [attr.title]="child.name"
-                >
-                  <mat-icon aria-hidden="true">{{ child.icon || 'chevron_right' }}</mat-icon>
-                  <span>{{ child.name }}</span>
-                </a>
-              }
-            </div>
-          }
-        </div>
+            @for (child of item.children; track child.id) {
+              <a
+                mat-list-item
+                class="sub-link"
+                [routerLink]="child.route"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: false }"
+                [class.active-link]="isItemActive(child.route)"
+              >
+                <mat-icon matListItemIcon>{{ child.icon || 'chevron_right' }}</mat-icon>
+                <span matListItemTitle>{{ child.name }}</span>
+              </a>
+            }
+          </mat-nav-list>
+        </mat-expansion-panel>
+      } @else {
+        <a
+          class="nav-link"
+          mat-list-item
+          [routerLink]="item.route"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: false }"
+          [class.active-link]="isItemActive(item.route)"
+          [attr.title]="item.name"
+        >
+          <mat-icon aria-hidden="true">{{ item.icon || 'circle' }}</mat-icon>
+          <span class="label">{{ item.name }}</span>
+        </a>
       }
-    </aside>
+    }
+  }
+</aside>
   

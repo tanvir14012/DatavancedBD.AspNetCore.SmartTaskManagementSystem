@@ -4,34 +4,75 @@
 }
 
 .side-nav {
-  width: 230px;
-  background: linear-gradient(180deg, #0d5b53 0%, #0a4b46 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 18px 14px 16px;
-  color: #e9f5f2;
-  min-height: calc(100vh - 74px);
+  width: 270px;
+  background: linear-gradient(180deg, rgba(12, 62, 57, 0.97), rgba(8, 47, 43, 0.98));
+  border-right: 1px solid rgba(148, 163, 184, 0.22);
+  padding: 1rem 0.75rem 1.25rem;
+  min-height: calc(100vh - 76px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  color: #ecfeff;
 }
 
-.nav-group {
-  margin-bottom: 10px;
+.nav-panel {
+  background: rgba(15, 118, 110, 0.15) !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: none !important;
+}
+
+.nav-panel .mat-expansion-panel-header {
+  min-height: 52px;
+  padding: 0 0.9rem;
+  color: #f0fdfa;
+}
+
+.nav-panel .mat-expansion-panel-content {
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.nav-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-weight: 600;
+}
+
+.nav-label mat-icon {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+}
+
+.nav-link,
+.sub-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 12px;
+  color: rgba(240, 253, 250, 0.92);
+  text-decoration: none;
+  font-weight: 600;
 }
 
 .nav-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  color: #edf7f5;
-  padding: 12px 10px;
-  border-radius: 10px;
-  font-weight: 600;
-  transition: background 0.2s ease;
+  padding: 0.8rem 0.9rem;
+  margin: 0.15rem 0;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sub-link {
+  padding: 0.7rem 0.8rem;
 }
 
 .nav-link:hover,
-.nav-link.active {
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+.sub-link:hover,
+.nav-link.active,
+.sub-link.active,
+.active-link {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .label {
@@ -40,101 +81,40 @@
   text-overflow: ellipsis;
 }
 
-.nav-link mat-icon,
-.sub-link mat-icon {
-  width: 18px;
-  height: 18px;
-  font-size: 18px;
-  line-height: 18px;
-  flex-shrink: 0;
-}
-
-.nav-link mat-icon {
-  display: inline-flex;
+.loading-state,
+.empty-state {
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  gap: 0.75rem;
+  min-height: 160px;
+  padding: 1rem;
+  color: rgba(236, 254, 255, 0.9);
+  background: rgba(15, 118, 110, 0.12);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
 }
 
-.sub-links {
-  display: flex;
+.loading-state {
   flex-direction: column;
-  gap: 6px;
-  margin: 8px 0 0 18px;
-  padding-left: 8px;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
 }
 
-.sub-link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
-  color: rgba(231, 244, 242, 0.82);
-  padding: 8px 10px;
-  border-radius: 8px;
-  font-size: 0.88rem;
-}
-
-.sub-link:hover,
-.sub-link.active {
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
+.empty-state mat-icon {
+  font-size: 1.15rem;
 }
 
 @media (max-width: 960px) {
   .side-nav {
-    width: 72px;
-    min-height: auto;
-    padding: 14px 8px;
-  }
-
-  .nav-group {
-    margin-bottom: 12px;
-  }
-
-  .nav-link {
-    justify-content: center;
-    padding: 12px 8px;
-  }
-
-  .label,
-  .sub-links {
-    display: none;
+    width: 220px;
   }
 }
 
 @media (max-width: 640px) {
   .side-nav {
     width: 100%;
-    border-right: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     min-height: auto;
-    padding: 12px;
-  }
-
-  .nav-group {
-    margin-bottom: 8px;
-  }
-
-  .nav-link {
-    justify-content: flex-start;
-    padding: 12px 14px;
-  }
-
-  .label,
-  .sub-links {
-    display: block;
-  }
-
-  .sub-links {
-    margin-left: 0;
-    border-left: none;
-    padding-left: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    border-right: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
   }
 }
