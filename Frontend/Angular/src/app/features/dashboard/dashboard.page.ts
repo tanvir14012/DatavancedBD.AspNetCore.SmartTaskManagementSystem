@@ -21,12 +21,12 @@ export class DashboardPage implements OnInit {
     this.loadSummary();
   }
 
-  loadSummary(): void {
+  loadSummary(forceReload = false): void {
     this.isLoading = true;
     this.errorMessage = null;
 
     this.dashboardService
-      .getSummary()
+      .getSummary(undefined, forceReload)
       .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
         next: (data) => {

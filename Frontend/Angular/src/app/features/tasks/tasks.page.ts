@@ -1,6 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 import { ProjectService } from '../../core/services/project.service';
 import { TaskListItem, TaskService } from '../../core/services/task.service';
@@ -33,6 +35,10 @@ export class TasksPage implements OnInit {
   canCreateTask = false;
   showForm = false;
   editingTaskId: number | null = null;
+  isLoading = false;
+
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly searchSubject = new Subject<string>();
 
   form = {
     projectId: '',
@@ -51,6 +57,13 @@ export class TasksPage implements OnInit {
 
   ngOnInit(): void {
     this.syncRoleFlags();
+    this.searchSubject
+      .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.page = 1;
+        this.loadTasks();
+      });
+
     this.loadProjects();
     this.loadTasks();
   }
@@ -72,28 +85,41 @@ export class TasksPage implements OnInit {
   }
 
   loadTasks(): void {
+    this.isLoading = true;
+
     this.taskService
       .list({
         start: (this.page - 1) * this.pageSize,
         length: this.pageSize,
-        search: this.search,
+        search: this.search.trim() || undefined,
         projectId: this.projectFilter === 'all' ? undefined : Number(this.projectFilter),
         status: this.statusFilter === 'all' ? undefined : this.statusFilter,
         priority: this.priorityFilter === 'all' ? undefined : this.priorityFilter,
         sortColumn: this.sortColumn,
         sortDirection: this.sortDirection,
       })
-      .subscribe((result) => {
-        this.tasks = result.items;
-        this.totalCount = result.totalCount;
-        this.totalPages = result.totalPages || 1;
-        this.page = Math.min(this.page, this.totalPages || 1);
+      .pipe(finalize(() => (this.isLoading = false)))
+      .subscribe({
+        next: (result) => {
+          this.tasks = result.items;
+          this.totalCount = result.totalCount;
+          this.totalPages = result.totalPages || 1;
+          this.page = Math.min(this.page, this.totalPages || 1);
+        },
+        error: () => {
+          this.tasks = [];
+          this.totalCount = 0;
+          this.totalPages = 1;
+        },
       });
   }
 
+  onSearchInput(): void {
+    this.searchSubject.next(this.search.trim());
+  }
+
   onSearch(): void {
-    this.page = 1;
-    this.loadTasks();
+    this.searchSubject.next(this.search.trim());
   }
 
   onFilterChange(): void {

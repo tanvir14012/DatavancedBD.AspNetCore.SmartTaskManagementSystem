@@ -9,7 +9,7 @@
 
   <div class="toolbar" *ngIf="tasks.length || canCreateTask">
     <div class="search-box">
-      <input type="search" [(ngModel)]="search" placeholder="Search tasks" (keyup.enter)="onSearch()" />
+      <input type="search" [(ngModel)]="search" placeholder="Search tasks" (input)="onSearchInput()" (keyup.enter)="onSearch()" />
       <button type="button" (click)="onSearch()">Search</button>
     </div>
 

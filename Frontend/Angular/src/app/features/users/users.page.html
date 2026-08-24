@@ -9,7 +9,7 @@
 
   <div class="toolbar" *ngIf="users.length || isAdmin">
     <div class="search-box">
-      <input type="search" [(ngModel)]="search" placeholder="Search users" (keyup.enter)="onSearch()" />
+      <input type="search" [(ngModel)]="search" placeholder="Search users" (input)="onSearchInput()" (keyup.enter)="onSearch()" />
       <button type="button" (click)="onSearch()">Search</button>
     </div>
 
