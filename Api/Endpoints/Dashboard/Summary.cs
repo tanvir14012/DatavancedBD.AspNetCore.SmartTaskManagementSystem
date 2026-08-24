@@ -1,3 +1,4 @@
+using Application.Features.Dashboard;
 using Domain.Enums;
 using Infrastructure.Bootstrap;
 using Infrastructure.Data.EfCore.Persistence;
@@ -60,22 +61,36 @@ public sealed class Summary : IEndpoint
             {
                 t.Id,
                 t.Title,
-                t.Status,
-                t.Priority,
+                Status = t.Status,
+                Priority = t.Priority,
                 t.DueDate,
                 t.ProjectId
             })
             .ToListAsync(cancellationToken);
 
-        return Results.Ok(new
-        {
+        var summary = new DashboardSummary(
             totalProjects,
             totalTasks,
             completedTasks,
             pendingTasks,
-            statusBreakdown,
-            priorityBreakdown,
+            statusBreakdown
+                .Select(x => new KeyValuePair<string, int>(x.Status.ToString(), x.Count))
+                .OrderBy(x => x.Key)
+                .ToList(),
+            priorityBreakdown
+                .Select(x => new KeyValuePair<string, int>(x.Priority.ToString(), x.Count))
+                .OrderBy(x => x.Key)
+                .ToList(),
             urgentTasks
-        });
+                .Select(x => new DashboardUrgentTask(
+                    x.Id,
+                    x.Title,
+                    x.Status.ToString(),
+                    x.Priority.ToString(),
+                    x.DueDate,
+                    x.ProjectId))
+                .ToList());
+
+        return Results.Ok(summary);
     }
 }
