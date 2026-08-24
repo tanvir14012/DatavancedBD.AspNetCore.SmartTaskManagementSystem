@@ -4,106 +4,33 @@
       <p class="eyebrow">Execution</p>
       <h1>Tasks</h1>
     </div>
-    <button *ngIf="canCreateTask()" type="button" class="primary" (click)="openCreateForm()">Create Task</button>
+    @if (canCreateTask()) {
+      <button type="button" class="primary" (click)="openCreateForm()">Create Task</button>
+    }
   </header>
 
-  <div class="toolbar" *ngIf="tasks().length || canCreateTask()">
-    <div class="search-box">
-      <input type="search" [(ngModel)]="search" placeholder="Search tasks" (input)="onSearchInput()" (keyup.enter)="onSearch()" />
-      <button type="button" (click)="onSearch()">Search</button>
-    </div>
-
-    <div class="filters">
-      <label>
-        Project
-        <select [(ngModel)]="projectFilter" (change)="onFilterChange()">
-          <option value="all">All projects</option>
-          <option *ngFor="let project of projects()" [value]="project.id">{{ project.name }}</option>
-        </select>
-      </label>
-
-      <label>
-        Status
-        <select [(ngModel)]="statusFilter" (change)="onFilterChange()">
-          <option value="all">All</option>
-          <option value="Todo">To do</option>
-          <option value="InProgress">In progress</option>
-          <option value="Completed">Completed</option>
-          <option value="Cancelled">Cancelled</option>
-        </select>
-      </label>
-
-      <label>
-        Priority
-        <select [(ngModel)]="priorityFilter" (change)="onFilterChange()">
-          <option value="all">All</option>
-          <option value="Low">Low</option>
-          <option value="Medium">Medium</option>
-          <option value="High">High</option>
-          <option value="Critical">Critical</option>
-        </select>
-      </label>
-
-      <label>
-        Assignee
-        <select [(ngModel)]="assigneeFilter" (change)="onFilterChange()">
-          <option value="all">All</option>
-          <option *ngFor="let user of allUsers()" [value]="user.id">{{ user.firstName }} {{ user.lastName }}</option>
-        </select>
-      </label>
-
-      <label>
-        Sort
-        <select [(ngModel)]="sortColumn" (change)="onFilterChange()">
-          <option value="CreatedAt">Created</option>
-          <option value="Title">Title</option>
-          <option value="DueDate">Due date</option>
-          <option value="Priority">Priority</option>
-          <option value="Status">Status</option>
-        </select>
-      </label>
-
-      <label>
-        Direction
-        <select [(ngModel)]="sortDirection" (change)="onFilterChange()">
-          <option value="desc">Descending</option>
-          <option value="asc">Ascending</option>
-        </select>
-      </label>
-    </div>
-  </div>
-
-  <div *ngIf="showForm() && (canCreateTask() || editingTaskId() !== null)" class="panel">
-    <h2>{{ editingTaskId() === null ? 'Create Task' : 'Edit Task' }}</h2>
-
-    <form class="task-form" (ngSubmit)="submitForm()">
-      <div *ngIf="Object.keys(formErrors()).length > 0" style="color: red; margin-bottom: 1rem;">
-        <ul>
-          <li *ngFor="let error of Object.values(formErrors())">{{ error }}</li>
-        </ul>
+  @if (tasks().length || canCreateTask()) {
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="search" [(ngModel)]="search" placeholder="Search tasks" (input)="onSearchInput()" (keyup.enter)="onSearch()" />
+        <button type="button" (click)="onSearch()">Search</button>
       </div>
 
-      <div class="field-grid">
+      <div class="filters">
         <label>
           Project
-          <select [(ngModel)]="form.projectId" name="projectId" (change)="onProjectChange()">
-            <option value="">Select a project</option>
-            <option *ngFor="let project of projects()" [value]="project.id">{{ project.name }}</option>
+          <select [(ngModel)]="projectFilter" (change)="onFilterChange()">
+            <option value="all">All projects</option>
+            @for (project of projects(); track project.id) {
+              <option [value]="project.id">{{ project.name }}</option>
+            }
           </select>
-          <small *ngIf="formErrors()['projectId']" style="color: red;">{{ formErrors()['projectId'] }}</small>
         </label>
 
-        <label>
-          Title
-          <input type="text" [(ngModel)]="form.title" name="title" />
-          <small *ngIf="formErrors()['title']" style="color: red;">{{ formErrors()['title'] }}</small>
-        </label>
-      </div>
-
-      <div class="field-grid">
         <label>
           Status
-          <select [(ngModel)]="form.status" name="status">
+          <select [(ngModel)]="statusFilter" (change)="onFilterChange()">
+            <option value="all">All</option>
             <option value="Todo">To do</option>
             <option value="InProgress">In progress</option>
             <option value="Completed">Completed</option>
@@ -113,94 +40,201 @@
 
         <label>
           Priority
-          <select [(ngModel)]="form.priority" name="priority">
+          <select [(ngModel)]="priorityFilter" (change)="onFilterChange()">
+            <option value="all">All</option>
             <option value="Low">Low</option>
             <option value="Medium">Medium</option>
             <option value="High">High</option>
             <option value="Critical">Critical</option>
           </select>
         </label>
-      </div>
 
-      <div class="field-grid single">
         <label>
-          Due date
-          <input type="date" [(ngModel)]="form.dueDate" name="dueDate" />
+          Assignee
+          <select [(ngModel)]="assigneeFilter" (change)="onFilterChange()">
+            <option value="all">All</option>
+            @for (user of allUsers(); track user.id) {
+              <option [value]="user.id">{{ user.firstName }} {{ user.lastName }}</option>
+            }
+          </select>
         </label>
-      </div>
 
-      <div class="field-grid single">
         <label>
-          Assign to
-          <select [(ngModel)]="form.assigneeEmail" name="assigneeEmail" [disabled]="loadingMembers()">
-            <option value="">No assignee</option>
-            <option *ngFor="let member of projectMembers()" [value]="member.email">{{ member.userName || member.email }}</option>
+          Sort
+          <select [(ngModel)]="sortColumn" (change)="onFilterChange()">
+            <option value="CreatedAt">Created</option>
+            <option value="Title">Title</option>
+            <option value="DueDate">Due date</option>
+            <option value="Priority">Priority</option>
+            <option value="Status">Status</option>
+          </select>
+        </label>
+
+        <label>
+          Direction
+          <select [(ngModel)]="sortDirection" (change)="onFilterChange()">
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
           </select>
         </label>
       </div>
+    </div>
+  }
 
-      <div class="field-grid single">
-        <label>
-          Description
-          <textarea rows="4" [(ngModel)]="form.description" name="description"></textarea>
-          <button type="button" class="secondary" (click)="improveDescription()" [disabled]="improvingDescription()">
-            {{ improvingDescription() ? 'Improving...' : 'Improve with AI' }}
-          </button>
-        </label>
-      </div>
+  @if (showForm() && (canCreateTask() || editingTaskId() !== null)) {
+    <div class="panel">
+      <h2>{{ editingTaskId() === null ? 'Create Task' : 'Edit Task' }}</h2>
 
-      <div class="action-row">
-        <button type="button" class="secondary" (click)="showForm.set(false)">Cancel</button>
-        <button type="submit" class="primary">{{ editingTaskId() === null ? 'Create Task' : 'Save Changes' }}</button>
-      </div>
-    </form>
-  </div>
+      <form class="task-form" (ngSubmit)="submitForm()">
+        @if (Object.keys(formErrors()).length > 0) {
+          <div style="color: red; margin-bottom: 1rem;">
+            <ul>
+              @for (error of Object.values(formErrors()); track error) {
+                <li>{{ error }}</li>
+              }
+            </ul>
+          </div>
+        }
 
-  <div *ngIf="tasks().length === 0" class="empty-state">
-    No tasks match the selected filters.
-  </div>
+        <div class="field-grid">
+          <label>
+            Project
+            <select [(ngModel)]="form.projectId" name="projectId" (change)="onProjectChange()">
+              <option value="">Select a project</option>
+              @for (project of projects(); track project.id) {
+                <option [value]="project.id">{{ project.name }}</option>
+              }
+            </select>
+            @if (formErrors()['projectId']) {
+              <small style="color: red;">{{ formErrors()['projectId'] }}</small>
+            }
+          </label>
 
-  <div *ngIf="tasks().length > 0" class="table-wrap">
-    <table class="task-table">
-      <thead>
-        <tr>
-          <th>Task</th>
-          <th>Project</th>
-          <th>Status</th>
-          <th>Priority</th>
-          <th>Due date</th>
-          <th>Created</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let task of tasks()">
-          <td>
-            <div class="task-title">{{ task.title }}</div>
-            <div *ngIf="task.description" class="task-description">{{ task.description }}</div>
-          </td>
-          <td>{{ task.projectName }}</td>
-          <td>
-            <span class="pill" [ngClass]="'status-' + statusCssClass(task.status)">{{ formatStatus(task.status) }}</span>
-          </td>
-          <td>
-            <span class="pill" [ngClass]="'priority-' + priorityCssClass(task.priority)">{{ formatPriority(task.priority) }}</span>
-          </td>
-          <td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : 'No due date' }}</td>
-          <td>{{ task.createdAt | date: 'mediumDate' }}</td>
-          <td class="actions">
-            <button *ngIf="task.canEdit" type="button" class="secondary" (click)="openEditForm(task)">Edit</button>
-            <button *ngIf="task.canDelete" type="button" class="danger" (click)="deleteTask(task.id)">Delete</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+          <label>
+            Title
+            <input type="text" [(ngModel)]="form.title" name="title" />
+            @if (formErrors()['title']) {
+              <small style="color: red;">{{ formErrors()['title'] }}</small>
+            }
+          </label>
+        </div>
 
-  <div class="pagination" *ngIf="totalPages() > 1">
-    <button type="button" [disabled]="page() === 1" (click)="prevPage()">Previous</button>
-    <span>Page {{ page() }} of {{ totalPages() }}</span>
-    <button type="button" [disabled]="page() >= totalPages()" (click)="nextPage()">Next</button>
-  </div>
+        <div class="field-grid">
+          <label>
+            Status
+            <select [(ngModel)]="form.status" name="status">
+              <option value="Todo">To do</option>
+              <option value="InProgress">In progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </label>
+
+          <label>
+            Priority
+            <select [(ngModel)]="form.priority" name="priority">
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+              <option value="Critical">Critical</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="field-grid single">
+          <label>
+            Due date
+            <input type="date" [(ngModel)]="form.dueDate" name="dueDate" />
+          </label>
+        </div>
+
+        <div class="field-grid single">
+          <label>
+            Assign to
+            <select [(ngModel)]="form.assigneeEmail" name="assigneeEmail" [disabled]="loadingMembers()">
+              <option value="">No assignee</option>
+              @for (member of projectMembers(); track member.email) {
+                <option [value]="member.email">{{ member.userName || member.email }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <div class="field-grid single">
+          <label>
+            Description
+            <textarea rows="4" [(ngModel)]="form.description" name="description"></textarea>
+            <button type="button" class="secondary" (click)="improveDescription()" [disabled]="improvingDescription()">
+              {{ improvingDescription() ? 'Improving...' : 'Improve with AI' }}
+            </button>
+          </label>
+        </div>
+
+        <div class="action-row">
+          <button type="button" class="secondary" (click)="showForm.set(false)">Cancel</button>
+          <button type="submit" class="primary">{{ editingTaskId() === null ? 'Create Task' : 'Save Changes' }}</button>
+        </div>
+      </form>
+    </div>
+  }
+
+  @if (tasks().length === 0) {
+    <div class="empty-state">
+      No tasks match the selected filters.
+    </div>
+  } @else {
+    <div class="table-wrap">
+      <table class="task-table">
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Project</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Due date</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (task of tasks(); track task.id) {
+            <tr>
+              <td>
+                <div class="task-title">{{ task.title }}</div>
+                @if (task.description) {
+                  <div class="task-description">{{ task.description }}</div>
+                }
+              </td>
+              <td>{{ task.projectName }}</td>
+              <td>
+                <span class="pill" [class]="'status-' + statusCssClass(task.status)">{{ formatStatus(task.status) }}</span>
+              </td>
+              <td>
+                <span class="pill" [class]="'priority-' + priorityCssClass(task.priority)">{{ formatPriority(task.priority) }}</span>
+              </td>
+              <td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : 'No due date' }}</td>
+              <td>{{ task.createdAt | date: 'mediumDate' }}</td>
+              <td class="actions">
+                @if (task.canEdit) {
+                  <button type="button" class="secondary" (click)="openEditForm(task)">Edit</button>
+                }
+                @if (task.canDelete) {
+                  <button type="button" class="danger" (click)="deleteTask(task.id)">Delete</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (totalPages() > 1) {
+    <div class="pagination">
+      <button type="button" [disabled]="page() === 1" (click)="prevPage()">Previous</button>
+      <span>Page {{ page() }} of {{ totalPages() }}</span>
+      <button type="button" [disabled]="page() >= totalPages()" (click)="nextPage()">Next</button>
+    </div>
+  }
 </section>
   
