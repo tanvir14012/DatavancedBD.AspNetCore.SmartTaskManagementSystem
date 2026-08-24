@@ -21,6 +21,10 @@ export class TopNavComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
+  getItemRoute(item: MenuItem): string {
+    return item.children?.[0]?.route ?? item.route;
+  }
+
   toggleUserMenu(): void {
     this.userMenuOpen.update((open) => !open);
   }

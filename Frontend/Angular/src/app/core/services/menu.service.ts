@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, signal } from '@angular/core';
+import { computed, Injectable, signal } from '@angular/core';
 import { Observable, map, shareReplay, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { MenuItem, MenuResponse } from '../models/menu-item.model';
@@ -9,14 +9,29 @@ export class MenuService {
   private static readonly MENU_STORAGE_KEY = 'stms.menus';
 
   readonly topBarMenus = signal<MenuItem[]>([]);
-  readonly sideBarMenus = signal<MenuItem[]>([]);
+  readonly currentRoute = signal<string>('/dashboard');
+  readonly sideBarMenus = computed<MenuItem[]>(() => {
+    const topBar = this.topBarMenus();
+    const route = this.currentRoute();
+
+    if (!topBar.length) {
+      return [];
+    }
+
+    const selectedTopBar = topBar.find((item) => this.matchesRoute(item.route, route) || this.hasMatchingChildRoute(item, route));
+
+    if (selectedTopBar) {
+      return selectedTopBar.children.length > 0 ? selectedTopBar.children : [selectedTopBar];
+    }
+
+    return topBar.flatMap((item) => (item.children.length > 0 ? item.children : [item]));
+  });
 
   private menuRequest$?: Observable<MenuResponse>;
 
   constructor(private readonly http: HttpClient) {
     const cachedMenus = this.readStoredMenus();
     this.topBarMenus.set(cachedMenus.topBar);
-    this.sideBarMenus.set(cachedMenus.sideBar);
   }
 
   loadMenus(): Observable<MenuResponse> {
@@ -28,7 +43,6 @@ export class MenuService {
           tap((response) => this.persistMenus(response)),
           tap((response) => {
             this.topBarMenus.set(response.topBar);
-            this.sideBarMenus.set(response.sideBar);
           }),
           shareReplay({ bufferSize: 1, refCount: true }),
         );
@@ -47,10 +61,14 @@ export class MenuService {
     localStorage.removeItem(MenuService.MENU_STORAGE_KEY);
   }
 
+  setCurrentRoute(route: string): void {
+    this.currentRoute.set(route || '/dashboard');
+  }
+
   invalidateCache(): void {
     this.menuRequest$ = undefined;
     this.topBarMenus.set([]);
-    this.sideBarMenus.set([]);
+    this.currentRoute.set('/dashboard');
   }
 
   private normalizeMenuResponse(response: Partial<MenuResponse> | null | undefined): MenuResponse {
@@ -64,6 +82,21 @@ export class MenuService {
       topBar,
       sideBar,
     };
+  }
+
+  private matchesRoute(menuRoute: string, currentRoute: string): boolean {
+    const normalizedMenuRoute = this.normalizeRoute(menuRoute);
+    const normalizedCurrentRoute = this.normalizeRoute(currentRoute);
+
+    return normalizedCurrentRoute === normalizedMenuRoute || normalizedCurrentRoute.startsWith(`${normalizedMenuRoute}/`);
+  }
+
+  private hasMatchingChildRoute(item: MenuItem, currentRoute: string): boolean {
+    return (item.children ?? []).some((child) => this.matchesRoute(child.route, currentRoute));
+  }
+
+  private normalizeRoute(route: string): string {
+    return route.split('?')[0].split('#')[0].trim() || '/';
   }
 
   private persistMenus(menus: MenuResponse): void {
