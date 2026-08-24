@@ -1,8 +1,9 @@
 export const environment = {
   production: false,
-  apiGatewayUrl: 'http://localhost:5000/api',
+  apiBaseUrl: 'https://localhost:7083/api',
+  apiGatewayUrl: 'https://localhost:7083/api',
   /** Public CDN base URL served by Nginx. For local dev, proxied through the API gateway. */
-  cdnBaseUrl: 'http://localhost:5000/cdn',
+  cdnBaseUrl: 'https://localhost:7083/cdn',
   /** Default API version applied to all versioned API requests. */
   apiVersion: '1.0',
   oidc: {

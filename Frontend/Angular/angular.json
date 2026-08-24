@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "Angular": {
+    "smart-task-management-system": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -58,8 +58,8 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "configurations": {
-            "production": { "buildTarget": "Angular:build:production" },
-            "development": { "buildTarget": "Angular:build:development" }
+            "production": { "buildTarget": "smart-task-management-system:build:production" },
+            "development": { "buildTarget": "smart-task-management-system:build:development" }
           },
           "defaultConfiguration": "development"
         },
