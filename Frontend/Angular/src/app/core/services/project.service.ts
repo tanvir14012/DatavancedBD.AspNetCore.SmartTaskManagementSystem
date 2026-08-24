@@ -56,6 +56,24 @@ export interface ProjectCreateRequest {
 
 export interface ProjectMemberAssignment { userId: number; role: 'Owner' | 'Manager' | 'Member' | 'Viewer'; }
 
+export interface ProjectAssignmentItem {
+  projectId: number;
+  projectName: string;
+  userId: number;
+  userName: string;
+  email: string;
+  role: string;
+}
+
+export interface ProjectAssignmentResult {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  filteredCount: number;
+  totalPages: number;
+  items: ProjectAssignmentItem[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProjectService {
   private readonly baseUrl = `${environment.apiBaseUrl}/projects`;
@@ -165,6 +183,24 @@ export class ProjectService {
 
   getMembers(projectId: number): Observable<ProjectItemMember[]> {
     return this.http.get<ProjectItemMember[]>(`${this.baseUrl}/${projectId}/members`, { withCredentials: true });
+  }
+
+  getAssignments(params: {
+    start?: number;
+    length?: number;
+    search?: string;
+    role?: string;
+    projectId?: number;
+  } = {}): Observable<ProjectAssignmentResult> {
+    let httpParams = new HttpParams();
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        httpParams = httpParams.set(key, String(value));
+      }
+    });
+
+    return this.http.get<ProjectAssignmentResult>(`${this.baseUrl}/assignments`, { params: httpParams, withCredentials: true });
   }
 
   assignMember(projectId: number, payload: ProjectMemberAssignment): Observable<{ projectId: number; userId: number; role: string }> {

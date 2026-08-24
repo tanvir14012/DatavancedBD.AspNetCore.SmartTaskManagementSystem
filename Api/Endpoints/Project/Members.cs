@@ -15,6 +15,11 @@ public sealed class Members : IEndpoint
         var group = app.MapGroup("/api/projects")
             .WithTags("Projects");
 
+        group.MapGet("/assignments", GetAssignments)
+            .WithName("GetProjectAssignments")
+            .WithSummary("Get project assignments with search, filter and pagination")
+            .RequireAuthorization(policy => policy.RequireRole("Admin", "Project Manager"));
+
         group.MapGet("/{id:int}/members", GetMembers)
             .WithName("GetProjectMembers")
             .WithSummary("Get project members")
@@ -29,6 +34,76 @@ public sealed class Members : IEndpoint
             .WithName("RemoveProjectMember")
             .WithSummary("Remove a user from a project")
             .RequireAuthorization(policy => policy.RequireRole("Admin", "Project Manager"));
+    }
+
+    private static async Task<IResult> GetAssignments(
+        AppDbContext dbContext,
+        ICurrentUser currentUser,
+        [FromQuery] int start = 0,
+        [FromQuery] int length = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] string? role = null,
+        [FromQuery] int? projectId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.UserProjects
+            .AsNoTracking()
+            .Include(x => x.Project)
+            .Include(x => x.User)
+            .AsQueryable();
+
+        if (!currentUser.IsInRole("Admin"))
+        {
+            query = query.Where(x => x.Project.Members.Any(member =>
+                member.UserId == currentUser.UserId && (member.ProjectRole == ProjectRole.Manager || member.ProjectRole == ProjectRole.Owner)));
+        }
+
+        if (projectId.HasValue)
+        {
+            query = query.Where(x => x.ProjectId == projectId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchTerm = search.Trim();
+            query = query.Where(x =>
+                x.Project.Name.Contains(searchTerm) ||
+                x.User.UserName.Contains(searchTerm) ||
+                x.User.Email.Contains(searchTerm));
+        }
+
+        if (!string.IsNullOrWhiteSpace(role) && !string.Equals(role, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Enum.TryParse<ProjectRole>(role, true, out var parsedRole))
+            {
+                query = query.Where(x => x.ProjectRole == parsedRole);
+            }
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var assignments = await query
+            .OrderBy(x => x.Project.Name)
+            .ThenBy(x => x.User.UserName ?? x.User.Email)
+            .Skip(Math.Max(start, 0))
+            .Take(Math.Max(length, 1))
+            .Select(x => new ProjectAssignmentSummary(
+                x.ProjectId,
+                x.Project.Name,
+                x.UserId,
+                x.User.UserName ?? x.User.Email ?? string.Empty,
+                x.User.Email ?? string.Empty,
+                x.ProjectRole))
+            .ToListAsync(cancellationToken);
+
+        return Results.Ok(new
+        {
+            page = (Math.Max(start, 0) / Math.Max(length, 1)) + 1,
+            pageSize = Math.Max(length, 1),
+            totalCount,
+            filteredCount = totalCount,
+            totalPages = (int)Math.Ceiling(totalCount / (double)Math.Max(length, 1)),
+            items = assignments
+        });
     }
 
     private static async Task<IResult> GetMembers(
@@ -163,3 +238,4 @@ public sealed class Members : IEndpoint
 }
 
 public sealed record AssignProjectMemberRequest(int UserId, ProjectRole Role);
+public sealed record ProjectAssignmentSummary(int ProjectId, string ProjectName, int UserId, string UserName, string Email, ProjectRole Role);

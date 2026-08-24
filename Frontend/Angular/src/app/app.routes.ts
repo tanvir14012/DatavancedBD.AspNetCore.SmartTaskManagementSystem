@@ -44,6 +44,11 @@ export const routes: Routes = [
         canActivate: [projectWriteGuard],
       },
       {
+        path: 'projects/assign',
+        loadComponent: () => import('./features/projects/project-assignments.page').then((m) => m.ProjectAssignmentsPage),
+        canActivate: [projectWriteGuard],
+      },
+      {
         path: 'projects/:id',
         loadComponent: () => import('./features/projects/project-form.page').then((m) => m.ProjectFormPage),
       },
