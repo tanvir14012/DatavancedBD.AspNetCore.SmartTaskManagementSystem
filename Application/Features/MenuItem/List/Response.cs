@@ -1,8 +1,6 @@
 namespace Application.Features.MenuItem.List;
 
-public sealed record Response(
-    IReadOnlyList<MenuItemNode> TopBar,
-    IReadOnlyList<MenuItemNode> SideBar);
+public sealed record Response(IReadOnlyList<MenuItemNode> Menus);
 
 public sealed record MenuItemNode(
     int Id,

@@ -25,9 +25,7 @@ public sealed class Handler(IAppDbContext dbContext, ICacheService cacheService)
             .ThenBy(x => x.DisplayOrder)
             .ToListAsync(cancellationToken);
 
-        var response = new Response(
-            BuildTree(menuItems, MenuType.TopBar),
-            BuildTree(menuItems, MenuType.SideBar));
+        var response = new Response(BuildTree(menuItems, MenuType.TopBar));
 
         await cacheService.SetAsync(
             cacheKey,
