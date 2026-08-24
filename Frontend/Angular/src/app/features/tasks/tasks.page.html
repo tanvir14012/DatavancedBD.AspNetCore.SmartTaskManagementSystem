@@ -143,6 +143,9 @@
         <label>
           Description
           <textarea rows="4" [(ngModel)]="form.description" name="description"></textarea>
+          <button type="button" class="secondary" (click)="improveDescription()" [disabled]="improvingDescription()">
+            {{ improvingDescription() ? 'Improving...' : 'Improve with AI' }}
+          </button>
         </label>
       </div>
 

@@ -39,6 +39,7 @@ export class TasksPage implements OnInit {
   readonly editingTaskId = signal<number | null>(null);
   readonly isLoading = signal(false);
   readonly loadingMembers = signal(false);
+  readonly improvingDescription = signal(false);
   readonly formErrors = signal<Record<string, string>>({});
   readonly form = {
     projectId: '',
@@ -290,5 +291,24 @@ export class TasksPage implements OnInit {
 
   priorityCssClass(value: string): string {
     return value.toLowerCase();
+  }
+
+  improveDescription(): void {
+    if (!this.form.description.trim()) {
+      alert('Please enter a description to improve.');
+      return;
+    }
+
+    this.improvingDescription.set(true);
+    this.taskService.improveDescription(this.form.description).subscribe({
+      next: (result) => {
+        this.form.description = result.improvedDescription;
+        this.improvingDescription.set(false);
+      },
+      error: () => {
+        alert('Failed to improve description. Please try again.');
+        this.improvingDescription.set(false);
+      }
+    });
   }
 }

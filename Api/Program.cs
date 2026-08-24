@@ -4,16 +4,22 @@ using Infrastructure.AssemblyScan;
 using Infrastructure.Bootstrap;
 using Infrastructure.Data.EfCore.Persistence;
 using Application;
+using Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddDefaultBootstrap();
 builder.Services.Configure<AuthenticationOptions>(builder.Configuration.GetSection(AuthenticationOptions.SectionName));
+builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.SectionName));
 
 builder.Services
     .AddScopedServices(typeof(Program).Assembly, typeof(ICurrentUser).Assembly, typeof(AppDbContext).Assembly)
     .AddTransientServices(typeof(Program).Assembly, typeof(ICurrentUser).Assembly, typeof(AppDbContext).Assembly)
     .AddSingletonServices(typeof(Program).Assembly, typeof(ICurrentUser).Assembly, typeof(AppDbContext).Assembly);
+
+// Register AI service
+builder.Services.AddScoped<IAiService, GitHubModelsAiService>();
+builder.Services.AddHttpClient<GitHubModelsAiService>();
 
 builder.Services.AddEndpoints(typeof(Program).Assembly);
 builder.Services.AddObservability(builder.Configuration, Shared.Constants.ServiceName);
