@@ -1,0 +1,71 @@
+<section class="project-form-page">
+  <header class="page-head">
+    <div>
+      <p class="eyebrow">Project</p>
+      <h1>{{ isEditMode ? 'Edit Project' : 'Create Project' }}</h1>
+    </div>
+    <button type="button" class="secondary" (click)="back()">Back</button>
+  </header>
+
+  <div class="form-shell">
+    <form class="project-form" (ngSubmit)="saveProject()">
+      <div class="field">
+        <label for="project-name">Project Name</label>
+        <input id="project-name" type="text" [(ngModel)]="form.name" name="name" required />
+      </div>
+
+      <div class="field">
+        <label for="project-description">Description</label>
+        <textarea id="project-description" rows="4" [(ngModel)]="form.description" name="description"></textarea>
+      </div>
+
+      <div class="date-grid">
+        <div class="field">
+          <label for="project-start-date">Start Date</label>
+          <input id="project-start-date" type="date" [(ngModel)]="form.startDate" name="startDate" />
+        </div>
+
+        <div class="field">
+          <label for="project-end-date">End Date</label>
+          <input id="project-end-date" type="date" [(ngModel)]="form.endDate" name="endDate" />
+        </div>
+      </div>
+
+      <div class="checkbox-row">
+        <input id="project-archived" type="checkbox" [(ngModel)]="form.isArchived" name="isArchived" />
+        <label for="project-archived">Archived</label>
+      </div>
+
+      <div class="action-row">
+        <button type="button" class="secondary" (click)="back()">Cancel</button>
+        <button type="submit" class="primary" [disabled]="isSubmitting || !form.name.trim()">
+          {{ isSubmitting ? 'Saving...' : (isEditMode ? 'Update Project' : 'Create Project') }}
+        </button>
+      </div>
+    </form>
+
+    <aside *ngIf="isEditMode && projectId" class="member-panel">
+      <h2>Project Members</h2>
+      <div class="member-controls" *ngIf="canManageMembers">
+        <input type="number" min="1" [(ngModel)]="memberForm.userId" name="userId" placeholder="User Id" />
+        <select [(ngModel)]="memberForm.role" name="role">
+          <option *ngFor="let role of allowedRoles" [value]="role">{{ role }}</option>
+        </select>
+        <button type="button" class="primary" (click)="assignMember()">Assign</button>
+      </div>
+
+      <ul class="member-list">
+        <li *ngFor="let member of members">
+          <div>
+            <strong>{{ member.userName }}</strong>
+            <small>{{ member.email }}</small>
+          </div>
+          <span>{{ member.role }}</span>
+          <button *ngIf="canManageMembers" type="button" class="link-button" (click)="removeMember(member.userId)">Remove</button>
+        </li>
+      </ul>
+
+      <button *ngIf="project?.canDelete" type="button" class="danger" (click)="deleteProject()">Delete Project</button>
+    </aside>
+  </div>
+</section>

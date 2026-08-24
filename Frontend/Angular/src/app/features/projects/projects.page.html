@@ -1,28 +1,74 @@
+<section class="page">
+  <header class="page-head">
+    <div>
+      <p class="eyebrow">Portfolio</p>
+      <h1>Projects</h1>
+    </div>
+    <button *ngIf="canCreateProject" class="primary" type="button" (click)="goToNewProject()">New Project</button>
+  </header>
 
-    <section class="page">
-      <div class="page-head">
-        <div>
-          <p class="eyebrow">Portfolio</p>
-          <h1>Projects</h1>
-        </div>
-        <button class="primary">New Project</button>
-      </div>
+  <div class="toolbar">
+    <div class="search-box">
+      <input type="search" [(ngModel)]="search" placeholder="Search projects" (keyup.enter)="onSearch()" />
+      <button type="button" (click)="onSearch()">Search</button>
+    </div>
 
-      <div class="project-grid">
-        @for (project of projects; track project.name) {
-          <article class="project-card">
-            <div class="meta-row">
-              <span class="pill">{{ project.status }}</span>
-              <span>{{ project.owner }}</span>
-            </div>
-            <h2>{{ project.name }}</h2>
-            <p>{{ project.summary }}</p>
-            <div class="footer-row">
-              <span>{{ project.tasks }} tasks</span>
-              <span>{{ project.progress }}% complete</span>
-            </div>
-          </article>
-        }
+    <div class="filters">
+      <label>
+        Status
+        <select [(ngModel)]="statusFilter" (change)="onSortChange()">
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="planned">Planned</option>
+          <option value="completed">Completed</option>
+        </select>
+      </label>
+
+      <label>
+        Sort
+        <select [(ngModel)]="sortColumn" (change)="onSortChange()">
+          <option value="name">Name</option>
+          <option value="createdAt">Created</option>
+          <option value="updatedAt">Updated</option>
+        </select>
+      </label>
+
+      <label>
+        Direction
+        <select [(ngModel)]="sortDirection" (change)="onSortChange()">
+          <option value="asc">Ascending</option>
+          <option value="desc">Descending</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div *ngIf="projects.length === 0" class="empty-state">
+    No projects match the current filters.
+  </div>
+
+  <div *ngIf="projects.length > 0" class="project-grid">
+    <article class="project-card" *ngFor="let project of projects">
+      <div class="meta-row">
+        <span class="pill">{{ project.status || 'Active' }}</span>
+        <span>{{ project.role || 'Member' }}</span>
       </div>
-    </section>
-  
+      <h2>{{ project.name }}</h2>
+      <p>{{ project.description || 'No description provided.' }}</p>
+      <div class="project-meta">
+        <span>Tasks: {{ project.taskCount || 0 }}</span>
+        <span>Updated: {{ project.updatedAt ? (project.updatedAt | date:'shortDate') : 'Recently' }}</span>
+      </div>
+      <div class="footer-row">
+        <a [routerLink]="['/projects', project.id]" class="link-button">View</a>
+        <button *ngIf="project.canEdit" type="button" class="secondary" [routerLink]="['/projects', project.id, 'edit']">Edit</button>
+      </div>
+    </article>
+  </div>
+
+  <div class="pagination" *ngIf="totalPages > 1">
+    <button type="button" [disabled]="page === 1" (click)="prevPage()">Previous</button>
+    <span>Page {{ page }} of {{ totalPages }}</span>
+    <button type="button" [disabled]="page >= totalPages" (click)="nextPage()">Next</button>
+  </div>
+</section>

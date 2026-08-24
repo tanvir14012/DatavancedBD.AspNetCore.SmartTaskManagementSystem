@@ -1,4 +1,8 @@
+using Application.Interfaces;
+using Domain;
+using Domain.Enums;
 using Infrastructure.Bootstrap;
+using Infrastructure.Data.EfCore.Extensions;
 using Infrastructure.Data.EfCore.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -20,52 +24,79 @@ public sealed class List : IEndpoint
 
     private static async Task<IResult> GetProjects(
         AppDbContext dbContext,
+        ICurrentUser currentUser,
         [FromQuery] string? search = null,
-        [FromQuery] string? sortBy = null,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] string? sortColumn = null,
+        [FromQuery] string? sortDirection = null,
+        [FromQuery] int start = 0,
+        [FromQuery] int length = 20,
+        [FromQuery] string? status = null,
         CancellationToken cancellationToken = default)
     {
-        var query = dbContext.Projects
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted)
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
+        if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
         {
-            var term = search.Trim();
-            query = query.Where(p => p.Name.Contains(term) || (p.Description != null && p.Description.Contains(term)));
+            return Results.Unauthorized();
         }
 
-        var sort = (sortBy ?? "createdAt").ToLowerInvariant();
-        query = sort switch
+        var query = dbContext.Projects
+            .AsNoTracking()
+            .Include(p => p.Members)
+            .AsQueryable();
+
+        if (!currentUser.IsInRole("Admin"))
         {
-            "name" => query.OrderBy(p => p.Name),
-            "startdate" => query.OrderBy(p => p.StartDate ?? DateOnly.MinValue),
-            "enddate" => query.OrderBy(p => p.EndDate ?? DateOnly.MaxValue),
-            _ => query.OrderByDescending(p => p.CreatedAt)
+            var userId = currentUser.UserId.Value;
+            query = query.Where(p => p.Members.Any(m => m.UserId == userId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            var isArchived = string.Equals(status, "archived", StringComparison.OrdinalIgnoreCase);
+            query = query.Where(p => p.IsArchived == isArchived);
+        }
+
+        var dataTableRequest = new DataTableRequest
+        {
+            Start = start,
+            Length = length,
+            Search = search,
+            SortColumn = string.IsNullOrWhiteSpace(sortColumn) ? "CreatedAt" : sortColumn,
+            SortDirection = string.IsNullOrWhiteSpace(sortDirection) ? "desc" : sortDirection,
         };
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(p => new ProjectListItem(
+        var configuration = new DataTableQueryConfiguration { MaxPageSize = 200 };
+        configuration.SearchableColumns.Add("Name");
+        configuration.SearchableColumns.Add("Description");
+        configuration.SortableColumns.Add("Name");
+        configuration.SortableColumns.Add("StartDate");
+        configuration.SortableColumns.Add("EndDate");
+        configuration.SortableColumns.Add("CreatedAt");
+
+        var page = await query.ToDataTablePageAsync(
+            dbContext,
+            dataTableRequest,
+            p => new ProjectListItem(
                 p.Id,
                 p.Name,
                 p.Description,
                 p.StartDate,
                 p.EndDate,
-                p.CreatedAt))
-            .ToListAsync(cancellationToken);
+                p.CreatedAt,
+                currentUser.IsInRole("Admin") || p.Members.Any(m => m.UserId == currentUser.UserId.Value && (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner)),
+                currentUser.IsInRole("Admin"),
+                p.IsArchived,
+                p.Members.Where(m => m.UserId == currentUser.UserId.Value).Select(m => m.ProjectRole).FirstOrDefault()),
+            configuration,
+            cancellationToken);
 
         return Results.Ok(new
         {
-            page,
-            pageSize,
-            totalCount,
-            totalPages = (int)Math.Ceiling(totalCount / (double)Math.Max(pageSize, 1)),
-            items
+            page = (start / Math.Max(length, 1)) + 1,
+            pageSize = length,
+            totalCount = page.TotalCount,
+            filteredCount = page.FilteredCount,
+            totalPages = (int)Math.Ceiling(page.FilteredCount / (double)Math.Max(length, 1)),
+            items = page.Items
         });
     }
 }
@@ -76,4 +107,8 @@ public sealed record ProjectListItem(
     string? Description,
     DateOnly? StartDate,
     DateOnly? EndDate,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    bool CanEdit,
+    bool CanDelete,
+    bool IsArchived,
+    ProjectRole CurrentUserRole);
