@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { computed, Injectable, signal } from '@angular/core';
 import { Observable, map, shareReplay, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { MenuItem, MenuResponse } from '../models/menu-item.model';
+import { MenuApiResponse, MenuItem, MenuResponse } from '../models/menu-item.model';
 
 @Injectable({ providedIn: 'root' })
 export class MenuService {
@@ -37,7 +37,7 @@ export class MenuService {
   loadMenus(): Observable<MenuResponse> {
     if (!this.menuRequest$) {
       this.menuRequest$ = this.http
-        .get<MenuResponse>(`${environment.apiBaseUrl}/menus/`)
+        .get<MenuApiResponse>(`${environment.apiBaseUrl}/menus/`)
         .pipe(
           map((response) => this.normalizeMenuResponse(response)),
           tap((response) => this.persistMenus(response)),
@@ -71,17 +71,38 @@ export class MenuService {
     this.currentRoute.set('/dashboard');
   }
 
-  private normalizeMenuResponse(response: Partial<MenuResponse> | null | undefined): MenuResponse {
-    const topBar = Array.isArray(response?.topBar) ? (response?.topBar as MenuItem[]) : [];
-    const sideBar = topBar.flatMap((item) => {
-      const children = Array.isArray(item.children) ? item.children : [];
-      return children.length > 0 ? children : [item];
-    });
+  private normalizeMenuResponse(response: Partial<MenuApiResponse> | null | undefined): MenuResponse {
+    const topBar = this.normalizeMenuItems(response?.menus ?? response?.topBar ?? []);
+    const sideBar = this.normalizeMenuItems(
+      response?.sideBar ?? topBar.flatMap((item) => (Array.isArray(item.children) && item.children.length > 0 ? item.children : [item])),
+    );
 
     return {
+      menus: topBar,
       topBar,
       sideBar,
     };
+  }
+
+  private normalizeMenuItems(items: unknown): MenuItem[] {
+    if (!Array.isArray(items)) {
+      return [];
+    }
+
+    return items.map((item) => {
+      const menuItem = item as Partial<MenuItem>;
+      return {
+        ...menuItem,
+        id: menuItem.id ?? 0,
+        name: menuItem.name ?? '',
+        route: menuItem.route ?? '',
+        icon: menuItem.icon ?? '',
+        displayOrder: menuItem.displayOrder ?? 0,
+        parentId: menuItem.parentId ?? null,
+        type: menuItem.type ?? 'TopBar',
+        children: this.normalizeMenuItems(menuItem.children ?? []),
+      } satisfies MenuItem;
+    });
   }
 
   private matchesRoute(menuRoute: string, currentRoute: string): boolean {
@@ -107,13 +128,13 @@ export class MenuService {
     try {
       const cached = localStorage.getItem(MenuService.MENU_STORAGE_KEY);
       if (!cached) {
-        return { topBar: [], sideBar: [] };
+        return { menus: [], topBar: [], sideBar: [] };
       }
 
-      const parsed = JSON.parse(cached) as Partial<MenuResponse>;
+      const parsed = JSON.parse(cached) as Partial<MenuApiResponse>;
       return this.normalizeMenuResponse(parsed);
     } catch {
-      return { topBar: [], sideBar: [] };
+      return { menus: [], topBar: [], sideBar: [] };
     }
   }
 }
