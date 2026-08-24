@@ -46,9 +46,13 @@ public static class BootstrapExtensions
 
         builder.Services.AddCors(options =>
         {
+            var corsSection = builder.Configuration.GetSection("Cors");
+            var allowedOrigins = corsSection.GetSection("AllowedOrigins").Get<string[]>() ?? 
+                new[] { "https://localhost:4200", "http://localhost:4200" };
+
             options.AddDefaultPolicy(policy =>
                 policy
-                    .SetIsOriginAllowed(_ => true)
+                    .WithOrigins(allowedOrigins)
                     .AllowAnyMethod()
                     .AllowAnyHeader()
                     .AllowCredentials());
