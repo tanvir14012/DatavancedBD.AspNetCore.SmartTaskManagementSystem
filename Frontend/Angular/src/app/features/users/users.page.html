@@ -1,0 +1,22 @@
+
+    <section class="page">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Directory</p>
+          <h1>Users</h1>
+        </div>
+        <button class="primary">Invite Member</button>
+      </div>
+
+      <div class="user-grid">
+        @for (user of users; track user.name) {
+          <article class="user-card">
+            <img [src]="user.imageUrl" alt="{{ user.name }}" />
+            <h2>{{ user.name }}</h2>
+            <p>{{ user.role }}</p>
+            <span>{{ user.team }}</span>
+          </article>
+        }
+      </div>
+    </section>
+  

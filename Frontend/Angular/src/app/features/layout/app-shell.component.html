@@ -1,0 +1,13 @@
+
+    <div class="app-shell">
+      <app-top-nav [menus]="menuService.topBarMenus()" [user]="authService.currentUser()"></app-top-nav>
+
+      <div class="content-shell">
+        <app-side-nav [items]="menuService.sideBarMenus()"></app-side-nav>
+
+        <main class="page-shell">
+          <router-outlet />
+        </main>
+      </div>
+    </div>
+  

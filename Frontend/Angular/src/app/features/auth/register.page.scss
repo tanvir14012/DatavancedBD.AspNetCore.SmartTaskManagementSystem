@@ -1,0 +1,118 @@
+:host {
+        display: block;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0f172a, #1d4ed8);
+        padding: 32px;
+      }
+
+      .auth-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+      }
+
+      .auth-card {
+        width: min(100%, 520px);
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 24px;
+        box-shadow: 0 30px 60px rgba(15, 23, 42, 0.4);
+        padding: 32px;
+        backdrop-filter: blur(14px);
+      }
+
+      .brand-block {
+        margin-bottom: 24px;
+      }
+
+      .eyebrow {
+        color: #93c5fd;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      h1 {
+        color: #f8fafc;
+        margin: 10px 0 8px;
+        font-size: 2rem;
+      }
+
+      p {
+        color: #cbd5e1;
+        margin: 0;
+      }
+
+      .auth-form {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .name-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        color: #e2e8f0;
+        font-size: 0.92rem;
+      }
+
+      input {
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(15, 23, 42, 0.6);
+        border-radius: 12px;
+        color: white;
+        padding: 12px 14px;
+        font-size: 1rem;
+      }
+
+      .field-error,
+      .general-error {
+        color: #fca5a5;
+        font-size: 0.82rem;
+        line-height: 1.4;
+      }
+
+      .general-error {
+        border: 1px solid rgba(252, 165, 165, 0.35);
+        background: rgba(127, 29, 29, 0.2);
+        padding: 10px 12px;
+        border-radius: 10px;
+      }
+
+      button {
+        border: none;
+        border-radius: 12px;
+        padding: 12px 18px;
+        background: linear-gradient(135deg, #38bdf8, #2563eb);
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+
+      .auth-link {
+        text-align: center;
+        margin-top: 4px;
+      }
+
+      a {
+        color: #93c5fd;
+        text-decoration: none;
+      }
+
+      @media (max-width: 560px) {
+        .name-row {
+          grid-template-columns: 1fr;
+        }
+      }

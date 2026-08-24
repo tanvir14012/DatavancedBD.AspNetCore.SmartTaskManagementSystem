@@ -1,0 +1,48 @@
+
+    <section class="login-shell">
+      <div class="login-card">
+        <div class="brand-block">
+          <span class="eyebrow">Smart Task Management System</span>
+          <h1>Welcome back</h1>
+          <p>Sign in to manage projects, tasks, teams, and priorities.</p>
+        </div>
+
+        <form [formGroup]="form" (ngSubmit)="submit()" class="login-form">
+          <label>
+            <span>Email</span>
+            <input formControlName="email" type="email" placeholder="name@company.com" />
+            @if (fieldError('email').length) {
+              <small class="field-error">{{ fieldError('email')[0] }}</small>
+            } @else if (form.controls.email.touched && form.controls.email.hasError('required')) {
+              <small class="field-error">Email is required.</small>
+            } @else if (form.controls.email.touched && form.controls.email.hasError('email')) {
+              <small class="field-error">Enter a valid email.</small>
+            }
+          </label>
+
+          <label>
+            <span>Password</span>
+            <input formControlName="password" type="password" placeholder="••••••••" />
+            @if (fieldError('password').length) {
+              <small class="field-error">{{ fieldError('password')[0] }}</small>
+            } @else if (form.controls.password.touched && form.controls.password.hasError('required')) {
+              <small class="field-error">Password is required.</small>
+            }
+          </label>
+
+          @if (generalError()) {
+            <div class="general-error">{{ generalError() }}</div>
+          }
+
+          <button type="submit" [disabled]="loading() || form.invalid">
+            {{ loading() ? 'Signing in...' : 'Sign in' }}
+          </button>
+
+          <p class="auth-link">
+            Need an account?
+            <a routerLink="/register">Create one</a>
+          </p>
+        </form>
+      </div>
+    </section>
+  
