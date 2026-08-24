@@ -1,0 +1,120 @@
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { Observable, shareReplay } from 'rxjs';
+import { environment } from '../../../environments/environment';
+
+export interface TaskListItem {
+  id: number;
+  projectId: number;
+  projectName: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: string;
+  dueDate?: string | null;
+  createdAt: string;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
+export interface TaskListResult {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  filteredCount: number;
+  totalPages: number;
+  items: TaskListItem[];
+}
+
+export interface TaskDetail {
+  id: number;
+  projectId: number;
+  projectName: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: string;
+  dueDate?: string | null;
+  createdAt: string;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
+export interface TaskCreateRequest {
+  projectId: number;
+  title: string;
+  description?: string | null;
+  status?: string;
+  priority?: string;
+  dueDate?: string | null;
+  assigneeEmail?: string | null;
+}
+
+export interface TaskUpdateRequest {
+  projectId?: number;
+  title: string;
+  description?: string | null;
+  status?: string;
+  priority?: string;
+  dueDate?: string | null;
+}
+
+@Injectable({ providedIn: 'root' })
+export class TaskService {
+  private readonly baseUrl = `${environment.apiBaseUrl}/tasks`;
+  private readonly listCache = new Map<string, Observable<TaskListResult>>();
+
+  constructor(private readonly http: HttpClient) {}
+
+  list(params: {
+    start?: number;
+    length?: number;
+    search?: string;
+    projectId?: number;
+    status?: string;
+    priority?: string;
+    sortColumn?: string;
+    sortDirection?: string;
+  } = {}): Observable<TaskListResult> {
+    const normalizedParams = { ...params };
+    const key = JSON.stringify(normalizedParams);
+    const cached = this.listCache.get(key);
+
+    if (cached) {
+      return cached;
+    }
+
+    let httpParams = new HttpParams();
+    Object.entries(normalizedParams).forEach(([keyName, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        httpParams = httpParams.set(keyName, String(value));
+      }
+    });
+
+    const request$ = this.http
+      .get<TaskListResult>(this.baseUrl, { params: httpParams, withCredentials: true })
+      .pipe(shareReplay({ bufferSize: 1, refCount: true }));
+
+    this.listCache.set(key, request$);
+    return request$;
+  }
+
+  getTask(id: number): Observable<TaskDetail> {
+    return this.http.get<TaskDetail>(`${this.baseUrl}/${id}`, { withCredentials: true });
+  }
+
+  create(payload: TaskCreateRequest): Observable<TaskDetail> {
+    this.listCache.clear();
+    return this.http.post<TaskDetail>(this.baseUrl, payload, { withCredentials: true });
+  }
+
+  update(id: number, payload: TaskUpdateRequest): Observable<TaskDetail> {
+    this.listCache.clear();
+    return this.http.put<TaskDetail>(`${this.baseUrl}/${id}`, payload, { withCredentials: true });
+  }
+
+  delete(id: number): Observable<{ success: boolean; id: number }> {
+    this.listCache.clear();
+    return this.http.delete<{ success: boolean; id: number }>(`${this.baseUrl}/${id}`, { withCredentials: true });
+  }
+}
