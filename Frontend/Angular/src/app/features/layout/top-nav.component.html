@@ -1,0 +1,28 @@
+
+    <header class="top-nav">
+      <nav class="nav-left" aria-label="Main navigation">
+        @for (item of menus; track item.id) {
+          <a
+            class="nav-item"
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: true }"
+          >
+            <span class="icon">{{ item.icon }}</span>
+            <span>{{ item.name }}</span>
+          </a>
+        }
+      </nav>
+
+      <div class="nav-right">
+        <button class="icon-btn" aria-label="Notifications">🔔</button>
+        <div class="user-card">
+          <img [src]="user?.imageUrl ?? 'https://api.dicebear.com/7.x/initials/svg?seed=User'" alt="User avatar" />
+          <div>
+            <strong>{{ user?.name ?? 'Guest User' }}</strong>
+            <small>{{ user?.role ?? 'Team Member' }}</small>
+          </div>
+        </div>
+      </div>
+    </header>
+  

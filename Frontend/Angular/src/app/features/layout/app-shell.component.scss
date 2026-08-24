@@ -1,0 +1,23 @@
+:host {
+        display: block;
+        min-height: 100vh;
+        background: #f8fafc;
+      }
+
+      .app-shell {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .content-shell {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .page-shell {
+        flex: 1;
+        padding: 32px;
+        overflow: auto;
+      }

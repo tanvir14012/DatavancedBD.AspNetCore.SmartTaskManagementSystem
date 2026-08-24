@@ -1,0 +1,28 @@
+
+    <section class="page">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Portfolio</p>
+          <h1>Projects</h1>
+        </div>
+        <button class="primary">New Project</button>
+      </div>
+
+      <div class="project-grid">
+        @for (project of projects; track project.name) {
+          <article class="project-card">
+            <div class="meta-row">
+              <span class="pill">{{ project.status }}</span>
+              <span>{{ project.owner }}</span>
+            </div>
+            <h2>{{ project.name }}</h2>
+            <p>{{ project.summary }}</p>
+            <div class="footer-row">
+              <span>{{ project.tasks }} tasks</span>
+              <span>{{ project.progress }}% complete</span>
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+  

@@ -1,0 +1,32 @@
+
+    <aside class="side-nav">
+      @for (item of items; track item.id) {
+        <div class="nav-group">
+          <a
+            class="nav-link"
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: false }"
+          >
+            <span class="icon">{{ item.icon }}</span>
+            <span>{{ item.name }}</span>
+          </a>
+
+          @if (item.children && item.children.length > 0) {
+            <div class="sub-links">
+              @for (child of item.children; track child.id) {
+                <a
+                  class="sub-link"
+                  [routerLink]="child.route"
+                  routerLinkActive="active"
+                  [routerLinkActiveOptions]="{ exact: false }"
+                >
+                  {{ child.name }}
+                </a>
+              }
+            </div>
+          }
+        </div>
+      }
+    </aside>
+  

@@ -1,0 +1,62 @@
+
+    <section class="auth-shell">
+      <div class="auth-card">
+        <div class="brand-block">
+          <span class="eyebrow">Smart Task Management System</span>
+          <h1>Create your account</h1>
+          <p>Set up your workspace and start organizing projects and tasks.</p>
+        </div>
+
+        <form [formGroup]="form" (ngSubmit)="submit()" class="auth-form">
+          <div class="name-row">
+            <label>
+              <span>First name</span>
+              <input formControlName="firstName" type="text" placeholder="Jane" />
+            </label>
+
+            <label>
+              <span>Last name</span>
+              <input formControlName="lastName" type="text" placeholder="Doe" />
+            </label>
+          </div>
+
+          <label>
+            <span>Email</span>
+            <input formControlName="email" type="email" placeholder="name@company.com" />
+            @if (fieldError('email').length) {
+              <small class="field-error">{{ fieldError('email')[0] }}</small>
+            } @else if (form.controls.email.touched && form.controls.email.hasError('required')) {
+              <small class="field-error">Email is required.</small>
+            } @else if (form.controls.email.touched && form.controls.email.hasError('email')) {
+              <small class="field-error">Enter a valid email.</small>
+            }
+          </label>
+
+          <label>
+            <span>Password</span>
+            <input formControlName="password" type="password" placeholder="••••••••" />
+            @if (fieldError('password').length) {
+              <small class="field-error">{{ fieldError('password')[0] }}</small>
+            } @else if (form.controls.password.touched && form.controls.password.hasError('required')) {
+              <small class="field-error">Password is required.</small>
+            } @else if (form.controls.password.touched && form.controls.password.hasError('minlength')) {
+              <small class="field-error">Password must be at least 8 characters.</small>
+            }
+          </label>
+
+          @if (generalError()) {
+            <div class="general-error">{{ generalError() }}</div>
+          }
+
+          <button type="submit" [disabled]="loading() || form.invalid">
+            {{ loading() ? 'Creating account...' : 'Create account' }}
+          </button>
+
+          <p class="auth-link">
+            Already have an account?
+            <a routerLink="/login">Login</a>
+          </p>
+        </form>
+      </div>
+    </section>
+  

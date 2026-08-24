@@ -9,46 +9,8 @@ import { SideNavComponent } from './side-nav.component';
   selector: 'app-shell',
   standalone: true,
   imports: [TopNavComponent, SideNavComponent, RouterOutlet],
-  template: `
-    <div class="app-shell">
-      <app-top-nav [menus]="menuService.topBarMenus()" [user]="authService.currentUser()"></app-top-nav>
-
-      <div class="content-shell">
-        <app-side-nav [items]="menuService.sideBarMenus()"></app-side-nav>
-
-        <main class="page-shell">
-          <router-outlet />
-        </main>
-      </div>
-    </div>
-  `,
-  styles: [
-    `
-      :host {
-        display: block;
-        min-height: 100vh;
-        background: #f8fafc;
-      }
-
-      .app-shell {
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-      }
-
-      .content-shell {
-        display: flex;
-        flex: 1;
-        min-height: 0;
-      }
-
-      .page-shell {
-        flex: 1;
-        padding: 32px;
-        overflow: auto;
-      }
-    `,
-  ],
+  templateUrl: './app-shell.component.html',
+  styleUrls: ['./app-shell.component.scss']
 })
 export class AppShellComponent implements OnInit {
   constructor(

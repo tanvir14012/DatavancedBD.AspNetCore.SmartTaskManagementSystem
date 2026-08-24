@@ -1,0 +1,28 @@
+
+    <section class="page">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Execution</p>
+          <h1>Tasks</h1>
+        </div>
+        <button class="primary">Create Task</button>
+      </div>
+
+      <div class="task-list">
+        @for (task of tasks; track task.title) {
+          <article class="task-card">
+            <div class="row">
+              <span class="pill priority-{{ task.priority.toLowerCase() }}">{{ task.priority }}</span>
+              <span class="status">{{ task.status }}</span>
+            </div>
+            <h2>{{ task.title }}</h2>
+            <p>{{ task.assignee }}</p>
+            <div class="meta-row">
+              <span>Due {{ task.dueDate }}</span>
+              <span>{{ task.project }}</span>
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+  
