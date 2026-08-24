@@ -79,9 +79,11 @@ export class MenuService {
   }
 
   private normalizeMenuResponse(response: Partial<MenuApiResponse> | null | undefined): MenuResponse {
-    const topBar = this.normalizeMenuItems(response?.menus ?? response?.topBar ?? []);
-    const sideBar = this.normalizeMenuItems(
-      response?.sideBar ?? topBar.flatMap((item) => (Array.isArray(item.children) && item.children.length > 0 ? item.children : [item])),
+    const topBar = this.filterVisibleMenuItems(this.normalizeMenuItems(response?.menus ?? response?.topBar ?? []));
+    const sideBar = this.filterVisibleMenuItems(
+      this.normalizeMenuItems(
+        response?.sideBar ?? topBar.flatMap((item) => (Array.isArray(item.children) && item.children.length > 0 ? item.children : [item])),
+      ),
     );
 
     return {
@@ -110,6 +112,38 @@ export class MenuService {
         children: this.normalizeMenuItems(menuItem.children ?? []),
       } satisfies MenuItem;
     });
+  }
+
+  private filterVisibleMenuItems(items: MenuItem[]): MenuItem[] {
+    const userRole = this.readStoredUserRole();
+    const canAccessBoard = userRole === 'Admin' || userRole === 'Project Manager';
+
+    return items
+      .filter((item) => {
+        if (this.normalizeRoute(item.route) === '/tasks/board' && !canAccessBoard) {
+          return false;
+        }
+
+        return true;
+      })
+      .map((item) => ({
+        ...item,
+        children: this.filterVisibleMenuItems(item.children ?? []),
+      }));
+  }
+
+  private readStoredUserRole(): string {
+    try {
+      const cachedUser = localStorage.getItem('stms.user');
+      if (!cachedUser) {
+        return '';
+      }
+
+      const parsed = JSON.parse(cachedUser) as { role?: string };
+      return parsed.role ?? '';
+    } catch {
+      return '';
+    }
   }
 
   private matchesRoute(menuRoute: string, currentRoute: string): boolean {
