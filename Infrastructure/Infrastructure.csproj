@@ -6,11 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Include="..\..\Usm.Inventory.MonoRepo\Shared\BuildingBlocks\Bootstrap\Middleware\AuditLoggingMiddleware.cs" Link="Bootstrap\Middleware\AuditLoggingMiddleware.cs" />
-    <Compile Include="..\..\Usm.Inventory.MonoRepo\Shared\BuildingBlocks\Bootstrap\Middleware\RequestTracingMiddleware.cs" Link="Bootstrap\Middleware\RequestTracingMiddleware.cs" />
-  </ItemGroup>
-    
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>  
