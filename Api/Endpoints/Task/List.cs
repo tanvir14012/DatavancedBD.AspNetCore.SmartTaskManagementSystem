@@ -16,7 +16,7 @@ public sealed class List : IEndpoint
         group.MapGet("/", GetTasks)
             .WithName("GetTasks")
             .WithSummary("List and filter tasks")
-            .AllowAnonymous();
+            .RequireAuthorization(policy => policy.RequireRole("Admin", "Project Manager", "Team Member"));
     }
 
     private static async Task<IResult> GetTasks(

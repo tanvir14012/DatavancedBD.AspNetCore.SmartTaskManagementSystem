@@ -18,8 +18,7 @@ public sealed class Get : IEndpoint
             .WithDescription("Gets a project by id. Uses cache first, then database.")
             .Produces<Response>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .AllowAnonymous();
-             //.RequireAuthorization();
+            .RequireAuthorization(policy => policy.RequireRole("Admin", "Project Manager", "Team Member"));
     }
 
     private static async Task<IResult> GetProject(
