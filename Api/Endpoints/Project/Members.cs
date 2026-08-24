@@ -133,9 +133,9 @@ public sealed class Members : IEndpoint
             .AsNoTracking()
             .Include(x => x.User)
             .Where(x => x.ProjectId == id)
+            .OrderBy(x => x.ProjectRole)
+            .ThenBy(x => x.User.UserName ?? x.User.Email)
             .Select(x => new ProjectMemberSummary(x.UserId, x.User.UserName ?? x.User.Email ?? string.Empty, x.User.Email ?? string.Empty, x.ProjectRole))
-            .OrderBy(x => x.Role)
-            .ThenBy(x => x.UserName)
             .ToListAsync(cancellationToken);
 
         return Results.Ok(members);
