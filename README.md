@@ -26,7 +26,7 @@ Smart Task Management System is a modern, feature-rich platform for managing pro
 - **Authentication:** ASP.NET Core Identity with JWT + Refresh Tokens
 - **Patterns:** CQRS (Command Query Responsibility Segregation), MediatR
 - **Validation:** FluentValidation
-- **AI Integration:** GitHub Models API (free tier - gpt-4o-mini)
+- **AI Integration:** Groq API for high-speed AI inference
 - **Middleware:** Security headers, rate limiting, audit logging, request tracing, versioning
 
 ### Frontend
@@ -146,23 +146,28 @@ npm run build
 
 ### Optional: AI Feature Setup
 
-To enable AI-powered task description improvement:
+To enable AI-powered task description improvement using Groq API:
 
-1. Get a GitHub personal access token with `model-usage` scope
+1. Get a Groq API key from [console.groq.com](https://console.groq.com)
 2. Update `Api/appsettings.json`:
 
 ```json
 {
   "Ai": {
     "Enabled": true,
-    "GitHubModelsApiKey": "github_pat_YOUR_TOKEN",
-    "GitHubModelsEndpoint": "https://models.inference.ai.azure.com",
-    "Model": "gpt-4o-mini"
+    "GroqApiKey": "gsk_YOUR_GROQ_API_KEY_HERE",
+    "GroqEndpoint": "https://api.groq.com/openai/v1",
+    "Model": "mixtral-8x7b-32768"
   }
 }
 ```
 
-See [AI_SETUP.md](./AI_SETUP.md) for detailed AI configuration.
+**Configuration Details:**
+- `GroqApiKey`: Your Groq API key from the console
+- `GroqEndpoint`: Groq's OpenAI-compatible API endpoint
+- `Model`: Available models include `mixtral-8x7b-32768`, `llama-2-70b-chat`, `gemma-7b-it`
+
+See [AI_SETUP.md](./AI_SETUP.md) for detailed AI configuration and available models.
 
 ---
 
