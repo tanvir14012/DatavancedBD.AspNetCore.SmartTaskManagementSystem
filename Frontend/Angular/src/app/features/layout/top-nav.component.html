@@ -26,7 +26,6 @@
 
       @if (userMenuOpen()) {
         <div class="user-menu" role="menu" aria-label="User actions">
-          <span class="user-email">{{ user?.email ?? 'guest@example.com' }}</span>
           <button class="logout-btn" type="button" (click)="logout()">Logout</button>
         </div>
       }

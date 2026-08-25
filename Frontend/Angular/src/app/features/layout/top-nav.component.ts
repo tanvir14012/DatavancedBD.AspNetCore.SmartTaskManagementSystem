@@ -27,40 +27,10 @@ export class TopNavComponent {
   }
 
   isItemActive(item: MenuItem): boolean {
-    const currentUrl = this.router.url.split('?')[0].split('#')[0];
-    const targetRoute = this.getItemRoute(item);
+    const currentUrl = this.router.url.split(/[?#]/)[0];
+    const route = item.route;
 
-    return this.matchesRoute(targetRoute, currentUrl) || (item.children ?? []).some((child) => this.matchesRoute(child.route, currentUrl));
-  }
-
-  private matchesRoute(menuRoute: string, currentRoute: string): boolean {
-    const normalizedMenuRoute = this.normalizeRoute(menuRoute);
-    const normalizedCurrentRoute = this.normalizeRoute(currentRoute);
-    const menuSegments = this.getRouteSegments(normalizedMenuRoute);
-    const currentSegments = this.getRouteSegments(normalizedCurrentRoute);
-
-    if (menuSegments.length === 0 || currentSegments.length === 0) {
-      return normalizedCurrentRoute === normalizedMenuRoute;
-    }
-
-    // Match at least the first segment (e.g., 'projects' in '/projects/list')
-    // This ensures /projects/3/edit matches /projects/list
-    return currentSegments[0] === menuSegments[0] && currentSegments[1] === menuSegments[1];
-  }
-
-  private getRouteSegments(route: string): string[] {
-    return route.split('/').filter((seg) => seg.length > 0);
-  }
-
-  private normalizeRoute(route: string): string {
-    const normalized = route.split('?')[0].split('#')[0].trim();
-    const cleaned = normalized.replace(/\/+$/, '');
-
-    if (!cleaned) {
-      return '/dashboard';
-    }
-
-    return cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
+    return currentUrl === route || currentUrl.startsWith(`${route}/`);
   }
 
   toggleUserMenu(): void {

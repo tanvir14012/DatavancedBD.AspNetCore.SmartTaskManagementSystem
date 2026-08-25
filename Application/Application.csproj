@@ -27,11 +27,6 @@
     <Folder Include="Features\Task\List\" />
     <Folder Include="Features\Task\Assign\" />
     <Folder Include="Features\Task\Update\" />
-    <Folder Include="Features\User\Create\" />
-    <Folder Include="Features\User\Delete\" />
-    <Folder Include="Features\User\Get\" />
-    <Folder Include="Features\User\List\" />
-    <Folder Include="Features\User\Update\" />
   </ItemGroup>
 
   <ItemGroup>
