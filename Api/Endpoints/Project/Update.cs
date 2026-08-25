@@ -1,3 +1,4 @@
+using Api.Validators;
 using Application.Interfaces;
 using Domain;
 using Domain.Enums;
@@ -30,6 +31,52 @@ public sealed class Update : IEndpoint
         ICacheService cacheService,
         CancellationToken cancellationToken)
     {
+        // Validate input first
+        var errors = new List<(string, string)>();
+
+        // Validate Name
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            errors.Add(("name", "Project name is required."));
+        }
+        else if (request.Name.Length > ValidationHelper.MaxNameLength)
+        {
+            errors.Add(("name", $"Project name cannot exceed {ValidationHelper.MaxNameLength} characters."));
+        }
+        else if (!ValidationHelper.IsValidProjectName(request.Name))
+        {
+            errors.Add(("name", "Project name contains invalid characters. Only alphanumeric, spaces, and -_.&() are allowed."));
+        }
+
+        // Validate Description
+        if (!string.IsNullOrWhiteSpace(request.Description) && request.Description.Length > ValidationHelper.MaxDescriptionLength)
+        {
+            errors.Add(("description", $"Project description cannot exceed {ValidationHelper.MaxDescriptionLength} characters."));
+        }
+
+        // Validate StartDate
+        if (request.StartDate.HasValue && ValidationHelper.IsPastDate(request.StartDate))
+        {
+            errors.Add(("startDate", "Start date cannot be in the past."));
+        }
+
+        // Validate EndDate
+        if (request.EndDate.HasValue && ValidationHelper.IsPastDate(request.EndDate))
+        {
+            errors.Add(("endDate", "End date cannot be in the past."));
+        }
+
+        // Validate date range
+        if (!ValidationHelper.IsValidDateRange(request.StartDate, request.EndDate))
+        {
+            errors.Add(("dates", "End date must be greater than or equal to start date."));
+        }
+
+        if (errors.Count > 0)
+        {
+            return Results.ValidationProblem(ValidationHelper.CreateValidationProblem(errors.ToArray()));
+        }
+
         var project = await dbContext.Projects
             .Include(p => p.Members)
             .SingleOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
@@ -45,14 +92,6 @@ public sealed class Update : IEndpoint
         if (!canEdit)
         {
             return Results.Forbid();
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["name"] = ["Project name is required."]
-            });
         }
 
         project.Name = request.Name.Trim();

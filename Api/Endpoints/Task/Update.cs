@@ -1,3 +1,4 @@
+using Api.Validators;
 using Application.Interfaces;
 using Domain;
 using Domain.Enums;
@@ -35,6 +36,58 @@ public sealed class Update : IEndpoint
             return Results.Unauthorized();
         }
 
+        // Validate input
+        var errors = new List<(string, string)>();
+
+        // Validate Title
+        if (string.IsNullOrWhiteSpace(request.Title))
+        {
+            errors.Add(("title", "Task title is required."));
+        }
+        else if (request.Title.Length > ValidationHelper.MaxTaskTitleLength)
+        {
+            errors.Add(("title", $"Task title cannot exceed {ValidationHelper.MaxTaskTitleLength} characters."));
+        }
+        else if (!ValidationHelper.IsValidTaskTitle(request.Title))
+        {
+            errors.Add(("title", "Task title contains invalid characters."));
+        }
+
+        // Validate Description
+        if (!string.IsNullOrWhiteSpace(request.Description) && request.Description.Length > ValidationHelper.MaxTaskDescriptionLength)
+        {
+            errors.Add(("description", $"Task description cannot exceed {ValidationHelper.MaxTaskDescriptionLength} characters."));
+        }
+
+        // Validate DueDate
+        if (ValidationHelper.IsPastDate(request.DueDate))
+        {
+            errors.Add(("dueDate", "Due date cannot be in the past."));
+        }
+
+        // Validate Status
+        if (!string.IsNullOrWhiteSpace(request.Status) && !Enum.TryParse<ProjectTaskStatus>(request.Status, true, out _))
+        {
+            errors.Add(("status", "Invalid task status. Valid values are: Todo, InProgress, Completed, Cancelled."));
+        }
+
+        // Validate Priority
+        if (!string.IsNullOrWhiteSpace(request.Priority) && !Enum.TryParse<TaskPriority>(request.Priority, true, out _))
+        {
+            errors.Add(("priority", "Invalid task priority. Valid values are: Low, Medium, High, Critical."));
+        }
+
+        // Validate ProjectId if provided
+        if (request.ProjectId.HasValue && request.ProjectId.Value <= 0)
+        {
+            errors.Add(("projectId", "Project ID must be valid."));
+        }
+
+        if (errors.Count > 0)
+        {
+            return Results.ValidationProblem(ValidationHelper.CreateValidationProblem(errors.ToArray()));
+        }
+
         var task = await dbContext.ProjectTasks
             .Include(t => t.Project)
             .ThenInclude(p => p.Members)
@@ -58,15 +111,8 @@ public sealed class Update : IEndpoint
             return Results.Forbid();
         }
 
-        if (string.IsNullOrWhiteSpace(request.Title))
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["title"] = ["Task title is required."]
-            });
-        }
-
-        if (request.ProjectId.HasValue)
+        // Handle project change if provided
+        if (request.ProjectId.HasValue && request.ProjectId.Value != task.ProjectId)
         {
             var project = await dbContext.Projects
                 .Include(p => p.Members)
@@ -90,31 +136,25 @@ public sealed class Update : IEndpoint
             task.Project = project;
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Status) && !Enum.TryParse<ProjectTaskStatus>(request.Status, true, out var parsedStatus))
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["status"] = ["Invalid task status value."]
-            });
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Priority) && !Enum.TryParse<TaskPriority>(request.Priority, true, out var parsedPriority))
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["priority"] = ["Invalid task priority value."]
-            });
-        }
-
+        // Update task properties
         task.Title = request.Title.Trim();
         task.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
-        task.Status = !string.IsNullOrWhiteSpace(request.Status) && Enum.TryParse<ProjectTaskStatus>(request.Status, true, out var resolvedStatus)
-            ? resolvedStatus
-            : task.Status;
-        task.Priority = !string.IsNullOrWhiteSpace(request.Priority) && Enum.TryParse<TaskPriority>(request.Priority, true, out var resolvedPriority)
-            ? resolvedPriority
-            : task.Priority;
-        task.DueDate = request.DueDate ?? task.DueDate;
+        
+        if (!string.IsNullOrWhiteSpace(request.Status) && Enum.TryParse<ProjectTaskStatus>(request.Status, true, out var status))
+        {
+            task.Status = status;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Priority) && Enum.TryParse<TaskPriority>(request.Priority, true, out var priority))
+        {
+            task.Priority = priority;
+        }
+
+        if (request.DueDate.HasValue)
+        {
+            task.DueDate = request.DueDate;
+        }
+
         task.UpdatedAt = DateTime.UtcNow;
         task.UpdatedById = currentUser.UserId;
 

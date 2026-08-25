@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { finalize, tap } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { CustomValidators } from '../../shared/validators/custom-validators';
 
 @Component({
   selector: 'app-register-page',
@@ -23,14 +24,56 @@ export class RegisterPage {
   readonly generalError = signal('');
 
   readonly form = this.formBuilder.nonNullable.group({
-    firstName: [''],
-    lastName: [''],
-    email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(8)]],
+    firstName: ['', [
+      Validators.maxLength(CustomValidators.MAX_FIRST_NAME_LENGTH),
+      CustomValidators.noWhitespace()
+    ]],
+    lastName: ['', [
+      Validators.maxLength(CustomValidators.MAX_LAST_NAME_LENGTH),
+      CustomValidators.noWhitespace()
+    ]],
+    email: ['', [
+      Validators.required,
+      Validators.email,
+      CustomValidators.emailFormat()
+    ]],
+    password: ['', [
+      Validators.required,
+      Validators.minLength(CustomValidators.MIN_PASSWORD_LENGTH),
+      CustomValidators.passwordStrength()
+    ]],
   });
 
   fieldError(controlName: string): string[] {
     return this.fieldErrors()[controlName] ?? [];
+  }
+
+  getPasswordErrors(): string[] {
+    const control = this.form.get('password');
+    if (!control || !control.errors) {
+      return [];
+    }
+
+    const errors: string[] = [];
+    if (control.errors['required']) {
+      errors.push('Password is required.');
+    }
+    if (control.errors['minLength']) {
+      errors.push(`Password must be at least ${CustomValidators.MIN_PASSWORD_LENGTH} characters.`);
+    }
+    if (control.errors['noUpperCase']) {
+      errors.push('Password must contain at least one uppercase letter.');
+    }
+    if (control.errors['noLowerCase']) {
+      errors.push('Password must contain at least one lowercase letter.');
+    }
+    if (control.errors['noDigit']) {
+      errors.push('Password must contain at least one digit.');
+    }
+    if (control.errors['noSpecialChar']) {
+      errors.push('Password must contain at least one special character (!@#$%^&*).');
+    }
+    return errors;
   }
 
   submit(): void {
