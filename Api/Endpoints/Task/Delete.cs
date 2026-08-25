@@ -1,10 +1,10 @@
+using Application.Features.Task.Delete;
 using Application.Interfaces;
-using Domain.Enums;
+using FluentValidation;
 using Infrastructure.Bootstrap;
 using Infrastructure.Caching.Abstractions;
-using Infrastructure.Data.EfCore.Persistence;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Api.Endpoints.Task;
 
@@ -23,7 +23,7 @@ public sealed class Delete : IEndpoint
 
     private static async Task<IResult> DeleteTask(
         int id,
-        AppDbContext dbContext,
+        [FromServices] ISender sender,
         ICurrentUser currentUser,
         ICacheService cacheService,
         IHttpResponseCacheInvalidator httpCacheInvalidator,
@@ -34,37 +34,30 @@ public sealed class Delete : IEndpoint
             return Results.Unauthorized();
         }
 
-        var task = await dbContext.ProjectTasks
-            .Include(t => t.Project)
-            .ThenInclude(p => p.Members)
-            .SingleOrDefaultAsync(t => t.Id == id && !t.IsDeleted, cancellationToken);
-
-        if (task is null)
+        try
         {
-            return Results.NotFound();
+            var result = await sender.Send(new Command(id), cancellationToken);
+            await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
+            return Results.Ok(new { success = result.Success, id = result.Id });
         }
-
-        var userId = currentUser.UserId.Value;
-        var canDelete = currentUser.IsInRole("Admin") ||
-            currentUser.IsInRole("Project Manager") && task.Project.Members.Any(m =>
-                m.UserId == userId &&
-                (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner));
-
-        if (!canDelete)
+        catch (ValidationException ex)
+        {
+            return Results.ValidationProblem(ex.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => string.IsNullOrWhiteSpace(group.Key) ? "request" : group.Key,
+                    group => group.Select(error => error.ErrorMessage).ToArray()));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return Results.NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
         {
             return Results.Forbid();
         }
-
-        task.IsDeleted = true;
-        task.UpdatedAt = DateTime.UtcNow;
-        task.UpdatedById = currentUser.UserId;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
-        await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
-
-        return Results.Ok(new { success = true, id = task.Id });
     }
 }

@@ -8,6 +8,7 @@ namespace Infrastructure.Data.EfCore.Persistence;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : ServiceDbContext(options, Shared.Constants.ServicePrefix), IAppDbContext, IScopedService
 {
+    public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectTask> ProjectTasks => Set<ProjectTask>();

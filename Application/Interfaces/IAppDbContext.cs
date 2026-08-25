@@ -5,6 +5,7 @@ namespace Application.Interfaces;
 
 public interface IAppDbContext
 {
+    DbSet<AppUser> Users { get; }
     DbSet<MenuItem> MenuItems { get; }
     DbSet<Project> Projects { get; }
     DbSet<ProjectTask> ProjectTasks { get; }
