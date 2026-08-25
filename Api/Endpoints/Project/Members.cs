@@ -1,10 +1,7 @@
-using Application.Interfaces;
-using Domain;
-using Domain.Enums;
+using Application.Features.Project.Members;
 using Infrastructure.Bootstrap;
-using Infrastructure.Data.EfCore.Persistence;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Api.Endpoints.Project;
 
@@ -37,8 +34,7 @@ public sealed class Members : IEndpoint
     }
 
     private static async Task<IResult> GetAssignments(
-        AppDbContext dbContext,
-        ICurrentUser currentUser,
+        [FromServices] ISender sender,
         [FromQuery] int start = 0,
         [FromQuery] int length = 10,
         [FromQuery] string? search = null,
@@ -46,204 +42,47 @@ public sealed class Members : IEndpoint
         [FromQuery] int? projectId = null,
         CancellationToken cancellationToken = default)
     {
-        var query = dbContext.UserProjects
-            .AsNoTracking()
-            .Include(x => x.Project)
-            .Include(x => x.User)
-            .AsQueryable();
-
-        if (!currentUser.IsInRole("Admin"))
-        {
-            query = query.Where(x => x.Project.Members.Any(member =>
-                member.UserId == currentUser.UserId && (member.ProjectRole == ProjectRole.Manager || member.ProjectRole == ProjectRole.Owner)));
-        }
-
-        if (projectId.HasValue)
-        {
-            query = query.Where(x => x.ProjectId == projectId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var searchTerm = search.Trim();
-            query = query.Where(x =>
-                x.Project.Name.Contains(searchTerm) ||
-                x.User.UserName.Contains(searchTerm) ||
-                x.User.Email.Contains(searchTerm));
-        }
-
-        if (!string.IsNullOrWhiteSpace(role) && !string.Equals(role, "all", StringComparison.OrdinalIgnoreCase))
-        {
-            if (Enum.TryParse<ProjectRole>(role, true, out var parsedRole))
-            {
-                query = query.Where(x => x.ProjectRole == parsedRole);
-            }
-        }
-
-        var totalCount = await query.CountAsync(cancellationToken);
-        var assignments = await query
-            .OrderBy(x => x.Project.Name)
-            .ThenBy(x => x.User.UserName ?? x.User.Email)
-            .Skip(Math.Max(start, 0))
-            .Take(Math.Max(length, 1))
-            .Select(x => new ProjectAssignmentSummary(
-                x.ProjectId,
-                x.Project.Name,
-                x.UserId,
-                x.User.UserName ?? x.User.Email ?? string.Empty,
-                x.User.Email ?? string.Empty,
-                x.ProjectRole))
-            .ToListAsync(cancellationToken);
+        var result = await sender.Send(new AssignmentsQuery(start, length, search, role, projectId), cancellationToken);
 
         return Results.Ok(new
         {
-            page = (Math.Max(start, 0) / Math.Max(length, 1)) + 1,
-            pageSize = Math.Max(length, 1),
-            totalCount,
-            filteredCount = totalCount,
-            totalPages = (int)Math.Ceiling(totalCount / (double)Math.Max(length, 1)),
-            items = assignments
+            page = result.Page,
+            pageSize = result.PageSize,
+            totalCount = result.TotalCount,
+            filteredCount = result.FilteredCount,
+            totalPages = result.TotalPages,
+            items = result.Items
         });
     }
 
     private static async Task<IResult> GetMembers(
         int id,
-        AppDbContext dbContext,
-        ICurrentUser currentUser,
+        [FromServices] ISender sender,
         CancellationToken cancellationToken)
     {
-        var project = await dbContext.Projects
-            .AsNoTracking()
-            .SingleOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
-
-        if (project is null)
-        {
-            return Results.NotFound();
-        }
-
-        var isAllowed = currentUser.IsInRole("Admin") ||
-            await dbContext.UserProjects.AnyAsync(x => x.ProjectId == id && x.UserId == currentUser.UserId, cancellationToken);
-
-        if (!isAllowed)
-        {
-            return Results.Forbid();
-        }
-
-        var members = await dbContext.UserProjects
-            .AsNoTracking()
-            .Include(x => x.User)
-            .Where(x => x.ProjectId == id)
-            .OrderBy(x => x.ProjectRole)
-            .ThenBy(x => x.User.UserName ?? x.User.Email)
-            .Select(x => new ProjectMemberSummary(x.UserId, x.User.UserName ?? x.User.Email ?? string.Empty, x.User.Email ?? string.Empty, x.ProjectRole))
-            .ToListAsync(cancellationToken);
-
+        var members = await sender.Send(new MembersQuery(id), cancellationToken);
         return Results.Ok(members);
     }
 
     private static async Task<IResult> AssignMember(
         int id,
         [FromBody] AssignProjectMemberRequest request,
-        AppDbContext dbContext,
-        ICurrentUser currentUser,
+        [FromServices] ISender sender,
         CancellationToken cancellationToken)
     {
-        var project = await dbContext.Projects
-            .Include(p => p.Members)
-            .SingleOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
-
-        if (project is null)
-        {
-            return Results.NotFound();
-        }
-
-        var isAdmin = currentUser.IsInRole("Admin");
-        var isProjectManager = !isAdmin && project.Members.Any(m => m.UserId == currentUser.UserId && (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner));
-
-        if (!isAdmin && !isProjectManager)
-        {
-            return Results.Forbid();
-        }
-
-        if (!Enum.TryParse<ProjectRole>(request.Role, true, out var parsedRole))
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["role"] = ["Invalid role. Must be one of: Owner, Manager, Member, Viewer"]
-            });
-        }
-
-        if (!isAdmin && parsedRole == ProjectRole.Manager)
-        {
-            return Results.Forbid();
-        }
-
-        var userExists = await dbContext.Users.AnyAsync(u => u.Id == request.UserId, cancellationToken);
-        if (!userExists)
-        {
-            return Results.NotFound();
-        }
-
-        var currentMembership = await dbContext.UserProjects
-            .SingleOrDefaultAsync(x => x.ProjectId == id && x.UserId == request.UserId, cancellationToken);
-
-        if (currentMembership is null)
-        {
-            dbContext.UserProjects.Add(new UserProject
-            {
-                ProjectId = id,
-                UserId = request.UserId,
-                ProjectRole = parsedRole,
-                JoinedAt = DateTime.UtcNow
-            });
-        }
-        else
-        {
-            currentMembership.ProjectRole = parsedRole;
-            currentMembership.JoinedAt = DateTime.UtcNow;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new { projectId = id, userId = request.UserId, role = parsedRole });
+        var result = await sender.Send(new AssignCommand(id, request.UserId, request.Role), cancellationToken);
+        return Results.Ok(new { projectId = result.ProjectId, userId = result.UserId, role = result.Role });
     }
 
     private static async Task<IResult> RemoveMember(
         int id,
         int userId,
-        AppDbContext dbContext,
-        ICurrentUser currentUser,
+        [FromServices] ISender sender,
         CancellationToken cancellationToken)
     {
-        var project = await dbContext.Projects
-            .Include(p => p.Members)
-            .SingleOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
-
-        if (project is null)
-        {
-            return Results.NotFound();
-        }
-
-        var isAdmin = currentUser.IsInRole("Admin");
-        var isProjectManager = !isAdmin && project.Members.Any(m => m.UserId == currentUser.UserId && (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner));
-
-        if (!isAdmin && !isProjectManager)
-        {
-            return Results.Forbid();
-        }
-
-        var membership = await dbContext.UserProjects
-            .SingleOrDefaultAsync(x => x.ProjectId == id && x.UserId == userId, cancellationToken);
-
-        if (membership is null)
-        {
-            return Results.NotFound();
-        }
-
-        dbContext.UserProjects.Remove(membership);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await sender.Send(new RemoveCommand(id, userId), cancellationToken);
         return Results.NoContent();
     }
 }
 
 public sealed record AssignProjectMemberRequest(int UserId, string Role);
-public sealed record ProjectAssignmentSummary(int ProjectId, string ProjectName, int UserId, string UserName, string Email, ProjectRole Role);

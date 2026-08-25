@@ -1,8 +1,7 @@
-using Application.Interfaces;
+using Application.Features.Project.Delete;
 using Infrastructure.Bootstrap;
-using Infrastructure.Data.EfCore.Persistence;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Api.Endpoints.Project;
 
@@ -21,28 +20,10 @@ public sealed class Delete : IEndpoint
 
     private static async Task<IResult> DeleteProject(
         int id,
-        AppDbContext dbContext,
-        ICurrentUser currentUser,
+        [FromServices] ISender sender,
         CancellationToken cancellationToken)
     {
-        if (!currentUser.IsInRole("Admin"))
-        {
-            return Results.Forbid();
-        }
-
-        var project = await dbContext.Projects
-            .SingleOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
-
-        if (project is null)
-        {
-            return Results.NotFound();
-        }
-
-        project.IsDeleted = true;
-        project.UpdatedAt = DateTime.UtcNow;
-        project.UpdatedById = currentUser.UserId;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await sender.Send(new Command(id), cancellationToken);
         return Results.NoContent();
     }
 }
