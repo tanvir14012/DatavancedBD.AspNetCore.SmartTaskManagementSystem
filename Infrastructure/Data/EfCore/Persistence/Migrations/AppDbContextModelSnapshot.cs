@@ -372,7 +372,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     b.Property<string>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("nvarchar(450)")
-                        .HasComputedColumnSql("LOWER(ISNULL([Name], '') + ' ' + ISNULL([Description], ''))", true);
+                        .HasComputedColumnSql("LEFT(LOWER(ISNULL([Name], '') + ' ' + ISNULL([Description], '')), 800)", true);
 
                     b.Property<DateOnly?>("StartDate")
                         .HasColumnType("date");
@@ -425,7 +425,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     b.Property<string>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("nvarchar(450)")
-                        .HasComputedColumnSql("LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], ''))", true);
+                        .HasComputedColumnSql("LEFT(LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], '')), 800)", true);
 
                     b.Property<int>("Status")
                         .HasColumnType("int");

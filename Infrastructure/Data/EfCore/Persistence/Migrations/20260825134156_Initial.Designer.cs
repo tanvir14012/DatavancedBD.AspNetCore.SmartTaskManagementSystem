@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Infrastructure.Data.EfCore.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260824195236_ProjectTaskTablePartitioning")]
-    partial class ProjectTaskTablePartitioning
+    [Migration("20260825134156_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -375,7 +375,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     b.Property<string>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("nvarchar(450)")
-                        .HasComputedColumnSql("LOWER(ISNULL([Name], '') + ' ' + ISNULL([Description], ''))", true);
+                        .HasComputedColumnSql("LEFT(LOWER(ISNULL([Name], '') + ' ' + ISNULL([Description], '')), 800)", true);
 
                     b.Property<DateOnly?>("StartDate")
                         .HasColumnType("date");
@@ -428,7 +428,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     b.Property<string>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("nvarchar(450)")
-                        .HasComputedColumnSql("LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], ''))", true);
+                        .HasComputedColumnSql("LEFT(LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], '')), 800)", true);
 
                     b.Property<int>("Status")
                         .HasColumnType("int");

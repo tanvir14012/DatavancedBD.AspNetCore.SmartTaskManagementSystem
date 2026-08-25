@@ -23,7 +23,7 @@ public class ProjectTaskConfig: IEntityTypeConfiguration<ProjectTask>
         builder.HasIndex(t => t.DueDate);
 
         // Computed normalized column for predictable text matching
-        builder.Property<string>("SearchVectorPrefix")
+        builder.Property<string>("SearchVector")
             .HasComputedColumnSql(
                 "LEFT(LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], '')), 800)",
                 stored: true);

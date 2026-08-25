@@ -19,7 +19,7 @@ public class ProjectConfig : IEntityTypeConfiguration<Project>
                .OnDelete(DeleteBehavior.Restrict);
 
         // Define SearchVector as a Shadow Property for Project
-        builder.Property<string>("SearchVectorPrefix")
+        builder.Property<string>("SearchVector")
             .HasComputedColumnSql(
                 "LEFT(LOWER(ISNULL([Name], '') + ' ' + ISNULL([Description], '')), 800)",
                 stored: true);
