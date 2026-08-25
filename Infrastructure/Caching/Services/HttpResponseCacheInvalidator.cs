@@ -12,11 +12,13 @@ public sealed class HttpResponseCacheInvalidator(
     private readonly ICacheService _cacheService = cacheService;
     private readonly HttpResponseCachingOptions _options = options.Value;
 
-    public Task InvalidateByRouteAsync(string routePrefix, CancellationToken cancellationToken = default)
+    public async Task InvalidateByRouteAsync(string routePrefix, CancellationToken cancellationToken = default)
     {
         var normalizedRoute = routePrefix.Trim();
         var pattern = $"{_options.KeyNamespace}:{normalizedRoute}:*";
-        return _cacheService.RemoveByPatternAsync(pattern, cancellationToken);
+        var dashboardPattern = $"{_options.KeyNamespace}:/api/dashboard:*";
+        await _cacheService.RemoveByPatternAsync(dashboardPattern, cancellationToken);
+        await _cacheService.RemoveByPatternAsync(pattern, cancellationToken);
     }
 
     public Task InvalidateByPatternAsync(string pattern, CancellationToken cancellationToken = default)

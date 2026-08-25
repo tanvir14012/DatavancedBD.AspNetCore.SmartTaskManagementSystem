@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, Input, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
-import { Router, RouterLink } from '@angular/router';
-import { take } from 'rxjs';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { filter, map, take } from 'rxjs';
 import { MenuItem, UserProfile } from '../../core/models/menu-item.model';
 import { AuthService } from '../../core/services/auth.service';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-top-nav',
@@ -22,15 +23,23 @@ export class TopNavComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
-  getItemRoute(item: MenuItem): string {
-    return item.route || item.children?.[0]?.route || '/dashboard';
-  }
+  readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map(event => event.urlAfterRedirects.split(/[?#]/)[0])
+    ),
+    { initialValue: this.router.url.split(/[?#]/)[0] }
+  );
 
   isItemActive(item: MenuItem): boolean {
-    const currentUrl = this.router.url.split(/[?#]/)[0];
+    const activeUrl = this.currentUrl();
     const route = item.route;
 
-    return currentUrl === route || currentUrl.startsWith(`${route}/`);
+    return activeUrl === route || activeUrl.startsWith(`${route}/`);
+  }
+
+  getItemRoute(item: MenuItem): string {
+    return item.route || item.children?.[0]?.route || '/dashboard';
   }
 
   toggleUserMenu(): void {

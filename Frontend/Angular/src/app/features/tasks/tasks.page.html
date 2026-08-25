@@ -98,6 +98,14 @@
 
         <div class="field-grid">
           <label>
+            Title
+            <input class="" style="max-width:96%;" type="text" [(ngModel)]="form.title" name="title" />
+            @if (formErrors()['title']) {
+              <small style="color: red;">{{ formErrors()['title'] }}</small>
+            }
+          </label>
+
+          <label>
             Project
             <select [(ngModel)]="form.projectId" name="projectId" (change)="onProjectChange()">
               <option value="">Select a project</option>
@@ -107,14 +115,6 @@
             </select>
             @if (formErrors()['projectId']) {
               <small style="color: red;">{{ formErrors()['projectId'] }}</small>
-            }
-          </label>
-
-          <label>
-            Title
-            <input type="text" [(ngModel)]="form.title" name="title" />
-            @if (formErrors()['title']) {
-              <small style="color: red;">{{ formErrors()['title'] }}</small>
             }
           </label>
         </div>
@@ -141,26 +141,14 @@
           </label>
         </div>
 
-        <div class="field-grid single">
+        <div class="field-grid overflow-hidden">
           <label>
             Due date
-            <input type="date" [(ngModel)]="form.dueDate" name="dueDate" />
+            <input class="max-w-96" type="date" [(ngModel)]="form.dueDate" name="dueDate" />
           </label>
         </div>
 
-        <div class="field-grid single">
-          <label>
-            Assign to
-            <select [(ngModel)]="form.assigneeEmail" name="assigneeEmail" [disabled]="loadingMembers()">
-              <option value="">No assignee</option>
-              @for (member of projectMembers(); track member.email) {
-                <option [value]="member.email">{{ member.userName || member.email }}</option>
-              }
-            </select>
-          </label>
-        </div>
-
-        <div class="field-grid single">
+        <div class="field-grid">
           <label>
             Description
             <textarea rows="4" [(ngModel)]="form.description" name="description"></textarea>

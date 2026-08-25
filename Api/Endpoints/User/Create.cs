@@ -1,6 +1,7 @@
 using Api.Validators;
 using Domain;
 using Infrastructure.Bootstrap;
+using Infrastructure.Caching.Abstractions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,7 +22,8 @@ public sealed class Create : IEndpoint
 
     private static async Task<IResult> CreateUser(
         [FromBody] CreateUserRequest request,
-        UserManager<AppUser> userManager)
+        UserManager<AppUser> userManager,
+        IHttpResponseCacheInvalidator httpCacheInvalidator)
     {
         var errors = new List<(string, string)>();
 
@@ -97,6 +99,8 @@ public sealed class Create : IEndpoint
         {
             await userManager.AddToRoleAsync(user, normalizedRole);
         }
+
+        await httpCacheInvalidator.InvalidateByRouteAsync("/api/users");
 
         return Results.Created($"/api/users/{user.Id}", new Response(
             user.Id,

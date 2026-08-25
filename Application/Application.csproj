@@ -15,7 +15,6 @@
     <Folder Include="Features\Auth\Login\" />
     <Folder Include="Features\Auth\Logout\" />
     <Folder Include="Features\Auth\RefreshToken\" />
-    <Folder Include="Features\Dashboard\Overview\" />
     <Folder Include="Features\MenuItem\List\" />
     <Folder Include="Features\Project\Delete\" />
     <Folder Include="Features\Project\List\" />

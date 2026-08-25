@@ -1,5 +1,6 @@
-﻿using Domain;
+using Domain;
 using Infrastructure.Bootstrap;
+using Infrastructure.Caching.Abstractions;
 using Microsoft.AspNetCore.Identity;
 
 namespace Api.Endpoints.User;
@@ -16,7 +17,7 @@ public sealed class Delete : IEndpoint
             .RequireAuthorization(policy => policy.RequireRole("Admin"));
     }
 
-    private static async Task<IResult> DeleteUser(int id, UserManager<AppUser> userManager)
+    private static async Task<IResult> DeleteUser(int id, UserManager<AppUser> userManager, IHttpResponseCacheInvalidator httpCacheInvalidator)
     {
         var user = await userManager.FindByIdAsync(id.ToString());
         if (user is null)
@@ -31,6 +32,8 @@ public sealed class Delete : IEndpoint
                 group => group.Key,
                 group => group.Select(error => error.Description).ToArray()));
         }
+
+        await httpCacheInvalidator.InvalidateByRouteAsync("/api/users");
 
         return Results.NoContent();
     }

@@ -35,6 +35,7 @@ public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, I
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await cacheService.RemoveByPatternAsync("projects:list:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync("dashboard:summary:*", cancellationToken);
         await cacheService.RemoveAsync($"ef:{nameof(Domain.Project)}:{request.Id}", cancellationToken);
 
         return new Response(true, project.Id);

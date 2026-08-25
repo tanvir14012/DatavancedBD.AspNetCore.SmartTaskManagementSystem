@@ -3,6 +3,7 @@
     @for (item of menus; track item.id) {
       <a
         class="nav-item"
+        routerLinkActive="active"
         [class.active]="isItemActive(item)"
         [routerLink]="getItemRoute(item)"
       >

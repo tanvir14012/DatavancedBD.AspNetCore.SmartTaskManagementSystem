@@ -1,5 +1,6 @@
-﻿using Domain;
+using Domain;
 using Infrastructure.Bootstrap;
+using Infrastructure.Caching.Abstractions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,7 +22,8 @@ public sealed class Update : IEndpoint
     private static async Task<IResult> UpdateUser(
         int id,
         [FromBody] UpdateUserRequest request,
-        UserManager<AppUser> userManager)
+        UserManager<AppUser> userManager,
+        IHttpResponseCacheInvalidator httpCacheInvalidator)
     {
         var user = await userManager.FindByIdAsync(id.ToString());
         if (user is null)
@@ -61,6 +63,8 @@ public sealed class Update : IEndpoint
         {
             await userManager.AddToRoleAsync(user, request.Role.Trim());
         }
+
+        await httpCacheInvalidator.InvalidateByRouteAsync("/api/users");
 
         var role = (await userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Team Member";
         return Results.Ok(new Response(

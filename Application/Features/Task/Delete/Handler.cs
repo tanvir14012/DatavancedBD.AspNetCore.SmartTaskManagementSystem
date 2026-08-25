@@ -43,6 +43,7 @@ public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, I
         await dbContext.SaveChangesAsync(cancellationToken);
         await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
         await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync("dashboard:summary:*", cancellationToken);
         await cacheService.RemoveByPatternAsync($"tasks:task:{request.Id}:*", cancellationToken);
 
         return new Response(true, task.Id);
