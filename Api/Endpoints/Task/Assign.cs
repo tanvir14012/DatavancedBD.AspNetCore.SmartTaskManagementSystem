@@ -1,12 +1,10 @@
+using Application.Features.Task.Assign;
 using Application.Interfaces;
-using Domain;
-using Domain.Enums;
+using FluentValidation;
 using Infrastructure.Bootstrap;
 using Infrastructure.Caching.Abstractions;
-using Infrastructure.Data.EfCore.Persistence;
-using Microsoft.AspNetCore.Identity;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Api.Endpoints.Task;
 
@@ -32,8 +30,7 @@ public sealed class Assign : IEndpoint
     private static async Task<IResult> AssignTaskUser(
         int id,
         [FromBody] AssignTaskRequest request,
-        AppDbContext dbContext,
-        UserManager<AppUser> userManager,
+        [FromServices] ISender sender,
         ICurrentUser currentUser,
         ICacheService cacheService,
         IHttpResponseCacheInvalidator httpCacheInvalidator,
@@ -44,102 +41,38 @@ public sealed class Assign : IEndpoint
             return Results.Unauthorized();
         }
 
-        if (string.IsNullOrWhiteSpace(request.UserId) && string.IsNullOrWhiteSpace(request.Email))
+        try
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["user"] = ["Either UserId or Email must be provided."]
-            });
+            var command = new Command(id, request.UserId, request.Email);
+            var result = await sender.Send(command, cancellationToken);
+            await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
+            return Results.Ok(result);
         }
-
-        var task = await dbContext.ProjectTasks
-            .Include(t => t.Project)
-            .ThenInclude(p => p.Members)
-            .Include(t => t.Assignees)
-            .SingleOrDefaultAsync(t => t.Id == id && !t.IsDeleted, cancellationToken);
-
-        if (task is null)
+        catch (ValidationException ex)
         {
-            return Results.NotFound(new { message = $"Task {id} not found." });
+            return Results.ValidationProblem(ex.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => string.IsNullOrWhiteSpace(group.Key) ? "request" : group.Key,
+                    group => group.Select(error => error.ErrorMessage).ToArray()));
         }
-
-        var userId = currentUser.UserId.Value;
-        var isAdmin = currentUser.IsInRole("Admin");
-        var isProjectManager = currentUser.IsInRole("Project Manager") && task.Project.Members.Any(m =>
-            m.UserId == userId &&
-            (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner));
-
-        if (!isAdmin && !isProjectManager)
+        catch (KeyNotFoundException ex)
+        {
+            return Results.NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
         {
             return Results.Forbid();
         }
-
-        AppUser? targetUser = null;
-
-        if (!string.IsNullOrWhiteSpace(request.UserId))
-        {
-            targetUser = await userManager.FindByIdAsync(request.UserId.Trim());
-        }
-        else if (!string.IsNullOrWhiteSpace(request.Email))
-        {
-            targetUser = await userManager.FindByEmailAsync(request.Email.Trim());
-        }
-
-        if (targetUser is null)
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["user"] = ["User not found."]
-            });
-        }
-
-        if (!task.Project.Members.Any(m => m.UserId == targetUser.Id))
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["user"] = ["The user must be a member of the task's project."]
-            });
-        }
-
-        var existingAssignment = task.Assignees.FirstOrDefault(a => a.UserId == targetUser.Id);
-        if (existingAssignment is not null)
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["user"] = ["This user is already assigned to this task."]
-            });
-        }
-
-        var assignmentActor = await dbContext.Users
-            .SingleOrDefaultAsync(u => u.Id == userId, cancellationToken);
-
-        dbContext.UserTasks.Add(new UserTask
-        {
-            UserId = targetUser.Id,
-            TaskId = id,
-            AssignedById = userId,
-            AssignedBy = assignmentActor ?? new AppUser(),
-            IsPrimary = !task.Assignees.Any()
-        });
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
-        await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
-
-        return Results.Ok(new
-        {
-            message = "User assigned to task successfully.",
-            userId = targetUser.Id,
-            taskId = id
-        });
     }
 
     private static async Task<IResult> UnassignTaskUser(
         int id,
         string userId,
-        AppDbContext dbContext,
+        [FromServices] ISender sender,
         ICurrentUser currentUser,
         ICacheService cacheService,
         IHttpResponseCacheInvalidator httpCacheInvalidator,
@@ -150,57 +83,31 @@ public sealed class Assign : IEndpoint
             return Results.Unauthorized();
         }
 
-        var task = await dbContext.ProjectTasks
-            .Include(t => t.Project)
-            .ThenInclude(p => p.Members)
-            .Include(t => t.Assignees)
-            .SingleOrDefaultAsync(t => t.Id == id && !t.IsDeleted, cancellationToken);
-
-        if (task is null)
+        try
         {
-            return Results.NotFound(new { message = $"Task {id} not found." });
+            var result = await sender.Send(new UnassignCommand(id, userId), cancellationToken);
+            await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
+            return Results.Ok(result);
         }
-
-        var currentUserId = currentUser.UserId.Value;
-        var isAdmin = currentUser.IsInRole("Admin");
-        var isProjectManager = currentUser.IsInRole("Project Manager") && task.Project.Members.Any(m =>
-            m.UserId == currentUserId &&
-            (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner));
-
-        if (!isAdmin && !isProjectManager)
+        catch (ValidationException ex)
+        {
+            return Results.ValidationProblem(ex.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => string.IsNullOrWhiteSpace(group.Key) ? "request" : group.Key,
+                    group => group.Select(error => error.ErrorMessage).ToArray()));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return Results.NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
         {
             return Results.Forbid();
         }
-
-        var assignment = task.Assignees.FirstOrDefault(a => a.UserId == int.Parse(userId));
-        if (assignment is null)
-        {
-            return Results.NotFound(new { message = "This user is not assigned to this task." });
-        }
-
-        dbContext.UserTasks.Remove(assignment);
-
-        if (assignment.IsPrimary && task.Assignees.Count > 1)
-        {
-            var nextAssignment = task.Assignees.FirstOrDefault(a => a.UserId != int.Parse(userId));
-            if (nextAssignment is not null)
-            {
-                nextAssignment.IsPrimary = true;
-            }
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
-        await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
-
-        return Results.Ok(new
-        {
-            message = "User unassigned from task successfully.",
-            userId,
-            taskId = id
-        });
     }
 }
 
