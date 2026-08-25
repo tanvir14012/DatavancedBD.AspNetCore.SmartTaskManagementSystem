@@ -29,6 +29,7 @@ public sealed class Create : IEndpoint
         AppDbContext dbContext,
         UserManager<AppUser> userManager,
         ICurrentUser currentUser,
+        ICacheService cacheService,
         CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
@@ -169,6 +170,10 @@ public sealed class Create : IEndpoint
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Invalidate related caches
+        await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
 
         return Results.Created($"/api/tasks/{task.Id}", new
         {

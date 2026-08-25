@@ -142,16 +142,29 @@ internal sealed class InMemoryCacheService(
             return;
         }
 
-        var category = normalizedPattern[..^2]; // Remove trailing ":*"
-        var keysToRemove = GetKeysForCategory(category);
+        // Extract category by removing the ":*" suffix and using ExtractCategory logic
+        var patternPrefix = normalizedPattern[..^2]; // Remove trailing ":*"
+        
+        // Get all cached keys and filter by pattern
+        var keysToRemove = new List<string>();
+        lock (_categoryLockGuard)
+        {
+            foreach (var (_, keySet) in _categoryKeys)
+            {
+                foreach (var key in keySet.Where(key => key.StartsWith(patternPrefix, StringComparison.Ordinal)))
+                {
+                    keysToRemove.Add(key);
+                }
+            }
+        }
 
         if (keysToRemove.Count == 0)
         {
-            _logger.LogDebug("No cache keys found for category '{Category}'", category);
+            _logger.LogDebug("No cache keys found matching pattern '{Pattern}'", pattern);
             return;
         }
 
-        _logger.LogInformation("Invalidating {Count} cache entries for category '{Category}'", keysToRemove.Count, category);
+        _logger.LogInformation("Invalidating {Count} cache entries for pattern '{Pattern}'", keysToRemove.Count, pattern);
 
         await RemoveManyAsync(keysToRemove, cancellationToken);
         // The category set will be cleared when each key is removed individually

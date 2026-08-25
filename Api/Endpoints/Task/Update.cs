@@ -161,6 +161,7 @@ public sealed class Update : IEndpoint
         await dbContext.SaveChangesAsync(cancellationToken);
         await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
         await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
 
         return Results.Ok(new TaskDetail(
             task.Id,
