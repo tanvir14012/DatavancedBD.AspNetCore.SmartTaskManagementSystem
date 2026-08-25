@@ -22,14 +22,25 @@ public sealed class Handler(
 
         db.Projects.Add(project);
 
+        if (currentUser.UserId.HasValue)
+        {
+           project.Members.Add(new Domain.UserProject
+           {
+               UserId = currentUser.UserId.Value,
+               ProjectRole = Domain.Enums.ProjectRole.Owner,
+               JoinedAt = DateTime.UtcNow,
+               Project = project
+           });
+        }
+
         await db.SaveChangesAsync(cancellationToken);
 
         var response = mapper.Map<Response>(project);
 
         await cache.SetAsync(
-            $"ef:{nameof(Domain.Project)}:{project.Id}",
-            response,
-            cancellationToken: cancellationToken);
+           $"ef:{nameof(Domain.Project)}:{project.Id}",
+           response,
+           cancellationToken: cancellationToken);
 
         return response;
     }
