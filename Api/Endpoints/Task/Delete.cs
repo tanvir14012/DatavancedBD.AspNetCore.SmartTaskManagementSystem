@@ -40,7 +40,7 @@ public sealed class Delete : IEndpoint
             await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
             await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
             await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
-            await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("/api/tasks", cancellationToken);
             return Results.Ok(new { success = result.Success, id = result.Id });
         }
         catch (ValidationException ex)

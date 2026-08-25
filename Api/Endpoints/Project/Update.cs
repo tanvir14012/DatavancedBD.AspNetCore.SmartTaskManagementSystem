@@ -1,5 +1,6 @@
 using Application.Features.Project.Update;
 using Infrastructure.Bootstrap;
+using Infrastructure.Caching.Abstractions;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,9 +24,11 @@ public sealed class Update : IEndpoint
         int id,
         [FromBody] UpdateProjectRequest request,
         [FromServices] ISender sender,
+         IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new Command(id, request.Name, request.Description, request.StartDate, request.EndDate, request.IsArchived), cancellationToken);
+        await httpCacheInvalidator.InvalidateByRouteAsync("/api/projects", cancellationToken);
 
         return Results.Ok(new ProjectDetailResponse(
             result.Id,

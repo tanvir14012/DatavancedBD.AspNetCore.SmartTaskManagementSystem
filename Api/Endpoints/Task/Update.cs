@@ -43,7 +43,7 @@ public sealed class Update : IEndpoint
             await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
             await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
             await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
-            await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("/api/tasks", cancellationToken);
             return Results.Ok(result);
         }
         catch (ValidationException ex)
