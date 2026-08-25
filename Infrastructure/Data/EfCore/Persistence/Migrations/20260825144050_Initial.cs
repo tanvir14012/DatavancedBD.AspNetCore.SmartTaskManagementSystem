@@ -100,7 +100,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     EndDate = table.Column<DateOnly>(type: "date", nullable: true),
                     IsArchived = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    SearchVector = table.Column<string>(type: "nvarchar(450)", nullable: true, computedColumnSql: "LEFT(LOWER(ISNULL([Name], '') + ' ' + ISNULL([Description], '')), 800)", stored: true),
+                    SearchVector = table.Column<string>(type: "nvarchar(max)", nullable: true, computedColumnSql: "LEFT(LOWER(ISNULL([Name], '') + ' ' + ISNULL([Description], '')), 800)", stored: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedById = table.Column<int>(type: "int", nullable: true),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -253,7 +253,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     DueDate = table.Column<DateOnly>(type: "date", nullable: true),
                     ProjectId = table.Column<int>(type: "int", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    SearchVector = table.Column<string>(type: "nvarchar(450)", nullable: true, computedColumnSql: "LEFT(LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], '')), 800)", stored: true),
+                    SearchVector = table.Column<string>(type: "nvarchar(max)", nullable: true, computedColumnSql: "LEFT(LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], '')), 800)", stored: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedById = table.Column<int>(type: "int", nullable: true),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -426,12 +426,6 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 column: "CreatedById");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Projects_SearchVector",
-                schema: "stms",
-                table: "Projects",
-                column: "SearchVector");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_ProjectTasks_CreatedById",
                 schema: "stms",
                 table: "ProjectTasks",
@@ -448,13 +442,6 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 schema: "stms",
                 table: "ProjectTasks",
                 columns: new[] { "ProjectId", "Status", "Priority" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ProjectTasks_SearchVector",
-                schema: "stms",
-                table: "ProjectTasks",
-                column: "SearchVector")
-                .Annotation("SqlServer:Include", new[] { "ProjectId", "Status", "Priority" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_RefreshTokens_TokenHash",

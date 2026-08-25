@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Infrastructure.Data.EfCore.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260825134231_ProjectTaskTablePartitioning")]
-    partial class ProjectTaskTablePartitioning
+    [Migration("20260825144050_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -374,7 +374,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
 
                     b.Property<string>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("nvarchar(450)")
+                        .HasColumnType("nvarchar(max)")
                         .HasComputedColumnSql("LEFT(LOWER(ISNULL([Name], '') + ' ' + ISNULL([Description], '')), 800)", true);
 
                     b.Property<DateOnly?>("StartDate")
@@ -389,8 +389,6 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedById");
-
-                    b.HasIndex("SearchVector");
 
                     b.ToTable("Projects", "stms");
                 });
@@ -427,7 +425,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
 
                     b.Property<string>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("nvarchar(450)")
+                        .HasColumnType("nvarchar(max)")
                         .HasComputedColumnSql("LEFT(LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], '')), 800)", true);
 
                     b.Property<int>("Status")
@@ -449,10 +447,6 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     b.HasIndex("CreatedById");
 
                     b.HasIndex("DueDate");
-
-                    b.HasIndex("SearchVector");
-
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("SearchVector"), new[] { "ProjectId", "Status", "Priority" });
 
                     b.HasIndex("ProjectId", "Status", "Priority");
 

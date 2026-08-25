@@ -23,8 +23,5 @@ public class ProjectConfig : IEntityTypeConfiguration<Project>
             .HasComputedColumnSql(
                 "LEFT(LOWER(ISNULL([Name], '') + ' ' + ISNULL([Description], '')), 800)",
                 stored: true);
-
-        // Index the shadow property for fast LIKE '%term%' lookups
-        builder.HasIndex("SearchVector");
     }
 }

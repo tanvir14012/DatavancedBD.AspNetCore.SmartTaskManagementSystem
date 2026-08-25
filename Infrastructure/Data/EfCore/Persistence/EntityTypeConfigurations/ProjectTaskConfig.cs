@@ -27,9 +27,5 @@ public class ProjectTaskConfig: IEntityTypeConfiguration<ProjectTask>
             .HasComputedColumnSql(
                 "LEFT(LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], '')), 800)",
                 stored: true);
-
-        // Non-Clustered Index over SearchVector (with Included Columns for speed)
-        builder.HasIndex("SearchVector")
-               .IncludeProperties(t => new { t.ProjectId, t.Status, t.Priority });
     }
 }

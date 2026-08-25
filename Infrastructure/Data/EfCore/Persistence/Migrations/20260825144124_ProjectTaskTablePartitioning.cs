@@ -110,7 +110,6 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                 CREATE INDEX [IX_ProjectTasks_CreatedById] ON [stms].[ProjectTasks]([CreatedById]);
                 CREATE INDEX [IX_ProjectTasks_DueDate] ON [stms].[ProjectTasks]([DueDate]);
                 CREATE INDEX [IX_ProjectTasks_ProjectId_Status_Priority] ON [stms].[ProjectTasks]([ProjectId], [Status], [Priority]);
-                CREATE INDEX [IX_ProjectTasks_SearchVector] ON [stms].[ProjectTasks]([SearchVector]) INCLUDE([ProjectId], [Status], [Priority]);
                 """);
         }
 

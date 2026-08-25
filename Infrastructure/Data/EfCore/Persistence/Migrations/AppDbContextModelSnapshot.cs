@@ -371,7 +371,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
 
                     b.Property<string>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("nvarchar(450)")
+                        .HasColumnType("nvarchar(max)")
                         .HasComputedColumnSql("LEFT(LOWER(ISNULL([Name], '') + ' ' + ISNULL([Description], '')), 800)", true);
 
                     b.Property<DateOnly?>("StartDate")
@@ -386,8 +386,6 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedById");
-
-                    b.HasIndex("SearchVector");
 
                     b.ToTable("Projects", "stms");
                 });
@@ -424,7 +422,7 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
 
                     b.Property<string>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("nvarchar(450)")
+                        .HasColumnType("nvarchar(max)")
                         .HasComputedColumnSql("LEFT(LOWER(ISNULL([Title], '') + ' ' + ISNULL([Description], '')), 800)", true);
 
                     b.Property<int>("Status")
@@ -446,10 +444,6 @@ namespace Infrastructure.Data.EfCore.Persistence.Migrations
                     b.HasIndex("CreatedById");
 
                     b.HasIndex("DueDate");
-
-                    b.HasIndex("SearchVector");
-
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("SearchVector"), new[] { "ProjectId", "Status", "Priority" });
 
                     b.HasIndex("ProjectId", "Status", "Priority");
 
