@@ -58,6 +58,14 @@ internal sealed class InMemoryCacheService(
         return Task.CompletedTask;
     }
 
+    public Task RemoveWithoutNormalizingAsync(string key, CancellationToken cancellationToken = default)
+    {
+        _memoryCache.Remove(key);
+        UnregisterCategory(key);        // <-- Remove from category index
+
+        return Task.CompletedTask;
+    }
+
     public async Task<T> GetOrCreateAsync<T>(
         string key,
         Func<CancellationToken, Task<T>> factory,
@@ -119,6 +127,7 @@ internal sealed class InMemoryCacheService(
         {
             cancellationToken.ThrowIfCancellationRequested();
             await RemoveAsync(key, cancellationToken);
+            await RemoveWithoutNormalizingAsync(key, cancellationToken);
         }
     }
 
