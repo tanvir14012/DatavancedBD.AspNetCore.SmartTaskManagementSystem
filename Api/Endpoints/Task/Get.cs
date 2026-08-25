@@ -1,10 +1,9 @@
+using Application.Features.Task.Get;
 using Application.Interfaces;
-using Domain;
-using Domain.Enums;
+using FluentValidation;
 using Infrastructure.Bootstrap;
-using Infrastructure.Data.EfCore.Persistence;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Api.Endpoints.Task;
 
@@ -23,7 +22,7 @@ public sealed class Get : IEndpoint
 
     private static async Task<IResult> GetTask(
         int id,
-        AppDbContext dbContext,
+        [FromServices] ISender sender,
         ICurrentUser currentUser,
         CancellationToken cancellationToken)
     {
@@ -32,66 +31,26 @@ public sealed class Get : IEndpoint
             return Results.Unauthorized();
         }
 
-        var task = await dbContext.ProjectTasks
-            .AsNoTracking()
-            .Include(t => t.Project)
-            .ThenInclude(p => p.Members)
-            .Include(t => t.Assignees)
-            .ThenInclude(a => a.User)
-            .SingleOrDefaultAsync(t => t.Id == id && !t.IsDeleted, cancellationToken);
-
-        if (task is null)
+        try
+        {
+            var result = await sender.Send(new Query(id), cancellationToken);
+            return Results.Ok(result);
+        }
+        catch (ValidationException ex)
+        {
+            return Results.ValidationProblem(ex.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => string.IsNullOrWhiteSpace(group.Key) ? "request" : group.Key,
+                    group => group.Select(error => error.ErrorMessage).ToArray()));
+        }
+        catch (KeyNotFoundException)
         {
             return Results.NotFound();
         }
-
-        var userId = currentUser.UserId.Value;
-        var canAccess = currentUser.IsInRole("Admin")
-            || currentUser.IsInRole("Project Manager") && task.Project.Members.Any(m =>
-                m.UserId == userId &&
-                (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner))
-            || task.Assignees.Any(a => a.UserId == userId);
-
-        if (!canAccess)
+        catch (UnauthorizedAccessException)
         {
             return Results.Forbid();
         }
-
-        var canEdit = currentUser.IsInRole("Admin")
-            || currentUser.IsInRole("Project Manager") && task.Project.Members.Any(m =>
-                m.UserId == userId &&
-                (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner))
-            || task.Assignees.Any(a => a.UserId == userId);
-
-        var canDelete = currentUser.IsInRole("Admin")
-            || currentUser.IsInRole("Project Manager") && task.Project.Members.Any(m =>
-                m.UserId == userId &&
-                (m.ProjectRole == ProjectRole.Manager || m.ProjectRole == ProjectRole.Owner));
-
-        return Results.Ok(new TaskDetail(
-            task.Id,
-            task.ProjectId,
-            task.Project.Name,
-            task.Title,
-            task.Description,
-            task.Status.ToString(),
-            task.Priority.ToString(),
-            task.DueDate,
-            task.CreatedAt,
-            canEdit,
-            canDelete));
     }
 }
-
-public sealed record TaskDetail(
-    int Id,
-    int ProjectId,
-    string ProjectName,
-    string Title,
-    string? Description,
-    string Status,
-    string Priority,
-    DateOnly? DueDate,
-    DateTime CreatedAt,
-    bool CanEdit,
-    bool CanDelete);
