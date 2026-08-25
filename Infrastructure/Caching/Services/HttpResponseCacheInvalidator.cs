@@ -15,7 +15,7 @@ public sealed class HttpResponseCacheInvalidator(
     public Task InvalidateByRouteAsync(string routePrefix, CancellationToken cancellationToken = default)
     {
         var normalizedRoute = routePrefix.Trim();
-        var pattern = $"{_options.KeyNamespace}:{normalizedRoute}*";
+        var pattern = $"{_options.KeyNamespace}:{normalizedRoute}:*";
         return _cacheService.RemoveByPatternAsync(pattern, cancellationToken);
     }
 

@@ -19,7 +19,6 @@
     <Folder Include="Features\MenuItem\List\" />
     <Folder Include="Features\Project\Delete\" />
     <Folder Include="Features\Project\List\" />
-    <Folder Include="Features\Project\AssignMember\" />
     <Folder Include="Features\Project\Update\" />
     <Folder Include="Features\Task\Create\" />
     <Folder Include="Features\Task\Delete\" />

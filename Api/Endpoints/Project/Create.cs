@@ -1,5 +1,9 @@
+using Api.Services;
 using Application.Features.Project.Create;
+using Application.Interfaces;
+using FluentValidation;
 using Infrastructure.Bootstrap;
+using Infrastructure.Caching.Abstractions;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -25,9 +29,45 @@ public sealed class Create : IEndpoint
     private static async Task<IResult> CreateProject(
         Command command,
         [FromServices] ISender sender,
+        ICurrentUser currentUser,
+        ICacheService cacheService,
+        IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
-        var result = await sender.Send(command, cancellationToken);
-        return Results.Created($"/api/projects/{result.Id}", result);
+        if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!currentUser.IsInRole("Admin") && !currentUser.IsInRole("Project Manager"))
+        {
+            return Results.Forbid();
+        }
+
+        try
+        {
+            var result = await sender.Send(command, cancellationToken);
+            await cacheService.RemoveByPatternAsync("projects:list:*", cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("/api/projects", cancellationToken);
+
+            return Results.Created($"/api/projects/{result.Id}", result);
+        }
+        catch (ValidationException ex)
+        {
+            return Results.ValidationProblem(ex.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => string.IsNullOrWhiteSpace(group.Key) ? "request" : group.Key,
+                    group => group.Select(error => error.ErrorMessage).ToArray()));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return Results.NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Results.Forbid();
+        }
+
     }
 }
