@@ -59,6 +59,8 @@ public sealed class Delete : IEndpoint
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
 
         return Results.Ok(new { success = true, id = task.Id });
     }
