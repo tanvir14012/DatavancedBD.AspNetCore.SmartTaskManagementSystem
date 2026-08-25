@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ProjectDetail, ProjectItemMember, ProjectService } from '../../core/services/project.service';
+import { CustomValidators } from '../../shared/validators/custom-validators';
 
 @Component({
   selector: 'app-project-form-page',
@@ -80,8 +81,46 @@ export class ProjectFormPage implements OnInit {
   saveProject(): void {
     const errors: Record<string, string> = {};
 
+    // Validate Name
     if (!this.form.name.trim()) {
       errors['name'] = 'Project name is required.';
+    } else if (this.form.name.length > CustomValidators.MAX_PROJECT_NAME_LENGTH) {
+      errors['name'] = `Project name cannot exceed ${CustomValidators.MAX_PROJECT_NAME_LENGTH} characters.`;
+    } else if (!/^[a-zA-Z0-9\s\-_.&()]+$/.test(this.form.name)) {
+      errors['name'] = 'Project name contains invalid characters. Only alphanumeric, spaces, and -_.&() are allowed.';
+    }
+
+    // Validate Description
+    if (this.form.description && this.form.description.length > CustomValidators.MAX_PROJECT_DESCRIPTION_LENGTH) {
+      errors['description'] = `Project description cannot exceed ${CustomValidators.MAX_PROJECT_DESCRIPTION_LENGTH} characters.`;
+    }
+
+    // Validate Dates
+    if (this.form.startDate) {
+      const startDate = new Date(this.form.startDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (startDate < today) {
+        errors['startDate'] = 'Start date cannot be in the past.';
+      }
+    }
+
+    if (this.form.endDate) {
+      const endDate = new Date(this.form.endDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (endDate < today) {
+        errors['endDate'] = 'End date cannot be in the past.';
+      }
+    }
+
+    // Validate date range
+    if (this.form.startDate && this.form.endDate) {
+      const startDate = new Date(this.form.startDate);
+      const endDate = new Date(this.form.endDate);
+      if (endDate < startDate) {
+        errors['dates'] = 'End date must be greater than or equal to start date.';
+      }
     }
 
     this.formErrors.set(errors);

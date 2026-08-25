@@ -1,4 +1,5 @@
-﻿using Domain;
+using Api.Validators;
+using Domain;
 using Infrastructure.Bootstrap;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -22,28 +23,55 @@ public sealed class Create : IEndpoint
         [FromBody] CreateUserRequest request,
         UserManager<AppUser> userManager)
     {
-        if (string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrWhiteSpace(request.LastName))
+        var errors = new List<(string, string)>();
+
+        // Validate FirstName
+        if (string.IsNullOrWhiteSpace(request.FirstName))
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["name"] = ["First and last name are required."]
-            });
+            errors.Add(("firstName", "First name is required."));
+        }
+        else if (request.FirstName.Length > ValidationHelper.MaxFirstNameLength)
+        {
+            errors.Add(("firstName", $"First name cannot exceed {ValidationHelper.MaxFirstNameLength} characters."));
         }
 
-        if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
+        // Validate LastName
+        if (string.IsNullOrWhiteSpace(request.LastName))
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["email"] = ["A valid email is required."]
-            });
+            errors.Add(("lastName", "Last name is required."));
+        }
+        else if (request.LastName.Length > ValidationHelper.MaxLastNameLength)
+        {
+            errors.Add(("lastName", $"Last name cannot exceed {ValidationHelper.MaxLastNameLength} characters."));
         }
 
-        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
+        // Validate Email
+        if (string.IsNullOrWhiteSpace(request.Email))
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["password"] = ["Password must be at least 6 characters long."]
-            });
+            errors.Add(("email", "Email is required."));
+        }
+        else if (!ValidationHelper.IsValidEmail(request.Email))
+        {
+            errors.Add(("email", "Email must be a valid email address."));
+        }
+
+        // Validate Password
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            errors.Add(("password", "Password is required."));
+        }
+        else if (request.Password.Length < ValidationHelper.MinPasswordLength)
+        {
+            errors.Add(("password", $"Password must be at least {ValidationHelper.MinPasswordLength} characters long."));
+        }
+        else if (!ValidationHelper.IsStrongPassword(request.Password))
+        {
+            errors.Add(("password", "Password must contain uppercase, lowercase, digit, and special character (!@#$%^&*)."));
+        }
+
+        if (errors.Count > 0)
+        {
+            return Results.ValidationProblem(ValidationHelper.CreateValidationProblem(errors.ToArray()));
         }
 
         var user = new AppUser

@@ -211,18 +211,53 @@ export class TasksPage implements OnInit {
     const currentForm = this.form;
     const errors: Record<string, string> = {};
 
+    // Validate ProjectId
     if (!currentForm.projectId) {
       errors['projectId'] = 'Project is required.';
     }
 
+    // Validate Title
     if (!currentForm.title.trim()) {
-      errors['title'] = 'Title is required.';
+      errors['title'] = 'Task title is required.';
     } else if (currentForm.title.trim().length > 200) {
-      errors['title'] = 'Title must be less than 200 characters.';
+      errors['title'] = 'Task title cannot exceed 200 characters.';
+    } else if (!/^[a-zA-Z0-9\s\-_.&():'""]+$/.test(currentForm.title)) {
+      errors['title'] = 'Task title contains invalid characters.';
     }
 
-    if (currentForm.description && currentForm.description.trim().length > 2000) {
-      errors['description'] = 'Description must be less than 2000 characters.';
+    // Validate Description
+    if (currentForm.description && currentForm.description.trim().length > 4000) {
+      errors['description'] = 'Task description cannot exceed 4000 characters.';
+    }
+
+    // Validate Status
+    const validStatuses = ['Todo', 'InProgress', 'Completed', 'Cancelled'];
+    if (currentForm.status && !validStatuses.includes(currentForm.status)) {
+      errors['status'] = 'Invalid task status.';
+    }
+
+    // Validate Priority
+    const validPriorities = ['Low', 'Medium', 'High', 'Critical'];
+    if (currentForm.priority && !validPriorities.includes(currentForm.priority)) {
+      errors['priority'] = 'Invalid task priority.';
+    }
+
+    // Validate DueDate
+    if (currentForm.dueDate) {
+      const dueDate = new Date(currentForm.dueDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (dueDate < today) {
+        errors['dueDate'] = 'Due date cannot be in the past.';
+      }
+    }
+
+    // Validate AssigneeEmail
+    if (currentForm.assigneeEmail) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(currentForm.assigneeEmail)) {
+        errors['assigneeEmail'] = 'Assignee email must be a valid email address.';
+      }
     }
 
     this.formErrors.set(errors);
