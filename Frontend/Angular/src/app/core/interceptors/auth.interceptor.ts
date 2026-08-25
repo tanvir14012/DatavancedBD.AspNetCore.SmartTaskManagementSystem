@@ -13,6 +13,7 @@ const authEndpointPattern = /\/auth\/(login|register|refresh|logout)(?:$|\?)/i;
 let refreshRequestInFlight = false;
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
+  const http = inject(HttpClient);
   const token = localStorage.getItem('stms.token');
   const clonedRequest = req.clone({
     withCredentials: true,
@@ -37,8 +38,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
       refreshRequestInFlight = true;
 
-      return inject(HttpClient)
-        .post<RefreshResponse>(`${environment.apiBaseUrl}/auth/refresh`, {}, { withCredentials: true })
+      return http.post<RefreshResponse>(`${environment.apiBaseUrl}/auth/refresh`, {}, { withCredentials: true })
         .pipe(
           switchMap((response) => {
             refreshRequestInFlight = false;

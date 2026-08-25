@@ -176,7 +176,7 @@ public sealed class Create : IEndpoint
         // Invalidate related caches
         await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
         await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
-        await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
+        await httpCacheInvalidator.InvalidateByRouteAsync("/api/tasks", cancellationToken);
 
         return Results.Created($"/api/tasks/{task.Id}", new
         {

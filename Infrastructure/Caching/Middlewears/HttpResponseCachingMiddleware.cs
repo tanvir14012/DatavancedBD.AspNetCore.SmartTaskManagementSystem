@@ -117,9 +117,7 @@ public sealed class HttpResponseCachingMiddleware(
 
     private string BuildCacheKey(HttpContext context, CacheResponseMetadata metadata)
     {
-        var route = context.GetEndpoint() is { } endpoint
-            ? endpoint.DisplayName ?? context.Request.Path.Value ?? "/"
-            : context.Request.Path.Value ?? "/";
+        var route = context.Request.Path.Value ?? "/";
 
         var queryPart = _options.IncludeQueryString
             ? NormalizeQueryString(context.Request.Query)
