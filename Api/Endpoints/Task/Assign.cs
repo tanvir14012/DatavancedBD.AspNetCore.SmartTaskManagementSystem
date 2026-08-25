@@ -2,6 +2,7 @@ using Application.Interfaces;
 using Domain;
 using Domain.Enums;
 using Infrastructure.Bootstrap;
+using Infrastructure.Caching.Abstractions;
 using Infrastructure.Data.EfCore.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -35,6 +36,7 @@ public sealed class Assign : IEndpoint
         UserManager<AppUser> userManager,
         ICurrentUser currentUser,
         ICacheService cacheService,
+        IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
@@ -124,6 +126,7 @@ public sealed class Assign : IEndpoint
         await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
         await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
         await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
+        await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
 
         return Results.Ok(new
         {
@@ -139,6 +142,7 @@ public sealed class Assign : IEndpoint
         AppDbContext dbContext,
         ICurrentUser currentUser,
         ICacheService cacheService,
+        IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
@@ -189,6 +193,7 @@ public sealed class Assign : IEndpoint
         await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
         await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
         await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
+        await httpCacheInvalidator.InvalidateByRouteAsync("api/tasks", cancellationToken);
 
         return Results.Ok(new
         {
