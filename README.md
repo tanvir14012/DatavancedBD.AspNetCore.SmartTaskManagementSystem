@@ -1,66 +1,53 @@
-# Smart Task Management System
+﻿# Smart Task Management System
 
-A comprehensive full-stack task and project management platform with real-time AI-assisted task descriptions, role-based access control, and analytics. This monorepo includes an ASP.NET Core 10 backend API and an Angular 19 frontend application.
-
----
-
-## Project Overview
-
-Smart Task Management System is a modern, feature-rich platform for managing projects and tasks with advanced capabilities:
-
-- **Identity & Access Control:** ASP.NET Core Identity with JWT authentication and role-based access control (RBAC)
-- **Project Management:** Create, organize, and manage projects with team members
-- **Task Management:** Full-featured task lifecycle management with status tracking, assignment, and prioritization
-- **Dashboard Analytics:** Real-time dashboard with project summary, task urgency tracking, and team metrics
-- **AI-Assisted Features:** Intelligent task description improvement using GitHub Models API (free tier available)
-- **Enterprise Ready:** Comprehensive security, audit logging, rate limiting, request tracing, and versioning
+A full-stack task and project management platform with role-based access control, analytics, and AI-assisted task refinement. This repository contains an ASP.NET Core backend and an Angular frontend.
 
 ---
 
-## Technology Stack
+## Project overview
+Smart Task Management System is a modern platform for organizing projects and tasks with:
+
+- **Identity & access control:** ASP.NET Core Identity with JWT authentication and role-based access control (RBAC)
+- **Project management:** Create, organize, and manage projects and team membership
+- **Task management:** Full-featured task lifecycle management with statuses, assignments, and prioritization
+- **Dashboard analytics:** Summary metrics, urgency tracking, and team insights
+- **AI-assisted features:** Task description improvement using Groq's OpenAI-compatible API
+- **Enterprise-ready patterns:** Validation, rate limiting, security headers, auditing, and tracing
+
+---
+
+## Technology stack
 
 ### Backend
 - **.NET:** .NET 10 with ASP.NET Core
-- **API:** Minimal APIs with OpenAPI/Swagger documentation
-- **Database:** SQL Server with Entity Framework Core 9
-- **Authentication:** ASP.NET Core Identity with JWT + Refresh Tokens
-- **Patterns:** CQRS (Command Query Responsibility Segregation), MediatR
-- **Validation:** FluentValidation
-- **AI Integration:** Groq API for high-speed AI inference
+- **API:** ASP.NET Core Web API with Swagger/OpenAPI
+- **Database:** SQL Server with Entity Framework Core
+- **Authentication:** ASP.NET Core Identity with JWT + refresh tokens
+- **Patterns:** CQRS, MediatR, FluentValidation
+- **AI integration:** Groq API via OpenAI-compatible endpoint
 - **Middleware:** Security headers, rate limiting, audit logging, request tracing, versioning
 
 ### Frontend
-- **Framework:** Angular 19 (Standalone Components)
+- **Framework:** Angular 19
 - **Styling:** Tailwind CSS + SCSS
-- **State Management:** RxJS Observables
-- **HTTP Client:** Angular HttpClient with Interceptor Pipeline
-- **Forms:** Reactive Forms with Custom Validators
-- **Routing:** Feature-based lazy-loaded routes
-- **Internationalization:** ngx-translate (9 languages supported)
-- **UI Components:** Angular Material, Custom Components
-
-### DevOps & Tools
-- **Language:** C#, TypeScript
-- **Version Control:** Git
-- **API Documentation:** OpenAPI/Swagger
-- **Build Tools:** dotnet CLI, npm/Node.js
-- **Web Server:** nginx (Frontend deployment)
+- **State management:** RxJS and Angular services
+- **HTTP client:** Angular HttpClient with interceptors
+- **Forms:** Reactive forms with custom validators
+- **Routing:** Feature-based lazy routes
+- **Internationalization:** ngx-translate
 
 ---
 
-## Setup Instructions
+## Setup instructions
 
 ### Prerequisites
+- **.NET SDK 10+**
+- **SQL Server 2019+** or **SQL Server Express**
+- **Node.js 20+ and npm 10+**
+- **Git**
 
-- **.NET SDK 10+** - [Download](https://dotnet.microsoft.com/download)
-- **SQL Server 2019+** or **SQL Server Express** - [Download](https://www.microsoft.com/sql-server/sql-server-downloads)
-- **Node.js 20+ & npm 10+** - [Download](https://nodejs.org/)
-- **Git** - [Download](https://git-scm.com/)
-
-### Backend Setup
-
-#### 1. Configure Database Connection
-
+### Backend setup
+#### 1. Configure the database connection
 Edit `Api/appsettings.json` and update the connection string:
 
 ```json
@@ -71,14 +58,14 @@ Edit `Api/appsettings.json` and update the connection string:
 }
 ```
 
-Or use environment variable:
-```bash
+Or use an environment variable:
+
+```powershell
 $env:ConnectionStrings__DefaultConnection = "Your-Connection-String"
 ```
 
-#### 2. Configure JWT Settings
-
-Update `Api/appsettings.json` JWT section:
+#### 2. Configure JWT settings
+Update the `AuthenticationOptions` section in `Api/appsettings.json`:
 
 ```json
 {
@@ -90,8 +77,7 @@ Update `Api/appsettings.json` JWT section:
 }
 ```
 
-#### 3. Setup Database
-
+#### 3. Set up the database
 ```bash
 cd Api
 dotnet restore
@@ -99,27 +85,23 @@ dotnet build
 dotnet ef database update
 ```
 
-#### 4. Run Backend API
-
+#### 4. Run the backend
 ```bash
 dotnet run --project Api/Api.csproj
 ```
 
-Backend will be available at:
+Backend endpoints are available at:
 - **API:** `http://localhost:5000`
 - **Swagger UI:** `http://localhost:5000/swagger`
 
-### Frontend Setup
-
-#### 1. Install Dependencies
-
+### Frontend setup
+#### 1. Install dependencies
 ```bash
 cd Frontend/Angular
 npm install
 ```
 
-#### 2. Configure Environment
-
+#### 2. Configure the environment
 Edit `src/environments/environment.ts`:
 
 ```typescript
@@ -129,24 +111,15 @@ export const environment = {
 };
 ```
 
-#### 3. Run Development Server
-
+#### 3. Run the development server
 ```bash
 npm start
 ```
 
-Frontend will be available at `http://localhost:4200`
+The frontend is available at `http://localhost:4200`.
 
-#### 4. Build for Production
-
-```bash
-npm run build
-# Output in dist/ folder
-```
-
-### Optional: AI Feature Setup
-
-To enable AI-powered task description improvement using Groq API:
+### Optional: AI feature setup
+To enable AI-powered task description improvement using Groq:
 
 1. Get a Groq API key from [console.groq.com](https://console.groq.com)
 2. Update `Api/appsettings.json`:
@@ -162,19 +135,18 @@ To enable AI-powered task description improvement using Groq API:
 }
 ```
 
-**Configuration Details:**
-- `GroqApiKey`: Your Groq API key from the console
+Configuration details:
+- `GroqApiKey`: Your Groq API key
 - `GroqEndpoint`: Groq's OpenAI-compatible API endpoint
-- `Model`: Available models include `mixtral-8x7b-32768`, `llama-2-70b-chat`, `gemma-7b-it`
+- `Model`: The Groq model used for prompt completion
 
-See [AI_SETUP.md](./AI_SETUP.md) for detailed AI configuration and available models.
+See [AI_SETUP.md](./AI_SETUP.md) for the full setup guide.
 
 ---
 
-## API Overview
+## API overview
 
-### Authentication Endpoints
-
+### Authentication endpoints
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/auth/register` | Register new user |
@@ -182,318 +154,115 @@ See [AI_SETUP.md](./AI_SETUP.md) for detailed AI configuration and available mod
 | `POST` | `/api/auth/refresh` | Refresh JWT token |
 | `POST` | `/api/auth/logout` | Logout user |
 
-**Sample Login Request:**
-```bash
-POST http://localhost:5000/api/auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "SecurePassword123!"
-}
-```
-
-### Project Endpoints
-
+### Project endpoints
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/projects` | List all projects (paginated, searchable) |
+| `GET` | `/api/projects` | List projects |
 | `GET` | `/api/projects/{id}` | Get project details |
-| `POST` | `/api/projects` | Create new project |
+| `POST` | `/api/projects` | Create project |
 | `PATCH` | `/api/projects/{id}` | Update project |
 | `DELETE` | `/api/projects/{id}` | Delete project |
-| `GET` | `/api/projects/{id}/members` | Get project members |
 
-### Task Endpoints
-
+### Task endpoints
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/tasks` | List all tasks (searchable, filterable) |
+| `GET` | `/api/tasks` | List tasks |
 | `GET` | `/api/tasks/{id}` | Get task details |
-| `POST` | `/api/tasks` | Create new task |
+| `POST` | `/api/tasks` | Create task |
 | `PATCH` | `/api/tasks/{id}` | Update task |
 | `DELETE` | `/api/tasks/{id}` | Delete task |
-| `POST` | `/api/tasks/{id}/assign` | Assign task to user |
-| `GET` | `/api/tasks/board/{projectId}` | Get task board (Kanban) |
-| `POST` | `/api/tasks/improve-description` | **[AI]** Improve task description |
+| `POST` | `/api/tasks/improve-description` | Improve task description |
 
-### Dashboard Endpoints
-
+### Dashboard endpoints
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/dashboard/summary` | Get dashboard summary with metrics |
+| `GET` | `/api/dashboard/summary` | Dashboard summary |
 
-### User Endpoints
+## Folder structure
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/users` | List users |
-| `GET` | `/api/users/{id}` | Get user details |
-| `POST` | `/api/users` | Create user (admin) |
-| `PATCH` | `/api/users/{id}` | Update user |
-| `DELETE` | `/api/users/{id}` | Delete user |
-
-**Full API documentation available at:** `http://localhost:5000/swagger`
-
----
-
-## Folder Structure
-
-### Backend (Root)
-
-```
+### Backend
+```text
 .
 ├── Api/                          # ASP.NET Core API layer
-│   ├── Endpoints/                # API endpoint handlers (organized by feature)
-│   │   ├── Auth/                 # Authentication endpoints
-│   │   ├── Project/              # Project management endpoints
-│   │   ├── Task/                 # Task management endpoints
-│   │   ├── Dashboard/            # Dashboard analytics endpoints
-│   │   └── User/                 # User management endpoints
+│   ├── Endpoints/                # API endpoints
 │   ├── Services/                 # API-layer services
 │   │   ├── AuthService.cs        # Authentication service
 │   │   ├── CurrentUser.cs        # Current user context
 │   │   ├── IAiService.cs         # AI service interface
-│   │   └── GitHubModelsAiService.cs
+│   │   └── GitHubModelsAiService.cs  # Groq-backed AI provider (legacy name)
 │   ├── Validators/               # Request validation
 │   ├── Options/                  # Configuration options
 │   ├── Program.cs                # Application bootstrap
 │   └── appsettings.json          # Configuration file
 │
-├── Application/                  # Business logic layer (CQRS)
-│   ├── Features/                 # Application features (organized by domain)
-│   │   ├── Auth/                 # Authentication commands/queries
-│   │   ├── Project/              # Project management commands/queries
-│   │   ├── Task/                 # Task management commands/queries
-│   │   ├── Dashboard/            # Dashboard queries
-│   │   └── MenuItem/             # Navigation menu queries
-│   ├── Interfaces/               # Abstractions for infrastructure
-│   │   ├── IAppDbContext.cs      # Database context interface
-│   │   ├── IAuthService.cs       # Authentication service interface
-│   │   ├── ICacheService.cs      # Caching interface
-│   │   └── ICurrentUser.cs       # Current user interface
-│   ├── Models/                   # Application models
-│   └── DependencyInjection.cs    # Service registration
-│
-├── Domain/                       # Domain models (entities)
-│   ├── AppUser.cs                # User entity
-│   ├── AppRole.cs                # Role entity
-│   ├── Project.cs                # Project entity
-│   ├── UserProject.cs            # User-Project relationship
-│   ├── ProjectTask.cs            # Task entity
-│   ├── UserTask.cs               # User-Task relationship
-│   ├── MenuItem.cs               # Navigation menu item
-│   ├── RefreshToken.cs           # Token entity
-│   ├── BaseEntity.cs             # Base entity with ID
-│   ├── AuditableEntity.cs        # Auditable base entity
-│   ├── Enums/                    # Domain enums
-│   └── Interfaces/               # Domain interfaces
-│       ├── IAuditable.cs         # Audit logging interface
-│       ├── ISoftDeletable.cs     # Soft delete interface
-│       └── IMultiTenant.cs       # Multi-tenancy interface
-│
-├── Infrastructure/               # Infrastructure & Data Access
-│   ├── Data/                     # EF Core DbContext
-│   ├── Services/                 # Infrastructure services
-│   ├── Repositories/             # Data access patterns
-│   └── Persistence/              # Database configuration
-│
-├── Shared/                       # Shared utilities and contracts
-│   ├── Constants/                # Application constants
-│   ├── Exceptions/               # Custom exceptions
-│   ├── Extensions/               # Extension methods
-│   ├── Contracts/                # DTOs and contracts
-│   └── Helpers/                  # Helper utilities
-│
+├── Application/                  # Business logic layer
+├── Domain/                       # Domain models and entities
+├── Infrastructure/               # Data access and infrastructure
+├── Shared/                       # Shared contracts and utilities
 ├── Frontend/                     # Angular frontend
-│   ├── Angular/                  # Main Angular app
-│   │   ├── src/
-│   │   │   ├── app/
-│   │   │   │   ├── core/         # Singleton services, guards, interceptors
-│   │   │   │   ├── features/     # Feature modules (lazy-loaded)
-│   │   │   │   ├── shared/       # Reusable components and utilities
-│   │   │   │   ├── layout/       # App shell components
-│   │   │   │   └── app.ts        # Root component
-│   │   │   ├── assets/           # Static assets and translations
-│   │   │   ├── environments/     # Environment configurations
-│   │   │   └── styles/           # Global styles
-│   │   └── angular.json          # Angular configuration
-│   └── nginx/                    # nginx configuration for production
-│
 ├── PROMPTS.md                    # AI prompt strategy guide
-├── AI_SETUP.md                   # AI feature configuration guide
-├── VALIDATION_IMPLEMENTATION.md  # Validation framework guide
+├── AI_SETUP.md                   # AI configuration guide
+├── VALIDATION_IMPLEMENTATION.md  # Validation guide
 └── README.md                     # This file
 ```
 
-### Frontend Project Structure
-
-```
-Frontend/Angular/src/app/
-├── core/                         # Singleton infrastructure
-│   ├── guards/                   # Route guards (auth, role-based)
-│   ├── interceptors/             # HTTP interceptors
-│   ├── resolvers/                # Route resolvers
-│   ├── services/                 # Core services
-│   │   ├── auth.service.ts       # Authentication
-│   │   ├── project.service.ts    # Project API calls
-│   │   ├── task.service.ts       # Task API calls
-│   │   ├── dashboard.service.ts  # Dashboard API calls
-│   │   └── user.service.ts       # User management
-│   └── models/                   # Core data models
-│
-├── features/                     # Feature-based organization (lazy-loaded)
-│   ├── auth/                     # Login & Register pages
-│   ├── dashboard/                # Dashboard page
-│   ├── projects/                 # Project management pages
-│   ├── tasks/                    # Task management pages
-│   ├── users/                    # User management pages
-│   └── home/                     # Homepage
-│
-├── shared/                       # Reusable components & utilities
-│   ├── validators/               # Custom form validators
-│   ├── pipes/                    # Custom pipes
-│   ├── directives/               # Custom directives
-│   └── helpers/                  # Utility functions
-│
-├── layout/                       # App shell components
-│   ├── app-shell.component.ts    # Main layout wrapper
-│   ├── top-nav.component.ts      # Header/Navbar
-│   └── side-nav.component.ts     # Sidebar navigation
-│
-├── app.ts                        # Root component
-├── app.routes.ts                 # Application routing config
-└── app.config.ts                 # Application configuration
-```
-
 ---
 
-## Key Features
+## Key features
 
-### 1. **Authentication & Authorization**
-- User registration and login with email validation
-- JWT-based authentication with refresh token rotation
-- Role-based access control (RBAC)
-- Secure password storage with hashing
-- Token expiration and renewal
+### 1. Authentication & authorization
+- User registration and login
+- JWT-based authentication with refresh tokens
+- Role-based access control
+- Secure password handling
 
-### 2. **Project Management**
+### 2. Project management
 - Create and organize projects
 - Add team members with role assignments
-- Track project status and timeline
-- Project-level access control
+- Track project status and progress
 
-### 3. **Task Management**
-- Full task lifecycle (Create, Read, Update, Delete)
-- Task status tracking and workflow
-- Task assignment to team members
-- Priority and urgency classification
-- Task filtering and search capabilities
-- Kanban board view for visual task management
+### 3. Task management
+- Full task lifecycle
+- Status tracking and workflow
+- Assignment and prioritization
+- Search, filtering, and kanban board support
 
-### 4. **AI-Assisted Features**
+### 4. AI-assisted features
 - Intelligent task description improvement
 - Grammar and clarity enhancement
 - Professional tone conversion
-- Uses GitHub Models free tier (gpt-4o-mini)
+- Includes Groq-based provider configuration
 
-### 5. **Dashboard & Analytics**
-- Real-time dashboard summary
-- Project metrics and statistics
-- Task urgency tracking
-- Team member activity overview
+### 5. Dashboard & analytics
+- Real-time summary metrics
+- Project and task insights
+- Team activity overview
 
-### 6. **Security & Compliance**
-- Rate limiting to prevent abuse
-- Security headers for XSS/CSRF protection
-- Audit logging of critical actions
-- Request tracing and monitoring
-- Data validation and sanitization
+### 6. Security & compliance
+- Rate limiting
+- Security headers
+- Audit logging
+- Request tracing
+- Validation and sanitization
 
 ---
 
-## Development Workflow
+## Development workflow
 
-### Running Locally
-
+### Running locally
 **Terminal 1 - Backend:**
 ```bash
-cd Api
-dotnet run
+dotnet run --project Api/Api.csproj
 ```
 
 **Terminal 2 - Frontend:**
 ```bash
 cd Frontend/Angular
+npm install
 npm start
 ```
 
-### Testing
-
-**Backend Tests:**
-```bash
-dotnet test
-```
-
-**Frontend Tests:**
-```bash
-npm test
-```
-
-### Code Quality
-
-- **Backend:** Code analysis via .NET analyzers
-- **Frontend:** ESLint, Prettier code formatting
-
----
-
-## Documentation Files
-
-- **[AI_SETUP.md](./AI_SETUP.md)** - Complete AI feature configuration guide
-- **[PROMPTS.md](./PROMPTS.md)** - AI prompt strategy and design
-- **[VALIDATION_IMPLEMENTATION.md](./VALIDATION_IMPLEMENTATION.md)** - Validation framework details
-- **[Frontend/Angular/README.md](./Frontend/Angular/README.md)** - Angular application documentation
-
----
-
-## Deployment
-
-### Backend Deployment
-
-```bash
-dotnet publish -c Release -o ./publish
-```
-
-### Frontend Deployment
-
-```bash
-npm run build
-# Deploy dist/ folder to web server or nginx
-```
-
-See `Frontend/nginx/nginx.conf` for production nginx configuration.
-
----
-
-## Contributing
-
-1. Create a feature branch from `master`
-2. Make your changes
-3. Submit a pull request with description
-4. Ensure all tests pass
-5. Code review approval required
-
----
-
-## Support & Documentation
-
-For questions or issues:
-- Check existing documentation files
-- Review API documentation at `/swagger` endpoint
-- Check issue tracker on GitHub
-
----
-
-## License
-
-See [LICENSE.txt](./LICENSE.txt) for details.
+## References
+- [AI_SETUP.md](./AI_SETUP.md)
+- [PROMPTS.md](./PROMPTS.md)
+- [Groq Console](https://console.groq.com)
