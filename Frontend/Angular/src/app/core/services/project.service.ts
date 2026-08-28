@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, shareReplay } from 'rxjs';
+import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface ProjectItemMember {
@@ -77,7 +77,6 @@ export interface ProjectAssignmentResult {
 @Injectable({ providedIn: 'root' })
 export class ProjectService {
   private readonly baseUrl = `${environment.apiBaseUrl}/projects`;
-  private readonly listCache = new Map<string, Observable<ProjectListResult>>();
 
   constructor(private readonly http: HttpClient) {}
 
@@ -90,12 +89,6 @@ export class ProjectService {
     status?: string;
   } = {}): Observable<ProjectListResult> {
     const normalizedParams = this.normalizeParams(params);
-    const cacheKey = JSON.stringify(normalizedParams);
-    const cached = this.listCache.get(cacheKey);
-
-    if (cached) {
-      return cached;
-    }
 
     let httpParams = new HttpParams();
 
@@ -105,12 +98,7 @@ export class ProjectService {
       }
     });
 
-    const request$ = this.http
-      .get<ProjectListResult>(this.baseUrl, { params: httpParams, withCredentials: true })
-      .pipe(shareReplay({ bufferSize: 1, refCount: true }));
-
-    this.listCache.set(cacheKey, request$);
-    return request$;
+    return this.http.get<ProjectListResult>(this.baseUrl, { params: httpParams, withCredentials: true });
   }
 
   private normalizeParams(params: { start?: number; length?: number; search?: string; sortColumn?: string; sortDirection?: string; status?: string }): Record<string, string | number | undefined> {
@@ -159,7 +147,7 @@ export class ProjectService {
   }
 
   clearListCache(): void {
-    this.listCache.clear();
+    // This service no longer caches list responses. Keeping the hook for compatibility with auth/session resets.
   }
 
   getProject(id: number): Observable<ProjectDetail> {

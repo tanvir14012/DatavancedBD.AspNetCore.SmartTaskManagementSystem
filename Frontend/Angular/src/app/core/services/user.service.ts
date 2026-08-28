@@ -1,6 +1,6 @@
 ﻿import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, shareReplay } from 'rxjs';
+import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface UserListItem {
@@ -33,7 +33,6 @@ export interface UserPayload {
 @Injectable({ providedIn: 'root' })
 export class UserService {
   private readonly baseUrl = `${environment.apiBaseUrl}/users`;
-  private readonly listCache = new Map<string, Observable<UserListResult>>();
 
   constructor(private readonly http: HttpClient) {}
 
@@ -47,12 +46,6 @@ export class UserService {
     status?: string;
   } = {}): Observable<UserListResult> {
     const normalizedParams = this.normalizeParams(params);
-    const cacheKey = JSON.stringify(normalizedParams);
-    const cached = this.listCache.get(cacheKey);
-
-    if (cached) {
-      return cached;
-    }
 
     let httpParams = new HttpParams();
     Object.entries(normalizedParams).forEach(([key, value]) => {
@@ -61,12 +54,7 @@ export class UserService {
       }
     });
 
-    const request$ = this.http
-      .get<UserListResult>(this.baseUrl, { params: httpParams, withCredentials: true })
-      .pipe(shareReplay({ bufferSize: 1, refCount: true }));
-
-    this.listCache.set(cacheKey, request$);
-    return request$;
+    return this.http.get<UserListResult>(this.baseUrl, { params: httpParams, withCredentials: true });
   }
 
   private normalizeParams(params: {
@@ -104,7 +92,7 @@ export class UserService {
   }
 
   clearListCache(): void {
-    this.listCache.clear();
+    // This service no longer caches list responses. Keeping the hook for compatibility with auth/session resets.
   }
 
   create(payload: UserPayload): Observable<UserListItem> {

@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, shareReplay } from 'rxjs';
+import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface TaskListItem {
@@ -88,14 +88,11 @@ export interface TaskUpdateRequest {
 @Injectable({ providedIn: 'root' })
 export class TaskService {
   private readonly baseUrl = `${environment.apiBaseUrl}/tasks`;
-  private readonly listCache = new Map<string, Observable<TaskListResult>>();
-  private readonly boardCache = new Map<string, Observable<TaskBoardResult>>();
 
   constructor(private readonly http: HttpClient) {}
 
   clearListCache(): void {
-    this.listCache.clear();
-    this.boardCache.clear();
+    // This service no longer caches list responses. Keeping the hook for compatibility with auth/session resets.
   }
 
   list(params: {
@@ -109,51 +106,25 @@ export class TaskService {
     sortColumn?: string;
     sortDirection?: string;
   } = {}): Observable<TaskListResult> {
-    const normalizedParams = { ...params };
-    const key = JSON.stringify(normalizedParams);
-    const cached = this.listCache.get(key);
-
-    if (cached) {
-      return cached;
-    }
-
     let httpParams = new HttpParams();
-    Object.entries(normalizedParams).forEach(([keyName, value]) => {
+    Object.entries(params).forEach(([keyName, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         httpParams = httpParams.set(keyName, String(value));
       }
     });
 
-    const request$ = this.http
-      .get<TaskListResult>(this.baseUrl, { params: httpParams, withCredentials: true })
-      .pipe(shareReplay({ bufferSize: 1, refCount: true }));
-
-    this.listCache.set(key, request$);
-    return request$;
+    return this.http.get<TaskListResult>(this.baseUrl, { params: httpParams, withCredentials: true });
   }
 
   board(params: { projectId?: number; search?: string; priority?: string } = {}): Observable<TaskBoardResult> {
-    const normalizedParams = { ...params };
-    const key = JSON.stringify(normalizedParams);
-    const cached = this.boardCache.get(key);
-
-    if (cached) {
-      return cached;
-    }
-
     let httpParams = new HttpParams();
-    Object.entries(normalizedParams).forEach(([keyName, value]) => {
+    Object.entries(params).forEach(([keyName, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         httpParams = httpParams.set(keyName, String(value));
       }
     });
 
-    const request$ = this.http
-      .get<TaskBoardResult>(`${this.baseUrl}/board`, { params: httpParams, withCredentials: true })
-      .pipe(shareReplay({ bufferSize: 1, refCount: true }));
-
-    this.boardCache.set(key, request$);
-    return request$;
+    return this.http.get<TaskBoardResult>(`${this.baseUrl}/board`, { params: httpParams, withCredentials: true });
   }
 
   getTask(id: number): Observable<TaskDetail> {
