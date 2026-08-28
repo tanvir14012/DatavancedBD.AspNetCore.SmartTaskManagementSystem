@@ -192,7 +192,7 @@ public static class BootstrapExtensions
     {
         if (app.Environment.IsDevelopment())
         {
-            app.MapOpenApi();
+            app.MapOpenApi().AllowAnonymous();
             app.UseSwagger();
             app.UseSwaggerUI();
         }
