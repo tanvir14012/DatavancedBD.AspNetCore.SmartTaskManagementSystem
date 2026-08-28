@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using Asp.Versioning;
+using FluentValidation;
 using Infrastructure.Bootstrap.Middleware;
 using Infrastructure.Bootstrap.Options;
 using Infrastructure.Caching.Extensions;
@@ -206,20 +207,43 @@ public static class BootstrapExtensions
             {
                 var feature = context.Features.Get<IExceptionHandlerFeature>();
                 var ex = feature?.Error;
-                context.Response.StatusCode = 500;
+
                 context.Response.ContentType = "application/problem+json";
-                var problem = new
+
+                if (ex is ValidationException validationException)
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+                    var errors = validationException.Errors
+                        .GroupBy(e => e.PropertyName)
+                        .ToDictionary(
+                            g => g.Key,
+                            g => g.Select(e => e.ErrorMessage).ToArray());
+
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        type = "https://tools.ietf.org/html/rfc7807",
+                        title = "Validation failed.",
+                        status = StatusCodes.Status400BadRequest,
+                        errors,
+                        traceId = context.Response.Headers[RequestTracingMiddleware.TraceIdHeaderName].ToString()
+                    });
+
+                    return;
+                }
+
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+
+                await context.Response.WriteAsJsonAsync(new
                 {
                     type = "https://tools.ietf.org/html/rfc7807",
                     title = "An unexpected error occurred.",
-                    status = 500,
-                    detail = app.Environment.IsDevelopment() ? ex?.Message : "Internal server error.",
+                    status = StatusCodes.Status500InternalServerError,
+                    detail = app.Environment.IsDevelopment()
+                        ? ex?.Message
+                        : "Internal server error.",
                     traceId = context.Response.Headers[RequestTracingMiddleware.TraceIdHeaderName].ToString()
-                };
-                var json = System.Text.Json.JsonSerializer.Serialize(
-                    problem,
-                    new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
-                await context.Response.WriteAsync(json);
+                });
             });
         });
 
