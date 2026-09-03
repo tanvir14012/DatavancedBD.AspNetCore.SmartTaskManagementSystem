@@ -178,14 +178,6 @@ export class TasksPage {
     this.tasks.set(this.tasksResource.value()?.items ?? []);
   }
 
-  onSearchInput(): void {
-    this.rawSearch.set(this.rawSearch());
-  }
-
-  onSearch(): void {
-    this.rawSearch.set(this.rawSearch());
-  }
-
   onFilterChange(): void {
     this.page.set(1);
   }

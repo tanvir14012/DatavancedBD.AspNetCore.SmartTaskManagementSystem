@@ -49,8 +49,7 @@
 
   <div class="toolbar">
     <div class="search-box">
-      <input type="search" [(ngModel)]="search" placeholder="Search assignments" (input)="onSearchInput()" (keyup.enter)="onSearch()" />
-      <button type="button" (click)="onSearch()">Search</button>
+      <input type="search" [(ngModel)]="rawSearch" placeholder="Search assignments" />
     </div>
 
     <div class="filters">

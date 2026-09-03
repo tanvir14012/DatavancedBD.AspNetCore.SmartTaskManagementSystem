@@ -12,8 +12,7 @@
   @if (tasks().length || canCreateTask()) {
     <div class="toolbar">
       <div class="search-box">
-        <input type="search" [(ngModel)]="search" placeholder="Search tasks" (input)="onSearchInput()" (keyup.enter)="onSearch()" />
-        <button type="button" (click)="onSearch()">Search</button>
+        <input type="search" [(ngModel)]="rawSearch" placeholder="Search tasks" />
       </div>
 
       <div class="filters">

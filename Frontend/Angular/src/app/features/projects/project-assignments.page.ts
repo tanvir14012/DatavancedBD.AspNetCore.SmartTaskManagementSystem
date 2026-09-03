@@ -77,8 +77,6 @@ export class ProjectAssignmentsPage {
   readonly isLoading = this.assignmentsResource.isLoading;
   readonly totalCount = computed(() => this.assignmentsResource.value()?.totalCount ?? 0);
   readonly totalPages = computed(() => this.assignmentsResource.value()?.totalPages || 1);
-  readonly projectsList = computed(() => this.projectsResource.value()?.items ?? []);
-  readonly usersList = computed(() => this.usersResource.value()?.items ?? []);
 
   constructor() {
     effect(() => {
@@ -87,7 +85,7 @@ export class ProjectAssignmentsPage {
       this.allowedRoles.set(this.isAdmin() ? ['Owner', 'Manager', 'Member', 'Viewer'] : ['Member', 'Viewer']);
       this.selectedRole.set(this.allowedRoles()[0] ?? 'Member');
 
-      const projects = this.projectsList();
+      const projects = this.projects();
       if (!this.selectedProjectId() && projects.length > 0) {
         this.selectedProjectId.set(projects[0].id);
       }
@@ -95,19 +93,11 @@ export class ProjectAssignmentsPage {
         this.projectFilter.set('all');
       }
 
-      const users = this.usersList();
+      const users = this.users();
       if (!this.selectedUserId() && users.length > 0) {
         this.selectedUserId.set(users[0].id);
       }
     });
-  }
-
-  onSearchInput(): void {
-    this.rawSearch.set(this.rawSearch());
-  }
-
-  onSearch(): void {
-    this.rawSearch.set(this.rawSearch());
   }
 
   onFilterChange(): void {

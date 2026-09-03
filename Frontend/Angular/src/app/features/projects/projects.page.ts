@@ -82,14 +82,6 @@ export class ProjectsPage {
     });
   }
 
-  onSearchInput(): void {
-    this.rawSearch.set(this.rawSearch());
-  }
-
-  onSearch(): void {
-    this.rawSearch.set(this.rawSearch());
-  }
-
   onSortChange(): void {
     this.page.set(1);
   }

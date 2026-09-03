@@ -77,10 +77,6 @@ export class TaskBoardPage {
     this.boardResource.reload();
   }
 
-  onSearchInput(): void {
-    this.rawSearch.set(this.rawSearch());
-  }
-
   updateTaskStatus(task: TaskBoardCard, status: string): void {
     if (!task.canEdit || !status) {
       return;
