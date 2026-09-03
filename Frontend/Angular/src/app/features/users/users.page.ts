@@ -1,8 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { rxResource } from '@angular/core/rxjs-interop';
+import { httpResource, HttpResourceRequest } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { firstValueFrom } from 'rxjs';
+import { debounceTime, distinctUntilChanged, firstValueFrom } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/services/auth.service';
 import { UserListItem, UserListParams, UserListResult, UserService } from '../../core/services/user.service';
 
@@ -20,7 +22,13 @@ export class UsersPage {
 
   readonly page = signal(1);
   readonly pageSize = 10;
-  readonly search = signal('');
+  readonly rawSearch = signal('');
+
+  // Debounces typing before triggering query updates.
+  readonly search = toSignal(toObservable(this.rawSearch).pipe(debounceTime(300), distinctUntilChanged()), {
+    initialValue: '',
+  });
+
   readonly sortColumn = signal('CreatedAt');
   readonly sortDirection = signal('desc');
   readonly roleFilter = signal('all');
@@ -47,15 +55,42 @@ export class UsersPage {
     status: this.statusFilter() === 'all' ? undefined : this.statusFilter(),
   }));
 
-  readonly usersResource = rxResource<UserListResult, UserListParams>({
-    params: () => this.queryParams(),
-    stream: ({ params, abortSignal }) => this.userService.list(params, abortSignal),
+  readonly usersResource = httpResource<UserListResult>(() => {
+    const params = this.queryParams();
+    const requestParams: Record<string, string | number | boolean | ReadonlyArray<string | number | boolean>> = {
+      start: params.start ?? 0,
+      length: params.length ?? this.pageSize,
+      ...(params.search ? { search: params.search } : {}),
+      ...(params.sortColumn ? { sortColumn: params.sortColumn } : {}),
+      ...(params.sortDirection ? { sortDirection: params.sortDirection } : {}),
+      ...(params.role ? { role: params.role } : {}),
+      ...(params.status ? { status: params.status } : {}),
+    };
+
+    const request: HttpResourceRequest = {
+      url: `${environment.apiBaseUrl}/users`,
+      params: requestParams,
+      withCredentials: true,
+    };
+
+    return request;
   });
 
   readonly users = computed(() => this.usersResource.value()?.items ?? []);
   readonly totalCount = computed(() => this.usersResource.value()?.totalCount ?? 0);
   readonly totalPages = computed(() => Math.max(1, this.usersResource.value()?.totalPages ?? 1));
   readonly isLoading = this.usersResource.isLoading;
+
+  constructor() {
+    effect(() => {
+      this.search();
+      this.roleFilter();
+      this.statusFilter();
+      this.sortColumn();
+      this.sortDirection();
+      this.page.set(1);
+    });
+  }
 
   openCreateForm(): void {
     this.editingUserId.set(null);

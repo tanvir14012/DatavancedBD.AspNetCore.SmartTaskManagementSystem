@@ -45,7 +45,7 @@ export class UserService {
   private readonly baseUrl = `${environment.apiBaseUrl}/users`;
   private readonly http = inject(HttpClient);
 
-  list(params: UserListParams = {}, abortSignal?: AbortSignal): Observable<UserListResult> {
+  list(params: UserListParams = {}): Observable<UserListResult> {
     const normalizedParams = this.normalizeParams(params);
 
     let httpParams = new HttpParams();
@@ -55,29 +55,9 @@ export class UserService {
       }
     });
 
-    return new Observable<UserListResult>((observer) => {
-      const requestSubscription = this.http
-        .get<UserListResult>(this.baseUrl, {
-          params: httpParams,
-          withCredentials: true,
-        })
-        .subscribe({
-          next: (result) => observer.next(result),
-          error: (error) => observer.error(error),
-          complete: () => observer.complete(),
-        });
-
-      const abortListener = () => {
-        requestSubscription.unsubscribe();
-        observer.complete();
-      };
-
-      abortSignal?.addEventListener('abort', abortListener, { once: true });
-
-      return () => {
-        abortSignal?.removeEventListener('abort', abortListener);
-        requestSubscription.unsubscribe();
-      };
+    return this.http.get<UserListResult>(this.baseUrl, {
+      params: httpParams,
+      withCredentials: true,
     });
   }
 
