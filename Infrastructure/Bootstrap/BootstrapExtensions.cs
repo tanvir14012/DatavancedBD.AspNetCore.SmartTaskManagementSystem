@@ -249,9 +249,9 @@ public static class BootstrapExtensions
 
         app.UseSerilogRequestLogging();
         app.UseRateLimiter();   // 429 + Retry-After before auth — protects all endpoints
-        app.UseHttpResponseCaching();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseHttpResponseCaching();
         app.UseMiddleware<AuditLoggingMiddleware>();
 
         return app;
