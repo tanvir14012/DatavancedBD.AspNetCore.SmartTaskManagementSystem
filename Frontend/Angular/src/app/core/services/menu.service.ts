@@ -60,14 +60,13 @@ export class MenuService {
     response: Partial<MenuApiResponse> | null | undefined,
   ): MenuResponse {
     const topBar = this.filterVisibleMenuItems(
-      this.normalizeMenuItems(response?.menus ?? response?.topBar ?? []),
+      this.normalizeMenuItems(response?.menus ?? []),
     );
     const sideBar = this.filterVisibleMenuItems(
       this.normalizeMenuItems(
-        response?.sideBar ??
-          topBar.flatMap((item) =>
+        topBar.flatMap((item) =>
             Array.isArray(item.children) && item.children.length > 0 ? item.children : [item],
-          ),
+          )
       ),
     );
 

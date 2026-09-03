@@ -11,8 +11,6 @@ export interface MenuItem {
 
 export interface MenuApiResponse {
   menus?: MenuItem[];
-  topBar?: MenuItem[];
-  sideBar?: MenuItem[];
 }
 
 export interface MenuResponse {
