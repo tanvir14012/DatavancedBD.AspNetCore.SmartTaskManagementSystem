@@ -60,17 +60,6 @@
     @if (isEditMode() && projectId()) {
       <aside class="member-panel">
         <h2>Project Members</h2>
-        @if (canManageMembers()) {
-          <div class="member-controls">
-            <input type="number" min="1" [(ngModel)]="memberForm.userId" name="userId" placeholder="User Id" />
-            <select [(ngModel)]="memberForm.role" name="role">
-              @for (role of allowedRoles(); track role) {
-                <option [value]="role">{{ role }}</option>
-              }
-            </select>
-            <button type="button" class="primary" (click)="assignMember()">Assign</button>
-          </div>
-        }
 
         <ul class="member-list">
           @for (member of members(); track member.userId) {

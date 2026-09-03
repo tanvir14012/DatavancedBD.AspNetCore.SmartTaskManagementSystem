@@ -1,5 +1,8 @@
+using Api.Services;
 using Application.Features.Project.Members;
+using Application.Interfaces;
 using Infrastructure.Bootstrap;
+using Infrastructure.Caching.Abstractions;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -68,9 +71,13 @@ public sealed class Members : IEndpoint
         int id,
         [FromBody] AssignProjectMemberRequest request,
         [FromServices] ISender sender,
+        ICurrentUser currentUser,
+        IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new AssignCommand(id, request.UserId, request.Role), cancellationToken);
+        await httpCacheInvalidator.InvalidateByRouteAsync($"/api/projects/assignments", currentUser.UserId?.ToString(), cancellationToken);
+        await httpCacheInvalidator.InvalidateByRouteAsync($"/api/projects/{id}/members", currentUser.UserId?.ToString(), cancellationToken);
         return Results.Ok(new { projectId = result.ProjectId, userId = result.UserId, role = result.Role });
     }
 
@@ -78,9 +85,13 @@ public sealed class Members : IEndpoint
         int id,
         int userId,
         [FromServices] ISender sender,
+        ICurrentUser currentUser,
+        IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
         await sender.Send(new RemoveCommand(id, userId), cancellationToken);
+        await httpCacheInvalidator.InvalidateByRouteAsync($"/api/projects/assignments", currentUser.UserId?.ToString(), cancellationToken);
+        await httpCacheInvalidator.InvalidateByRouteAsync($"/api/projects/{id}/members", currentUser.UserId?.ToString(), cancellationToken);
         return Results.NoContent();
     }
 }

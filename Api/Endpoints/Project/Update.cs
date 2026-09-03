@@ -25,7 +25,7 @@ public sealed class Update : IEndpoint
         int id,
         [FromBody] UpdateProjectRequest request,
         [FromServices] ISender sender,
-         IHttpResponseCacheInvalidator httpCacheInvalidator,
+        IHttpResponseCacheInvalidator httpCacheInvalidator,
         ICurrentUser currentUser,
         CancellationToken cancellationToken)
     {

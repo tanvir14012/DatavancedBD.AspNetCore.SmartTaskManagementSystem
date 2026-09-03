@@ -100,7 +100,7 @@
               <td>{{ assignment.projectName }}</td>
               <td>{{ assignment.userName }}</td>
               <td>{{ assignment.email }}</td>
-              <td>{{ assignment.role }}</td>
+              <td>{{ ['Owner', 'Manager', 'Member', 'Viewer'].at(+assignment.role) }}</td>
               <td class="actions">
                 <button type="button" class="danger" (click)="removeAssignment(assignment)">Remove</button>
               </td>
