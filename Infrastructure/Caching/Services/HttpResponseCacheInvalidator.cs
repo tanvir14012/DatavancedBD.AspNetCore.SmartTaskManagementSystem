@@ -1,22 +1,24 @@
 using Application.Interfaces;
 using Infrastructure.Caching.Abstractions;
-using Infrastructure.Caching.Options;
-using Microsoft.Extensions.Options;
+using Infrastructure.Caching.Keys;
 
 namespace Infrastructure.Caching.Services;
 
 public sealed class HttpResponseCacheInvalidator(
     ICacheService cacheService,
-    IOptions<HttpResponseCachingOptions> options) : IHttpResponseCacheInvalidator
+    IHttpResponseCacheKeyBuilder keyBuilder) : IHttpResponseCacheInvalidator
 {
     private readonly ICacheService _cacheService = cacheService;
-    private readonly HttpResponseCachingOptions _options = options.Value;
+    private readonly IHttpResponseCacheKeyBuilder _keyBuilder = keyBuilder;
 
-    public async Task InvalidateByRouteAsync(string routePrefix, CancellationToken cancellationToken = default)
+    public async Task InvalidateByRouteAsync(
+        string routePrefix,
+        string? userId,
+        CancellationToken cancellationToken = default)
     {
         var normalizedRoute = routePrefix.Trim();
-        var pattern = $"{_options.KeyNamespace}:{normalizedRoute}:*";
-        var dashboardPattern = $"{_options.KeyNamespace}:/api/dashboard:*";
+        var pattern = $"{_keyBuilder.BuildCacheKey(normalizedRoute, userId)}:*";
+        var dashboardPattern = $"{_keyBuilder.BuildCacheKey("/api/dashboard", userId)}:*";
         await _cacheService.RemoveByPatternAsync(dashboardPattern, cancellationToken);
         await _cacheService.RemoveByPatternAsync(pattern, cancellationToken);
     }

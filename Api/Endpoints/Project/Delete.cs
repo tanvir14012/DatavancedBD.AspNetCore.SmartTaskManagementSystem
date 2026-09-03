@@ -1,4 +1,5 @@
 using Application.Features.Project.Delete;
+using Application.Interfaces;
 using Infrastructure.Bootstrap;
 using Infrastructure.Caching.Abstractions;
 using MediatR;
@@ -22,6 +23,7 @@ public sealed class Delete : IEndpoint
     private static async Task<IResult> DeleteProject(
         int id,
         [FromServices] ISender sender,
+        ICurrentUser currentUser,
         IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
@@ -31,7 +33,7 @@ public sealed class Delete : IEndpoint
         }
         finally
         {
-            await httpCacheInvalidator.InvalidateByRouteAsync("/api/projects", cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("/api/projects", currentUser.UserId?.ToString(), cancellationToken);
         }
 
         return Results.NoContent();

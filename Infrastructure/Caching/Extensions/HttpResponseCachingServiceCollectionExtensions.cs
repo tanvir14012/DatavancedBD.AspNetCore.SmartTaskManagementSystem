@@ -1,4 +1,5 @@
 using Infrastructure.Caching.Abstractions;
+using Infrastructure.Caching.Keys;
 using Infrastructure.Caching.Middlewears;
 using Infrastructure.Caching.Options;
 using Infrastructure.Caching.Services;
@@ -29,6 +30,7 @@ public static class HttpResponseCachingServiceCollectionExtensions
         });
 
         services.TryAddSingleton<HttpResponseCachingMiddleware>();
+        services.TryAddSingleton<IHttpResponseCacheKeyBuilder, HttpResponseCacheKeyBuilder>();
         services.TryAddSingleton<IHttpResponseCacheInvalidator, HttpResponseCacheInvalidator>();
         return services;
     }
