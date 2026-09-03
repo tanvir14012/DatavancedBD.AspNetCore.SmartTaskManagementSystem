@@ -3,9 +3,9 @@ import { Injectable, inject, signal } from '@angular/core';
 import { BehaviorSubject, Observable, catchError, map, of, shareReplay, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { UserProfile } from '../models/menu-item.model';
-import { MenuService } from './menu.service';
 import { ProjectService } from './project.service';
 import { TaskService } from './task.service';
+import { MenuService } from './menu.service';
 
 interface LoginRequest {
   email: string;
@@ -46,7 +46,6 @@ interface AuthState {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly menuService = inject(MenuService);
   private readonly projectService = inject(ProjectService);
   private readonly taskService = inject(TaskService);
 
@@ -122,7 +121,7 @@ export class AuthService {
     this.clearRefreshTimer();
     this.projectService.clearListCache();
     this.taskService.clearListCache();
-    this.menuService.clearMenus();
+    localStorage.removeItem(MenuService.MENU_STORAGE_KEY);
 
     const request$ = localStorage.getItem('stms.token')
       ? this.http.post<void>(`${environment.apiBaseUrl}/auth/logout`, {}, { withCredentials: true }).pipe(
@@ -155,7 +154,6 @@ export class AuthService {
 
     this.projectService.clearListCache();
     this.taskService.clearListCache();
-    this.menuService.clearMenus();
 
     this.syncSignals({ token: accessToken, expiresAt, user, isAuthenticated: true });
     this.scheduleRefresh(expiresAt);

@@ -1,36 +1,41 @@
-import { HttpClient } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { Observable, map, tap } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { AuthService } from './auth.service';
 import { MenuApiResponse, MenuItem, MenuResponse } from '../models/menu-item.model';
 
 @Injectable({ providedIn: 'root' })
 export class MenuService {
-  private static readonly MENU_STORAGE_KEY = 'stms.menus';
+  public static readonly MENU_STORAGE_KEY = 'stms.menus';
   private static readonly CURRENT_ROUTE_STORAGE_KEY = 'stms.current-route';
   private static readonly DEFAULT_ROUTE = '/dashboard';
 
+  private readonly authService = inject(AuthService);
+
   readonly topBarMenus = signal<MenuItem[]>([]);
   readonly currentRoute = signal<string>(this.readStoredCurrentRoute());
+
   readonly sideBarMenus = computed<MenuItem[]>(() => {
     const topBar = this.topBarMenus();
     const route = this.currentRoute();
 
-    if (!topBar.length) {
+    if (!topBar || topBar.length === 0) {
       return [];
     }
 
-    const selectedTopBar = topBar.find((item) => this.matchesRoute(item.route, route) || this.hasMatchingChildRoute(item, route));
+    const selectedTopBar = topBar.find(
+      (item) => this.matchesRoute(item.route, route) || this.hasMatchingChildRoute(item, route)
+    );
 
     if (selectedTopBar) {
-      return selectedTopBar.children.length > 0 ? selectedTopBar.children : [selectedTopBar];
+      const children = selectedTopBar.children ?? [];
+      return children.length > 0 ? children : [selectedTopBar];
     }
 
     const fallbackItem = topBar[0];
-    return fallbackItem.children.length > 0 ? fallbackItem.children : [fallbackItem];
-  });
+    if (!fallbackItem) return [];
 
-  private readonly http = inject(HttpClient);
+    const fallbackChildren = fallbackItem.children ?? [];
+    return fallbackChildren.length > 0 ? fallbackChildren : [fallbackItem];
+  });
 
   constructor() {
     const cachedMenus = this.readStoredMenus();
@@ -38,25 +43,10 @@ export class MenuService {
     this.currentRoute.set(this.readStoredCurrentRoute());
   }
 
-  loadMenus(): Observable<MenuResponse> {
-    return this.http
-      .get<MenuApiResponse>(`${environment.apiBaseUrl}/menus/`)
-      .pipe(
-        map((response) => this.normalizeMenuResponse(response)),
-        tap((response) => this.persistMenus(response)),
-        tap((response) => {
-          this.topBarMenus.set(response.topBar);
-        }),
-      );
-  }
-
-  refreshMenus(): Observable<MenuResponse> {
-    return this.loadMenus();
-  }
-
-  clearMenus(): void {
-    this.topBarMenus.set([]);
-    localStorage.removeItem(MenuService.MENU_STORAGE_KEY);
+  setMenuResponse(response: Partial<MenuApiResponse> | null | undefined): void {
+    const normalized = this.normalizeMenuResponse(response);
+    this.topBarMenus.set(normalized.topBar);
+    this.persistMenus(normalized);
   }
 
   setCurrentRoute(route: string): void {
@@ -108,7 +98,7 @@ export class MenuService {
   }
 
   private filterVisibleMenuItems(items: MenuItem[]): MenuItem[] {
-    const userRole = this.readStoredUserRole();
+    const userRole = this.authService.currentUser()?.role ?? '';
     const canAccessBoard = this.hasRole(userRole, 'Admin', 'Project Manager');
     const canManageProjects = this.hasRole(userRole, 'Admin', 'Project Manager');
 
@@ -130,25 +120,6 @@ export class MenuService {
         ...item,
         children: this.filterVisibleMenuItems(item.children ?? []),
       }));
-  }
-
-  private readStoredUserRole(): string {
-    try {
-      const cachedUser = localStorage.getItem('stms.user');
-      if (!cachedUser) {
-        return '';
-      }
-
-      const parsed = JSON.parse(cachedUser) as {
-        role?: string | string[] | null;
-        roles?: string[] | null;
-      };
-
-      const candidateRoles = [parsed.role, parsed.roles ?? []].flat().filter((value): value is string => Boolean(value));
-      return this.normalizeRole(candidateRoles[0] ?? '');
-    } catch {
-      return '';
-    }
   }
 
   private hasRole(userRole: string, ...roles: string[]): boolean {
@@ -182,6 +153,11 @@ export class MenuService {
   private matchesRoute(menuRoute: string, currentRoute: string): boolean {
     const normalizedMenuRoute = this.normalizeRoute(menuRoute);
     const normalizedCurrentRoute = this.normalizeRoute(currentRoute);
+
+    if (normalizedMenuRoute === normalizedCurrentRoute) {
+      return true;
+    }
+
     const menuSegments = this.getRouteSegments(normalizedMenuRoute);
     const currentSegments = this.getRouteSegments(normalizedCurrentRoute);
 
@@ -189,9 +165,7 @@ export class MenuService {
       return normalizedCurrentRoute === normalizedMenuRoute;
     }
 
-    // Match at least the first segment (e.g., 'projects' in '/projects/list')
-    // This ensures /projects/3/edit matches /projects/list
-    return currentSegments[0] === menuSegments[0] && currentSegments[1] === menuSegments[1];
+    return menuSegments.every((segment, index) => currentSegments[index] === segment);
   }
 
   private getRouteSegments(route: string): string[] {
@@ -238,7 +212,7 @@ export class MenuService {
         return this.normalizeRoute(cachedRoute);
       }
     } catch {
-      // ignore storage access issues and fall back to the browser URL.
+      // ignore storage access issues and fall back to browser URL
     }
 
     return this.normalizeRoute(typeof window !== 'undefined' ? window.location.pathname : MenuService.DEFAULT_ROUTE);

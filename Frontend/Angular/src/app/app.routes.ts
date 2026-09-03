@@ -3,7 +3,6 @@ import { authGuard } from './core/guards/auth.guard';
 import { noAuthGuard } from './core/guards/no-auth.guard';
 import { projectWriteGuard } from './core/guards/project-role.guard';
 import { taskBoardGuard } from './core/guards/task-board.guard';
-import { dashboardResolver } from './core/resolvers/dashboard.resolver';
 import { AppShellComponent } from './features/layout/app-shell.component';
 
 export const routes: Routes = [
@@ -31,8 +30,7 @@ export const routes: Routes = [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {
         path: 'dashboard',
-        loadComponent: () => import('./features/dashboard/dashboard.page').then((m) => m.DashboardPage),
-        resolve: { dashboardData: dashboardResolver },
+        loadComponent: () => import('./features/dashboard/dashboard.page').then((m) => m.DashboardPage)
       },
       {
         path: 'projects', redirectTo: 'projects/list', pathMatch: 'full',

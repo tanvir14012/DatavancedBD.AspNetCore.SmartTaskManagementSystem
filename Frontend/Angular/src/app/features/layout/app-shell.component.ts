@@ -1,13 +1,13 @@
 import { httpResource } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, effect, inject, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet, } from '@angular/router';
 import { filter } from 'rxjs';
+import { environment } from '../../../environments/environment';
+import { MenuResponse } from '../../core/models/menu-item.model';
 import { AuthService } from '../../core/services/auth.service';
 import { MenuService } from '../../core/services/menu.service';
-import { MenuResponse } from '../../core/models/menu-item.model';
-import { environment } from '../../../environments/environment';
-import { TopNavComponent } from './top-nav.component';
 import { SideNavComponent } from './side-nav.component';
+import { TopNavComponent } from './top-nav.component';
 
 @Component({
   selector: 'app-shell',
@@ -28,7 +28,7 @@ export class AppShellComponent {
     }
 
     return {
-      url: `${environment.apiBaseUrl}/menus/`,
+      url: `${environment.apiBaseUrl}/menus`,
       withCredentials: true,
     };
   });
@@ -36,18 +36,14 @@ export class AppShellComponent {
   constructor() {
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
-      .subscribe((event) => {
-        untracked(() => {
-          this.menuService.setCurrentRoute(event.urlAfterRedirects || event.url);
-        });
+      .subscribe((event) => { 
+        this.menuService.setCurrentRoute(event.urlAfterRedirects || event.url);
       });
 
     effect(() => {
       const menus = this.menusResource.value();
       if (menus) {
-        untracked(() => {
-          this.menuService.topBarMenus.set(menus.topBar);
-        });
+        this.menuService.topBarMenus.set(menus.topBar);
       }
     });
   }
