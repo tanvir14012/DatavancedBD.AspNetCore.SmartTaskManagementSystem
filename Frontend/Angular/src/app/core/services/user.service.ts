@@ -1,5 +1,5 @@
-﻿import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
@@ -11,6 +11,16 @@ export interface UserListItem {
   role: string;
   isActive: boolean;
   createdAt: string;
+}
+
+export interface UserListParams {
+  start?: number;
+  length?: number;
+  search?: string;
+  sortColumn?: string;
+  sortDirection?: string;
+  role?: string;
+  status?: string;
 }
 
 export interface UserListResult {
@@ -33,18 +43,9 @@ export interface UserPayload {
 @Injectable({ providedIn: 'root' })
 export class UserService {
   private readonly baseUrl = `${environment.apiBaseUrl}/users`;
+  private readonly http = inject(HttpClient);
 
-  constructor(private readonly http: HttpClient) {}
-
-  list(params: {
-    start?: number;
-    length?: number;
-    search?: string;
-    sortColumn?: string;
-    sortDirection?: string;
-    role?: string;
-    status?: string;
-  } = {}): Observable<UserListResult> {
+  list(params: UserListParams = {}): Observable<UserListResult> {
     const normalizedParams = this.normalizeParams(params);
 
     let httpParams = new HttpParams();
@@ -54,21 +55,20 @@ export class UserService {
       }
     });
 
-    return this.http.get<UserListResult>(this.baseUrl, { params: httpParams, withCredentials: true });
+    return this.http.get<UserListResult>(this.baseUrl, {
+      params: httpParams,
+      withCredentials: true,
+    });
   }
 
-  private normalizeParams(params: {
-    start?: number;
-    length?: number;
-    search?: string;
-    sortColumn?: string;
-    sortDirection?: string;
-    role?: string;
-    status?: string;
-  }): Record<string, string | number | undefined> {
-    const normalized: Record<string, string | number | undefined> = { ...params };
-    const sortColumn = normalized['sortColumn'];
+  private normalizeParams(params: UserListParams): Record<string, string | number | undefined> {
+    const normalized: Record<string, string | number | undefined> = {
+      ...params,
+      role: params.role && params.role !== 'all' ? params.role : undefined,
+      status: params.status && params.status !== 'all' ? params.status : undefined,
+    };
 
+    const sortColumn = normalized['sortColumn'];
     if (typeof sortColumn === 'string' && sortColumn.trim()) {
       normalized['sortColumn'] = this.normalizeSortColumn(sortColumn);
     }
@@ -91,22 +91,15 @@ export class UserService {
     }
   }
 
-  clearListCache(): void {
-    // This service no longer caches list responses. Keeping the hook for compatibility with auth/session resets.
-  }
-
   create(payload: UserPayload): Observable<UserListItem> {
-    this.clearListCache();
     return this.http.post<UserListItem>(this.baseUrl, payload, { withCredentials: true });
   }
 
   update(id: number, payload: UserPayload): Observable<UserListItem> {
-    this.clearListCache();
     return this.http.put<UserListItem>(`${this.baseUrl}/${id}`, payload, { withCredentials: true });
   }
 
   delete(id: number): Observable<void> {
-    this.clearListCache();
     return this.http.delete<void>(`${this.baseUrl}/${id}`, { withCredentials: true });
   }
 }

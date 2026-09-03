@@ -1,10 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, OnInit, signal } from '@angular/core';
+import { httpResource, HttpResourceRequest } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { debounceTime, distinctUntilChanged, firstValueFrom } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/services/auth.service';
-import { UserListItem, UserService } from '../../core/services/user.service';
+import { UserListItem, UserListParams, UserListResult, UserService } from '../../core/services/user.service';
 
 @Component({
   selector: 'app-users-page',
@@ -14,21 +16,26 @@ import { UserListItem, UserService } from '../../core/services/user.service';
   styleUrls: ['./users.page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class UsersPage implements OnInit {
-  readonly users = signal<UserListItem[]>([]);
+export class UsersPage {
+  private readonly userService = inject(UserService);
+  private readonly authService = inject(AuthService);
+
   readonly page = signal(1);
   readonly pageSize = 10;
-  readonly totalCount = signal(0);
-  readonly totalPages = signal(1);
-  readonly search = signal('');
+  readonly rawSearch = signal('');
+
+  // Debounces typing before triggering query updates.
+  readonly search = toSignal(toObservable(this.rawSearch).pipe(debounceTime(300), distinctUntilChanged()), {
+    initialValue: '',
+  });
+
   readonly sortColumn = signal('CreatedAt');
   readonly sortDirection = signal('desc');
   readonly roleFilter = signal('all');
   readonly statusFilter = signal('all');
-  readonly isAdmin = signal(false);
+  readonly isAdmin = computed(() => this.authService.currentUser()?.role === 'Admin');
   readonly showForm = signal(false);
   readonly editingUserId = signal<number | null>(null);
-  readonly isLoading = signal(false);
 
   readonly form = {
     firstName: '',
@@ -38,66 +45,51 @@ export class UsersPage implements OnInit {
     role: 'Team Member',
   };
 
-  private readonly destroyRef = inject(DestroyRef);
-  private readonly searchSubject = new Subject<string>();
+  readonly queryParams = computed<UserListParams>(() => ({
+    start: (this.page() - 1) * this.pageSize,
+    length: this.pageSize,
+    search: this.search().trim() || undefined,
+    sortColumn: this.sortColumn(),
+    sortDirection: this.sortDirection(),
+    role: this.roleFilter() === 'all' ? undefined : this.roleFilter(),
+    status: this.statusFilter() === 'all' ? undefined : this.statusFilter(),
+  }));
 
-  constructor(
-    private readonly userService: UserService,
-    private readonly authService: AuthService,
-  ) {}
+  readonly usersResource = httpResource<UserListResult>(() => {
+    const params = this.queryParams();
+    const requestParams: Record<string, string | number | boolean | ReadonlyArray<string | number | boolean>> = {
+      start: params.start ?? 0,
+      length: params.length ?? this.pageSize,
+      ...(params.search ? { search: params.search } : {}),
+      ...(params.sortColumn ? { sortColumn: params.sortColumn } : {}),
+      ...(params.sortDirection ? { sortDirection: params.sortDirection } : {}),
+      ...(params.role ? { role: params.role } : {}),
+      ...(params.status ? { status: params.status } : {}),
+    };
 
-  ngOnInit(): void {
-    this.isAdmin.set(this.authService.currentUser()?.role === 'Admin');
-    this.searchSubject
-      .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.page.set(1);
-        this.loadUsers();
-      });
+    const request: HttpResourceRequest = {
+      url: `${environment.apiBaseUrl}/users`,
+      params: requestParams,
+      withCredentials: true,
+    };
 
-    this.loadUsers();
-  }
+    return request;
+  });
 
-  loadUsers(): void {
-    this.isLoading.set(true);
+  readonly users = computed(() => this.usersResource.value()?.items ?? []);
+  readonly totalCount = computed(() => this.usersResource.value()?.totalCount ?? 0);
+  readonly totalPages = computed(() => Math.max(1, this.usersResource.value()?.totalPages ?? 1));
+  readonly isLoading = this.usersResource.isLoading;
 
-    this.userService
-      .list({
-        start: (this.page() - 1) * this.pageSize,
-        length: this.pageSize,
-        search: this.search().trim() || undefined,
-        sortColumn: this.sortColumn(),
-        sortDirection: this.sortDirection(),
-        role: this.roleFilter(),
-        status: this.statusFilter(),
-      })
-      .pipe(finalize(() => this.isLoading.set(false)))
-      .subscribe({
-        next: (result) => {
-          this.users.set(result.items);
-          this.totalCount.set(result.totalCount);
-          this.totalPages.set(result.totalPages || 1);
-          this.page.set(Math.min(this.page(), this.totalPages() || 1));
-        },
-        error: () => {
-          this.users.set([]);
-          this.totalCount.set(0);
-          this.totalPages.set(1);
-        },
-      });
-  }
-
-  onSearchInput(): void {
-    this.searchSubject.next(this.search().trim());
-  }
-
-  onSearch(): void {
-    this.searchSubject.next(this.search().trim());
-  }
-
-  onFilterChange(): void {
-    this.page.set(1);
-    this.loadUsers();
+  constructor() {
+    effect(() => {
+      this.search();
+      this.roleFilter();
+      this.statusFilter();
+      this.sortColumn();
+      this.sortDirection();
+      this.page.set(1);
+    });
   }
 
   openCreateForm(): void {
@@ -120,7 +112,7 @@ export class UsersPage implements OnInit {
     this.showForm.set(true);
   }
 
-  submitForm(): void {
+  async submitForm(): Promise<void> {
     const currentForm = this.form;
     if (!currentForm.firstName.trim() || !currentForm.lastName.trim() || !currentForm.email.trim()) {
       return;
@@ -135,17 +127,18 @@ export class UsersPage implements OnInit {
     };
 
     const editingId = this.editingUserId();
-    const request$ = editingId === null
-      ? this.userService.create(payload)
-      : this.userService.update(editingId, payload);
+    const request$ = editingId === null ? this.userService.create(payload) : this.userService.update(editingId, payload);
 
-    request$.subscribe(() => {
+    try {
+      await firstValueFrom(request$);
       this.showForm.set(false);
-      this.loadUsers();
-    });
+      this.usersResource.reload();
+    } catch {
+      // The mutation error is handled by the surrounding request flow. Keep the form open so the user can retry.
+    }
   }
 
-  deleteUser(id: number): void {
+  async deleteUser(id: number): Promise<void> {
     if (!this.isAdmin()) {
       return;
     }
@@ -154,22 +147,23 @@ export class UsersPage implements OnInit {
       return;
     }
 
-    this.userService.delete(id).subscribe(() => {
-      this.loadUsers();
-    });
+    try {
+      await firstValueFrom(this.userService.delete(id));
+      this.usersResource.reload();
+    } catch {
+      // Avoid breaking the list view when a delete fails. The HTTP layer can surface the error elsewhere.
+    }
   }
 
   prevPage(): void {
     if (this.page() > 1) {
-      this.page.update(p => p - 1);
-      this.loadUsers();
+      this.page.update((currentPage) => currentPage - 1);
     }
   }
 
   nextPage(): void {
     if (this.page() < this.totalPages()) {
-      this.page.update(p => p + 1);
-      this.loadUsers();
+      this.page.update((currentPage) => currentPage + 1);
     }
   }
 }
