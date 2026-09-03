@@ -83,11 +83,11 @@ export class ProjectsPage {
   }
 
   onSearchInput(): void {
-    this.rawSearch.set(this.rawSearch().trim());
+    this.rawSearch.set(this.rawSearch());
   }
 
   onSearch(): void {
-    this.rawSearch.set(this.rawSearch().trim());
+    this.rawSearch.set(this.rawSearch());
   }
 
   onSortChange(): void {

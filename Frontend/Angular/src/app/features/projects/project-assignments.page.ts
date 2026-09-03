@@ -23,9 +23,9 @@ export class ProjectAssignmentsPage {
   private readonly authService = inject(AuthService);
 
   readonly rawSearch = signal('');
-  readonly assignments = signal<ProjectAssignmentItem[]>([]);
-  readonly projects = signal<ProjectListItem[]>([]);
-  readonly users = signal<UserListItem[]>([]);
+  readonly assignments = computed(() => this.assignmentsResource.value()?.items ?? []);
+  readonly projects = computed(() => this.projectsResource.value()?.items ?? []);
+  readonly users = computed(() => this.usersResource.value()?.items ?? []);
   readonly page = signal(1);
   readonly pageSize = 10;
   readonly search = toSignal(toObservable(this.rawSearch).pipe(debounceTime(300), distinctUntilChanged()), {
@@ -75,7 +75,6 @@ export class ProjectAssignmentsPage {
   }));
 
   readonly isLoading = this.assignmentsResource.isLoading;
-  readonly assignmentsData = computed(() => this.assignmentsResource.value()?.items ?? []);
   readonly totalCount = computed(() => this.assignmentsResource.value()?.totalCount ?? 0);
   readonly totalPages = computed(() => this.assignmentsResource.value()?.totalPages || 1);
   readonly projectsList = computed(() => this.projectsResource.value()?.items ?? []);
@@ -100,28 +99,15 @@ export class ProjectAssignmentsPage {
       if (!this.selectedUserId() && users.length > 0) {
         this.selectedUserId.set(users[0].id);
       }
-
-      this.assignments.set(this.assignmentsData());
-      this.projects.set(this.projectsList());
-      this.users.set(this.usersList());
-      this.search();
-      this.roleFilter();
-      this.projectFilter();
-
-      untracked(() => {
-        if (this.page() !== 1) {
-          this.page.set(1);
-        }
-      });
     });
   }
 
   onSearchInput(): void {
-    this.rawSearch.set(this.rawSearch().trim());
+    this.rawSearch.set(this.rawSearch());
   }
 
   onSearch(): void {
-    this.rawSearch.set(this.rawSearch().trim());
+    this.rawSearch.set(this.rawSearch());
   }
 
   onFilterChange(): void {

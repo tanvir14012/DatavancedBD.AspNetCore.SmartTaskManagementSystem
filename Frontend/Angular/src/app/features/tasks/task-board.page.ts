@@ -78,7 +78,7 @@ export class TaskBoardPage {
   }
 
   onSearchInput(): void {
-    this.rawSearch.set(this.rawSearch().trim());
+    this.rawSearch.set(this.rawSearch());
   }
 
   updateTaskStatus(task: TaskBoardCard, status: string): void {

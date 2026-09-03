@@ -179,11 +179,11 @@ export class TasksPage {
   }
 
   onSearchInput(): void {
-    this.rawSearch.set(this.rawSearch().trim());
+    this.rawSearch.set(this.rawSearch());
   }
 
   onSearch(): void {
-    this.rawSearch.set(this.rawSearch().trim());
+    this.rawSearch.set(this.rawSearch());
   }
 
   onFilterChange(): void {

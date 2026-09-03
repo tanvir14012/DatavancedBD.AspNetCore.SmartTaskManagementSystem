@@ -1,6 +1,7 @@
 import { httpResource } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
-import { Router, RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, effect, inject, untracked } from '@angular/core';
+import { NavigationEnd, Router, RouterOutlet, } from '@angular/router';
+import { filter } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { MenuService } from '../../core/services/menu.service';
 import { MenuResponse } from '../../core/models/menu-item.model';
@@ -33,13 +34,20 @@ export class AppShellComponent {
   });
 
   constructor() {
-    effect(() => {
-      const currentUrl = this.router.url;
-      this.menuService.setCurrentRoute(currentUrl);
+    this.router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe((event) => {
+        untracked(() => {
+          this.menuService.setCurrentRoute(event.urlAfterRedirects || event.url);
+        });
+      });
 
+    effect(() => {
       const menus = this.menusResource.value();
       if (menus) {
-        this.menuService.topBarMenus.set(menus.topBar);
+        untracked(() => {
+          this.menuService.topBarMenus.set(menus.topBar);
+        });
       }
     });
   }
