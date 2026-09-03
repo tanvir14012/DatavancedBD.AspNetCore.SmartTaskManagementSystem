@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
-import { finalize } from 'rxjs';
+import { httpResource } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DashboardService, DashboardSummary } from '../../core/services/dashboard.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-dashboard-page',
@@ -11,12 +12,19 @@ import { DashboardService, DashboardSummary } from '../../core/services/dashboar
   styleUrls: ['./dashboard.page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DashboardPage implements OnInit {
+export class DashboardPage {
   private readonly dashboardService = inject(DashboardService);
 
-  readonly summary = signal<DashboardSummary | null>(null);
-  readonly isLoading = signal(true);
-  readonly errorMessage = signal<string | null>(null);
+  readonly summaryResource = httpResource<DashboardSummary>(() => ({
+    url: `${environment.apiBaseUrl}/dashboard/summary`,
+    withCredentials: true,
+  }));
+
+  readonly summary = computed(() => this.summaryResource.value() ?? null);
+  readonly isLoading = this.summaryResource.isLoading;
+  readonly errorMessage = computed(() =>
+    this.summaryResource.error() ? 'Unable to load dashboard details from the server.' : null,
+  );
 
   readonly statusBreakdown = computed(() => this.summary()?.statusBreakdown ?? []);
   readonly priorityBreakdown = computed(() => this.summary()?.priorityBreakdown ?? []);
@@ -27,25 +35,10 @@ export class DashboardPage implements OnInit {
     return Math.round((summary.completedTasks / summary.totalTasks) * 100);
   });
 
-  ngOnInit(): void {
-    this.loadSummary();
-  }
-
   loadSummary(forceReload = false): void {
-    this.isLoading.set(true);
-    this.errorMessage.set(null);
-
-    this.dashboardService
-      .getSummary(undefined, forceReload)
-      .pipe(finalize(() => this.isLoading.set(false)))
-      .subscribe({
-        next: (data) => {
-          this.summary.set(data);
-        },
-        error: () => {
-          this.errorMessage.set('Unable to load dashboard details from the server.');
-        },
-      });
+    if (forceReload) {
+      this.summaryResource.reload();
+    }
   }
 
   formatLabel(value: string): string {

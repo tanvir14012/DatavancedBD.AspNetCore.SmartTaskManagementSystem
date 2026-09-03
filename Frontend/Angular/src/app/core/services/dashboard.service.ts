@@ -1,5 +1,5 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
@@ -31,7 +31,7 @@ export interface DashboardSummary {
 export class DashboardService {
   private readonly baseUrl = `${environment.apiBaseUrl}/dashboard`;
 
-  constructor(private readonly http: HttpClient) {}
+  private readonly http = inject(HttpClient);
 
   getSummary(projectId?: number, forceReload = false): Observable<DashboardSummary> {
     let params = new HttpParams();

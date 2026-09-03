@@ -1,8 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
-import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { httpResource } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, effect, inject, untracked } from '@angular/core';
+import { NavigationEnd, Router, RouterOutlet, } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { MenuService } from '../../core/services/menu.service';
+import { MenuResponse } from '../../core/models/menu-item.model';
+import { environment } from '../../../environments/environment';
 import { TopNavComponent } from './top-nav.component';
 import { SideNavComponent } from './side-nav.component';
 
@@ -14,23 +17,38 @@ import { SideNavComponent } from './side-nav.component';
   styleUrls: ['./app-shell.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AppShellComponent implements OnInit {
+export class AppShellComponent {
   readonly menuService = inject(MenuService);
   readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+
+  readonly menusResource = httpResource<MenuResponse>(() => {
+    if (!this.authService.isAuthenticated()) {
+      return undefined;
+    }
+
+    return {
+      url: `${environment.apiBaseUrl}/menus/`,
+      withCredentials: true,
+    };
+  });
 
   constructor() {
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event) => {
-        this.menuService.setCurrentRoute(event.urlAfterRedirects || this.router.url);
+        untracked(() => {
+          this.menuService.setCurrentRoute(event.urlAfterRedirects || event.url);
+        });
       });
-  }
 
-  ngOnInit(): void {
-    if (this.authService.isAuthenticated()) {
-      this.menuService.setCurrentRoute(this.router.url);
-      this.menuService.loadMenus().subscribe();
-    }
+    effect(() => {
+      const menus = this.menusResource.value();
+      if (menus) {
+        untracked(() => {
+          this.menuService.topBarMenus.set(menus.topBar);
+        });
+      }
+    });
   }
 }

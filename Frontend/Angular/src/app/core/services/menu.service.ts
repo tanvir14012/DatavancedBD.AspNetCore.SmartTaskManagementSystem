@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
-import { computed, Injectable, signal } from '@angular/core';
-import { Observable, map, shareReplay, tap } from 'rxjs';
+import { computed, inject, Injectable, signal } from '@angular/core';
+import { Observable, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { MenuApiResponse, MenuItem, MenuResponse } from '../models/menu-item.model';
 
@@ -30,38 +30,32 @@ export class MenuService {
     return fallbackItem.children.length > 0 ? fallbackItem.children : [fallbackItem];
   });
 
-  private menuRequest$?: Observable<MenuResponse>;
+  private readonly http = inject(HttpClient);
 
-  constructor(private readonly http: HttpClient) {
+  constructor() {
     const cachedMenus = this.readStoredMenus();
     this.topBarMenus.set(cachedMenus.topBar);
     this.currentRoute.set(this.readStoredCurrentRoute());
   }
 
   loadMenus(): Observable<MenuResponse> {
-    if (!this.menuRequest$) {
-      this.menuRequest$ = this.http
-        .get<MenuApiResponse>(`${environment.apiBaseUrl}/menus/`)
-        .pipe(
-          map((response) => this.normalizeMenuResponse(response)),
-          tap((response) => this.persistMenus(response)),
-          tap((response) => {
-            this.topBarMenus.set(response.topBar);
-          }),
-          shareReplay({ bufferSize: 1, refCount: true }),
-        );
-    }
-
-    return this.menuRequest$;
+    return this.http
+      .get<MenuApiResponse>(`${environment.apiBaseUrl}/menus/`)
+      .pipe(
+        map((response) => this.normalizeMenuResponse(response)),
+        tap((response) => this.persistMenus(response)),
+        tap((response) => {
+          this.topBarMenus.set(response.topBar);
+        }),
+      );
   }
 
   refreshMenus(): Observable<MenuResponse> {
-    this.invalidateCache();
     return this.loadMenus();
   }
 
   clearMenus(): void {
-    this.invalidateCache();
+    this.topBarMenus.set([]);
     localStorage.removeItem(MenuService.MENU_STORAGE_KEY);
   }
 
@@ -72,7 +66,6 @@ export class MenuService {
   }
 
   invalidateCache(): void {
-    this.menuRequest$ = undefined;
     this.topBarMenus.set([]);
     this.currentRoute.set(MenuService.DEFAULT_ROUTE);
     localStorage.setItem(MenuService.CURRENT_ROUTE_STORAGE_KEY, MenuService.DEFAULT_ROUTE);

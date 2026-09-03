@@ -30,7 +30,7 @@
 
     <label class="field search-field">
       <span>Search</span>
-      <input type="search" [(ngModel)]="search" placeholder="Search board" (input)="onSearchInput()" (keyup.enter)="loadBoard()" />
+      <input type="search" [(ngModel)]="rawSearch" placeholder="Search board" />
     </label>
 
     <button type="button" class="primary" (click)="loadBoard()">Apply</button>
