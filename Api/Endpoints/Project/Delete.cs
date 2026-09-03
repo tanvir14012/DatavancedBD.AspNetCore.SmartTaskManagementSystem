@@ -34,6 +34,7 @@ public sealed class Delete : IEndpoint
         finally
         {
             await httpCacheInvalidator.InvalidateByRouteAsync("/api/projects", currentUser.UserId?.ToString(), cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("/api/dashboard/summary", currentUser.UserId?.ToString(), cancellationToken);
         }
 
         return Results.NoContent();

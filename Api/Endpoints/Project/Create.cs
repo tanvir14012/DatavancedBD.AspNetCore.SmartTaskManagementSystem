@@ -50,6 +50,7 @@ public sealed class Create : IEndpoint
             await cacheService.RemoveByPatternAsync("projects:list:*", cancellationToken);
             await cacheService.RemoveByPatternAsync("dashboard:summary:*", cancellationToken);
             await httpCacheInvalidator.InvalidateByRouteAsync("/api/projects", currentUser.UserId?.ToString(), cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("/api/dashboard/summary", currentUser.UserId?.ToString(), cancellationToken);
 
             return Results.Created($"/api/projects/{result.Id}", result);
         }

@@ -1,6 +1,4 @@
 using Application.Interfaces;
-using Application.Models;
-using Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,6 +35,7 @@ public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, I
         await cacheService.RemoveByPatternAsync("projects:list:*", cancellationToken);
         await cacheService.RemoveByPatternAsync("dashboard:summary:*", cancellationToken);
         await cacheService.RemoveAsync($"ef:{nameof(Domain.Project)}:{request.Id}", cancellationToken);
+
 
         return new Response(true, project.Id);
     }

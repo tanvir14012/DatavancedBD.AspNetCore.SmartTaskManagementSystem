@@ -47,6 +47,8 @@ public sealed class Create : IEndpoint
             await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
             await cacheService.RemoveByPatternAsync("dashboard:summary:*", cancellationToken);
             await httpCacheInvalidator.InvalidateByRouteAsync("/api/tasks", currentUser.UserId?.ToString(), cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("/api/tasks/board", currentUser.UserId?.ToString(), cancellationToken);
+            await httpCacheInvalidator.InvalidateByRouteAsync("/api/dashboard/summary", currentUser.UserId?.ToString(), cancellationToken);
 
             return Results.Created($"/api/tasks/{result.Id}", result);
         }

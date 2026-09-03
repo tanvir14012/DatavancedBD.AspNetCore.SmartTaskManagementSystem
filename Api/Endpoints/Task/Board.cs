@@ -29,15 +29,6 @@ public sealed class Board : IEndpoint
         [FromQuery] string? priority = null,
         CancellationToken cancellationToken = default)
     {
-        if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
-        {
-            return Results.Unauthorized();
-        }
-
-        if (!currentUser.IsInRole("Admin") && !currentUser.IsInRole("Project Manager"))
-        {
-            return Results.Forbid();
-        }
 
         try
         {

@@ -138,7 +138,6 @@ export class TasksPage {
     this.loadingMembers.set(true);
     this.projectService.getMembers(projectId).subscribe({
       next: (members) => {
-        members = members || [];
         this.projectMembers.set(
           members.map((m) => ({
             userId: String(m.userId),

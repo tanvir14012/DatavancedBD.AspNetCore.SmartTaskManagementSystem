@@ -10,15 +10,6 @@ public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser)
 {
     public async Task<Response> Handle(Query request, CancellationToken cancellationToken)
     {
-        if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
-        {
-            throw new UnauthorizedAccessException("Authentication is required.");
-        }
-
-        if (!currentUser.IsInRole("Admin") && !currentUser.IsInRole("Project Manager"))
-        {
-            throw new UnauthorizedAccessException("Only admins and project managers can view the task board.");
-        }
 
         var userId = currentUser.UserId.Value;
         IQueryable<Domain.ProjectTask> query = dbContext.ProjectTasks
