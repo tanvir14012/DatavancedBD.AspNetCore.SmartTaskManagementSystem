@@ -1,12 +1,14 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, computed } from '@angular/core';
+import { httpResource } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
-import { ProjectService } from '../../core/services/project.service';
-import { TaskBoardCard, TaskBoardColumn, TaskService } from '../../core/services/task.service';
+import { ProjectListResult, ProjectService } from '../../core/services/project.service';
+import { TaskBoardCard, TaskBoardResult, TaskService } from '../../core/services/task.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-task-board-page',
@@ -16,72 +18,67 @@ import { TaskBoardCard, TaskBoardColumn, TaskService } from '../../core/services
   styleUrls: ['./task-board.page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TaskBoardPage implements OnInit {
-  readonly columns = signal<TaskBoardColumn[]>([]);
-  readonly projects = signal<Array<{ id: number; name: string }>>([]);
-  readonly projectFilter = signal('all');
-  readonly priorityFilter = signal('all');
-  readonly search = signal('');
-  readonly isLoading = signal(false);
-  readonly canAccessBoard = signal(false);
-
-  private readonly destroyRef = inject(DestroyRef);
-  private readonly searchSubject = new Subject<string>();
+export class TaskBoardPage {
   private readonly taskService = inject(TaskService);
   private readonly projectService = inject(ProjectService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
-  ngOnInit(): void {
-    const role = this.authService.currentUser()?.role ?? '';
-    const hasAccess = role === 'Admin' || role === 'Project Manager';
-    this.canAccessBoard.set(hasAccess);
+  readonly rawSearch = signal('');
+  readonly projectFilter = signal('all');
+  readonly priorityFilter = signal('all');
+  readonly canAccessBoard: boolean;
+  readonly search = toSignal(toObservable(this.rawSearch).pipe(debounceTime(300), distinctUntilChanged()), {
+    initialValue: '',
+  });
 
-    if (!hasAccess) {
-      this.router.navigateByUrl('/tasks');
-      return;
-    }
+  readonly queryParams = computed(() => {
+    const params = {
+      projectId: this.projectFilter() === 'all' ? undefined : Number(this.projectFilter()),
+      priority: this.priorityFilter() === 'all' ? undefined : this.priorityFilter(),
+      search: this.search().trim() || undefined,
+    };
 
-    this.searchSubject
-      .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.loadBoard());
+    const normalized = Object.fromEntries(
+      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '' && value !== 'all'),
+    ) as Record<string, string | number | boolean>;
 
-    this.loadProjects();
-    this.loadBoard();
-  }
+    return normalized;
+  });
 
-  loadProjects(): void {
-    this.projectService.getProjects({ start: 0, length: 200 }).subscribe((result) => {
-      this.projects.set(result.items.map((project) => ({ id: project.id, name: project.name })));
+  readonly projectsResource = httpResource<ProjectListResult>(() => ({
+    url: `${environment.apiBaseUrl}/projects`,
+    params: { start: 0, length: 200 } as Record<string, string | number | boolean>,
+    withCredentials: true,
+  }));
+
+  readonly boardResource = httpResource<TaskBoardResult>(() => ({
+    url: `${environment.apiBaseUrl}/tasks/board`,
+    params: this.queryParams() as Record<string, string | number | boolean>,
+    withCredentials: true,
+  }));
+
+  readonly projects = computed(() => this.projectsResource.value()?.items.map((project) => ({ id: project.id, name: project.name })) ?? []);
+  readonly columns = computed(() => this.boardResource.value()?.columns ?? []);
+  readonly isLoading = this.boardResource.isLoading;
+
+  constructor() {
+    this.canAccessBoard =
+      this.authService.currentUser()?.role === 'Admin' || this.authService.currentUser()?.role === 'Project Manager';
+
+    effect(() => {
+      if (!this.canAccessBoard) {
+        this.router.navigateByUrl('/tasks');
+      }
     });
   }
 
   loadBoard(): void {
-    this.isLoading.set(true);
-
-    this.taskService
-      .board({
-        projectId: this.projectFilter() === 'all' ? undefined : Number(this.projectFilter()),
-        priority: this.priorityFilter() === 'all' ? undefined : this.priorityFilter(),
-        search: this.search().trim() || undefined,
-      })
-      .pipe(
-        finalize(() => {
-          this.isLoading.set(false);
-        }),
-      )
-      .subscribe({
-        next: (result) => {
-          this.columns.set(result.columns);
-        },
-        error: () => {
-          this.columns.set([]);
-        },
-      });
+    this.boardResource.reload();
   }
 
   onSearchInput(): void {
-    this.searchSubject.next(this.search().trim());
+    this.rawSearch.set(this.rawSearch().trim());
   }
 
   updateTaskStatus(task: TaskBoardCard, status: string): void {
@@ -98,7 +95,7 @@ export class TaskBoardPage implements OnInit {
         priority: task.priority,
         dueDate: task.dueDate ?? null,
       })
-      .subscribe(() => this.loadBoard());
+      .subscribe(() => this.boardResource.reload());
   }
 
   statusLabel(status: string): string {

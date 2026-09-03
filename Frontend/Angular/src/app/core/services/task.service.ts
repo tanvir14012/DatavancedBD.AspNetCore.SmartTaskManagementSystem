@@ -1,5 +1,5 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
@@ -89,7 +89,7 @@ export interface TaskUpdateRequest {
 export class TaskService {
   private readonly baseUrl = `${environment.apiBaseUrl}/tasks`;
 
-  constructor(private readonly http: HttpClient) {}
+  private readonly http = inject(HttpClient);
 
   clearListCache(): void {
     // This service no longer caches list responses. Keeping the hook for compatibility with auth/session resets.

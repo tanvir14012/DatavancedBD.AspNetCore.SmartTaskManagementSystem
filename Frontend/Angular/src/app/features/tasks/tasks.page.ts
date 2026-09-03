@@ -1,12 +1,14 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { httpResource } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { ProjectService } from '../../core/services/project.service';
-import { TaskListItem, TaskService } from '../../core/services/task.service';
+import { TaskListItem, TaskListResult, TaskService } from '../../core/services/task.service';
 import { UserService } from '../../core/services/user.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-tasks-page',
@@ -16,16 +18,22 @@ import { UserService } from '../../core/services/user.service';
   styleUrls: ['./tasks.page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TasksPage implements OnInit {
+export class TasksPage {
+  private readonly taskService = inject(TaskService);
+  private readonly projectService = inject(ProjectService);
+  private readonly userService = inject(UserService);
+  private readonly authService = inject(AuthService);
+
+  readonly rawSearch = signal('');
   readonly tasks = signal<TaskListItem[]>([]);
   readonly projects = signal<Array<{ id: number; name: string }>>([]);
   readonly projectMembers = signal<Array<{ userId: string; userName: string; email: string }>>([]);
   readonly allUsers = signal<Array<{ id: number; firstName: string; lastName: string; email: string }>>([]);
   readonly page = signal(1);
   readonly pageSize = 10;
-  readonly totalCount = signal(0);
-  readonly totalPages = signal(1);
-  readonly search = signal('');
+  readonly search = toSignal(toObservable(this.rawSearch).pipe(debounceTime(300), distinctUntilChanged()), {
+    initialValue: '',
+  });
   readonly projectFilter = signal('all');
   readonly statusFilter = signal('all');
   readonly priorityFilter = signal('all');
@@ -37,7 +45,6 @@ export class TasksPage implements OnInit {
   readonly canCreateTask = signal(false);
   readonly showForm = signal(false);
   readonly editingTaskId = signal<number | null>(null);
-  readonly isLoading = signal(false);
   readonly loadingMembers = signal(false);
   readonly improvingDescription = signal(false);
   readonly formErrors = signal<Record<string, string>>({});
@@ -51,28 +58,62 @@ export class TasksPage implements OnInit {
     assigneeEmail: '',
   };
 
-  private readonly destroyRef = inject(DestroyRef);
-  private readonly searchSubject = new Subject<string>();
+  readonly queryParams = computed(() => {
+    const params = {
+      start: (this.page() - 1) * this.pageSize,
+      length: this.pageSize,
+      search: this.search().trim() || undefined,
+      projectId: this.projectFilter() === 'all' ? undefined : Number(this.projectFilter()),
+      status: this.statusFilter() === 'all' ? undefined : this.statusFilter(),
+      priority: this.priorityFilter() === 'all' ? undefined : this.priorityFilter(),
+      assigneeId: this.assigneeFilter() === 'all' ? undefined : this.assigneeFilter(),
+      sortColumn: this.sortColumn() || undefined,
+      sortDirection: this.sortDirection() || undefined,
+    };
 
-  constructor(
-    private readonly taskService: TaskService,
-    private readonly projectService: ProjectService,
-    private readonly userService: UserService,
-    private readonly authService: AuthService,
-  ) {}
+    const normalized = Object.fromEntries(
+      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '' && value !== 'all'),
+    ) as Record<string, string | number | boolean>;
 
-  ngOnInit(): void {
-    this.syncRoleFlags();
-    this.searchSubject
-      .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.page.set(1);
-        this.loadTasks();
+    return normalized;
+  });
+
+  readonly tasksResource = httpResource<TaskListResult>(() => ({
+    url: `${environment.apiBaseUrl}/tasks`,
+    params: this.queryParams() as Record<string, string | number | boolean>,
+    withCredentials: true,
+  }));
+
+  readonly isLoading = this.tasksResource.isLoading;
+  readonly totalCount = computed(() => this.tasksResource.value()?.totalCount ?? 0);
+  readonly totalPages = computed(() => this.tasksResource.value()?.totalPages || 1);
+
+  readonly Object = Object;
+
+  constructor() {
+    effect(() => {
+      this.syncRoleFlags();
+      this.search();
+      this.projectFilter();
+      this.statusFilter();
+      this.priorityFilter();
+      this.assigneeFilter();
+      this.sortColumn();
+      this.sortDirection();
+
+      untracked(() => {
+        if (this.page() !== 1) {
+          this.page.set(1);
+        }
       });
+    });
+
+    effect(() => {
+      this.tasks.set(this.tasksResource.value()?.items ?? []);
+    });
 
     this.loadProjects();
     this.loadUsers();
-    this.loadTasks();
   }
 
   syncRoleFlags(): void {
@@ -81,8 +122,6 @@ export class TasksPage implements OnInit {
     this.isProjectManager.set(role === 'Project Manager');
     this.canCreateTask.set(role === 'Admin' || role === 'Project Manager');
   }
-
-  readonly Object = Object;
 
   loadProjects(): void {
     this.projectService.getProjects({ start: 0, length: 200, status: 'all' }).subscribe((result) => {
@@ -100,78 +139,55 @@ export class TasksPage implements OnInit {
     this.projectService.getMembers(projectId).subscribe({
       next: (members) => {
         members = members || [];
-        this.projectMembers.set(members.map(m => ({
-          userId: String(m.userId),
-          userName: m.userName,
-          email: m.email
-        })));
+        this.projectMembers.set(
+          members.map((m) => ({
+            userId: String(m.userId),
+            userName: m.userName,
+            email: m.email,
+          })),
+        );
         this.loadingMembers.set(false);
       },
       error: () => {
         this.projectMembers.set([]);
         this.loadingMembers.set(false);
-      }
+      },
     });
   }
 
   loadUsers(): void {
     this.userService.list({ start: 0, length: 500, status: 'all' }).subscribe({
       next: (result) => {
-        this.allUsers.set(result.items.map(u => ({
-          id: u.id,
-          firstName: u.firstName,
-          lastName: u.lastName,
-          email: u.email
-        })));
+        this.allUsers.set(
+          result.items.map((u) => ({
+            id: u.id,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            email: u.email,
+          })),
+        );
       },
       error: () => {
         this.allUsers.set([]);
-      }
+      },
     });
   }
 
   loadTasks(): void {
-    this.isLoading.set(true);
-
-    this.taskService
-      .list({
-        start: (this.page() - 1) * this.pageSize,
-        length: this.pageSize,
-        search: this.search().trim() || undefined,
-        projectId: this.projectFilter() === 'all' ? undefined : Number(this.projectFilter()),
-        status: this.statusFilter() === 'all' ? undefined : this.statusFilter(),
-        priority: this.priorityFilter() === 'all' ? undefined : this.priorityFilter(),
-        assigneeId: this.assigneeFilter() === 'all' ? undefined : this.assigneeFilter(),
-        sortColumn: this.sortColumn(),
-        sortDirection: this.sortDirection(),
-      })
-      .pipe(finalize(() => this.isLoading.set(false)))
-      .subscribe({
-        next: (result) => {
-          this.tasks.set(result.items);
-          this.totalCount.set(result.totalCount);
-          this.totalPages.set(result.totalPages || 1);
-          this.page.set(Math.min(this.page(), this.totalPages() || 1));
-        },
-        error: () => {
-          this.tasks.set([]);
-          this.totalCount.set(0);
-          this.totalPages.set(1);
-        },
-      });
+    this.tasksResource.reload();
+    this.tasks.set(this.tasksResource.value()?.items ?? []);
   }
 
   onSearchInput(): void {
-    this.searchSubject.next(this.search().trim());
+    this.rawSearch.set(this.rawSearch().trim());
   }
 
   onSearch(): void {
-    this.searchSubject.next(this.search().trim());
+    this.rawSearch.set(this.rawSearch().trim());
   }
 
   onFilterChange(): void {
     this.page.set(1);
-    this.loadTasks();
   }
 
   openCreateForm(): void {
@@ -285,7 +301,7 @@ export class TasksPage implements OnInit {
     request$.subscribe(() => {
       this.showForm.set(false);
       this.formErrors.set({});
-      this.loadTasks();
+      this.tasksResource.reload();
     });
   }
 
@@ -295,21 +311,19 @@ export class TasksPage implements OnInit {
     }
 
     this.taskService.delete(id).subscribe(() => {
-      this.loadTasks();
+      this.tasksResource.reload();
     });
   }
 
   prevPage(): void {
     if (this.page() > 1) {
-      this.page.update(p => p - 1);
-      this.loadTasks();
+      this.page.update((p) => p - 1);
     }
   }
 
   nextPage(): void {
     if (this.page() < this.totalPages()) {
-      this.page.update(p => p + 1);
-      this.loadTasks();
+      this.page.update((p) => p + 1);
     }
   }
 
