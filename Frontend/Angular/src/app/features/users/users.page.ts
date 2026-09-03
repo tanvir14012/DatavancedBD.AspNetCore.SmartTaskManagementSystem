@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { httpResource, HttpResourceRequest } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { debounceTime, distinctUntilChanged, firstValueFrom } from 'rxjs';
@@ -88,7 +88,10 @@ export class UsersPage {
       this.statusFilter();
       this.sortColumn();
       this.sortDirection();
-      this.page.set(1);
+
+      untracked(() => {
+        this.page.set(1);
+      });
     });
   }
 
