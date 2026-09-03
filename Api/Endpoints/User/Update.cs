@@ -1,3 +1,4 @@
+using Application.Interfaces;
 using Domain;
 using Infrastructure.Bootstrap;
 using Infrastructure.Caching.Abstractions;
@@ -23,6 +24,7 @@ public sealed class Update : IEndpoint
         int id,
         [FromBody] UpdateUserRequest request,
         UserManager<AppUser> userManager,
+        ICurrentUser currentUser,
         IHttpResponseCacheInvalidator httpCacheInvalidator)
     {
         var user = await userManager.FindByIdAsync(id.ToString());
@@ -64,7 +66,7 @@ public sealed class Update : IEndpoint
             await userManager.AddToRoleAsync(user, request.Role.Trim());
         }
 
-        await httpCacheInvalidator.InvalidateByRouteAsync("/api/users");
+        await httpCacheInvalidator.InvalidateByRouteAsync("/api/users", currentUser.UserId?.ToString());
 
         var role = (await userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Team Member";
         return Results.Ok(new Response(

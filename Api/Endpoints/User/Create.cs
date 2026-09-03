@@ -1,3 +1,4 @@
+using Application.Interfaces;
 using Api.Validators;
 using Domain;
 using Infrastructure.Bootstrap;
@@ -23,6 +24,7 @@ public sealed class Create : IEndpoint
     private static async Task<IResult> CreateUser(
         [FromBody] CreateUserRequest request,
         UserManager<AppUser> userManager,
+        ICurrentUser currentUser,
         IHttpResponseCacheInvalidator httpCacheInvalidator)
     {
         var errors = new List<(string, string)>();
@@ -100,7 +102,7 @@ public sealed class Create : IEndpoint
             await userManager.AddToRoleAsync(user, normalizedRole);
         }
 
-        await httpCacheInvalidator.InvalidateByRouteAsync("/api/users");
+        await httpCacheInvalidator.InvalidateByRouteAsync("/api/users", currentUser.UserId?.ToString());
 
         return Results.Created($"/api/users/{user.Id}", new Response(
             user.Id,

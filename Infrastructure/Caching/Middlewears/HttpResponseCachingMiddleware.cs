@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Application.Interfaces;
 using Application.Models;
 using Infrastructure.Caching.Keys;
@@ -12,12 +13,12 @@ namespace Infrastructure.Caching.Middlewears;
 
 public sealed class HttpResponseCachingMiddleware(
     ICacheService cacheService,
-    ICacheKeyGenerator keyGenerator,
+    IHttpResponseCacheKeyBuilder keyBuilder,
     IOptions<HttpResponseCachingOptions> options,
     ILogger<HttpResponseCachingMiddleware> logger) : IMiddleware
 {
     private readonly ICacheService _cacheService = cacheService;
-    private readonly ICacheKeyGenerator _keyGenerator = keyGenerator;
+    private readonly IHttpResponseCacheKeyBuilder _keyBuilder = keyBuilder;
     private readonly HttpResponseCachingOptions _options = options.Value;
     private readonly ILogger<HttpResponseCachingMiddleware> _logger = logger;
 
@@ -133,12 +134,10 @@ public sealed class HttpResponseCachingMiddleware(
             headerNames.Select(header =>
                 $"{header}={context.Request.Headers[header].ToString()}"));
 
-        var includeUser = metadata.VaryByAuthenticatedUser ?? _options.CacheAuthenticatedUser;
-        var userPart = includeUser
-            ? context.User.Identity?.Name ?? context.User.FindFirst("sub")?.Value ?? "anonymous"
-            : "all-users";
+        var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.User.FindFirstValue("sub");
 
-        return _keyGenerator.Build(_options.KeyNamespace, route, queryPart, headerPart, userPart);
+        return _keyBuilder.BuildCacheKey(route, userId, queryPart, headerPart);
     }
 
     private static string NormalizeQueryString(IQueryCollection query)
