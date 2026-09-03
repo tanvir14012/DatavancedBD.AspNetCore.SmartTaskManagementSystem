@@ -12,14 +12,13 @@
   @if (users().length || isAdmin()) {
     <div class="toolbar">
       <div class="search-box">
-        <input type="search" [(ngModel)]="search" placeholder="Search users" (input)="onSearchInput()" (keyup.enter)="onSearch()" />
-        <button type="button" (click)="onSearch()">Search</button>
+        <input type="search" [(ngModel)]="search" placeholder="Search users" />
       </div>
 
       <div class="filters">
         <label>
           Role
-          <select [(ngModel)]="roleFilter" (change)="onFilterChange()">
+          <select [(ngModel)]="roleFilter">
             <option value="all">All</option>
             <option value="Admin">Admin</option>
             <option value="Project Manager">Project Manager</option>
@@ -29,7 +28,7 @@
 
         <label>
           Status
-          <select [(ngModel)]="statusFilter" (change)="onFilterChange()">
+          <select [(ngModel)]="statusFilter">
             <option value="all">All</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -38,7 +37,7 @@
 
         <label>
           Sort
-          <select [(ngModel)]="sortColumn" (change)="onFilterChange()">
+          <select [(ngModel)]="sortColumn">
             <option value="FirstName">First name</option>
             <option value="LastName">Last name</option>
             <option value="Email">Email</option>
@@ -48,7 +47,7 @@
 
         <label>
           Direction
-          <select [(ngModel)]="sortDirection" (change)="onFilterChange()">
+          <select [(ngModel)]="sortDirection">
             <option value="asc">Ascending</option>
             <option value="desc">Descending</option>
           </select>
@@ -104,10 +103,10 @@
     </div>
   }
 
-  @if (users().length === 0) {
-    <div class="empty-state">
-      No users match the current filters.
-    </div>
+  @if (usersResource.isLoading()) {
+    <div class="empty-state">Loading users...</div>
+  } @else if (!usersResource.isLoading() && users().length === 0) {
+    <div class="empty-state">No users match the current filters.</div>
   } @else {
     <div class="table-wrap">
       <table class="user-table">
