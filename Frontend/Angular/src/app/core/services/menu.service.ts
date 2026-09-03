@@ -4,25 +4,26 @@ import { MenuApiResponse, MenuItem, MenuResponse } from '../models/menu-item.mod
 
 @Injectable({ providedIn: 'root' })
 export class MenuService {
-  public static readonly MENU_STORAGE_KEY = 'stms.menus';
+  static readonly MENU_STORAGE_KEY = 'stms.menus';
   private static readonly CURRENT_ROUTE_STORAGE_KEY = 'stms.current-route';
   private static readonly DEFAULT_ROUTE = '/dashboard';
 
   private readonly authService = inject(AuthService);
+  private readonly topBarMenusState = signal<MenuItem[]>(this.readStoredMenus().topBar);
 
-  readonly topBarMenus = signal<MenuItem[]>([]);
+  readonly topBarMenus = this.topBarMenusState.asReadonly();
   readonly currentRoute = signal<string>(this.readStoredCurrentRoute());
 
   readonly sideBarMenus = computed<MenuItem[]>(() => {
-    const topBar = this.topBarMenus();
+    const topBar = this.topBarMenusState();
     const route = this.currentRoute();
 
-    if (!topBar || topBar.length === 0) {
+    if (topBar.length === 0) {
       return [];
     }
 
     const selectedTopBar = topBar.find(
-      (item) => this.matchesRoute(item.route, route) || this.hasMatchingChildRoute(item, route)
+      (item) => this.matchesRoute(item.route, route) || this.hasMatchingChildRoute(item, route),
     );
 
     if (selectedTopBar) {
@@ -37,35 +38,36 @@ export class MenuService {
     return fallbackChildren.length > 0 ? fallbackChildren : [fallbackItem];
   });
 
-  constructor() {
-    const cachedMenus = this.readStoredMenus();
-    this.topBarMenus.set(cachedMenus.topBar);
-    this.currentRoute.set(this.readStoredCurrentRoute());
-  }
-
   setMenuResponse(response: Partial<MenuApiResponse> | null | undefined): void {
     const normalized = this.normalizeMenuResponse(response);
-    this.topBarMenus.set(normalized.topBar);
+    this.topBarMenusState.set(normalized.topBar);
     this.persistMenus(normalized);
   }
 
   setCurrentRoute(route: string): void {
     const normalizedRoute = this.normalizeRoute(route || MenuService.DEFAULT_ROUTE);
     this.currentRoute.set(normalizedRoute);
-    localStorage.setItem(MenuService.CURRENT_ROUTE_STORAGE_KEY, normalizedRoute);
+    this.writeStorage(MenuService.CURRENT_ROUTE_STORAGE_KEY, normalizedRoute);
   }
 
   invalidateCache(): void {
-    this.topBarMenus.set([]);
+    this.topBarMenusState.set([]);
     this.currentRoute.set(MenuService.DEFAULT_ROUTE);
-    localStorage.setItem(MenuService.CURRENT_ROUTE_STORAGE_KEY, MenuService.DEFAULT_ROUTE);
+    this.writeStorage(MenuService.CURRENT_ROUTE_STORAGE_KEY, MenuService.DEFAULT_ROUTE);
   }
 
-  private normalizeMenuResponse(response: Partial<MenuApiResponse> | null | undefined): MenuResponse {
-    const topBar = this.filterVisibleMenuItems(this.normalizeMenuItems(response?.menus ?? response?.topBar ?? []));
+  private normalizeMenuResponse(
+    response: Partial<MenuApiResponse> | null | undefined,
+  ): MenuResponse {
+    const topBar = this.filterVisibleMenuItems(
+      this.normalizeMenuItems(response?.menus ?? response?.topBar ?? []),
+    );
     const sideBar = this.filterVisibleMenuItems(
       this.normalizeMenuItems(
-        response?.sideBar ?? topBar.flatMap((item) => (Array.isArray(item.children) && item.children.length > 0 ? item.children : [item])),
+        response?.sideBar ??
+          topBar.flatMap((item) =>
+            Array.isArray(item.children) && item.children.length > 0 ? item.children : [item],
+          ),
       ),
     );
 
@@ -81,20 +83,16 @@ export class MenuService {
       return [];
     }
 
-    return items.map((item) => {
-      const menuItem = item as Partial<MenuItem>;
-      return {
-        ...menuItem,
-        id: menuItem.id ?? 0,
-        name: menuItem.name ?? '',
-        route: menuItem.route ?? '',
-        icon: menuItem.icon ?? '',
-        displayOrder: menuItem.displayOrder ?? 0,
-        parentId: menuItem.parentId ?? null,
-        type: menuItem.type ?? 'TopBar',
-        children: this.normalizeMenuItems(menuItem.children ?? []),
-      } satisfies MenuItem;
-    });
+    return items.filter(this.isRecord).map((item) => ({
+      id: this.numberValue(item['id']),
+      name: this.stringValue(item['name']),
+      route: this.stringValue(item['route']),
+      icon: this.stringValue(item['icon']),
+      displayOrder: this.numberValue(item['displayOrder']),
+      parentId: this.nullableNumberValue(item['parentId']),
+      type: this.stringValue(item['type'], 'TopBar'),
+      children: this.normalizeMenuItems(item['children']),
+    }));
   }
 
   private filterVisibleMenuItems(items: MenuItem[]): MenuItem[] {
@@ -188,12 +186,12 @@ export class MenuService {
   }
 
   private persistMenus(menus: MenuResponse): void {
-    localStorage.setItem(MenuService.MENU_STORAGE_KEY, JSON.stringify(menus));
+    this.writeStorage(MenuService.MENU_STORAGE_KEY, JSON.stringify(menus));
   }
 
   private readStoredMenus(): MenuResponse {
     try {
-      const cached = localStorage.getItem(MenuService.MENU_STORAGE_KEY);
+      const cached = this.readStorage(MenuService.MENU_STORAGE_KEY);
       if (!cached) {
         return { menus: [], topBar: [], sideBar: [] };
       }
@@ -207,7 +205,7 @@ export class MenuService {
 
   private readStoredCurrentRoute(): string {
     try {
-      const cachedRoute = localStorage.getItem(MenuService.CURRENT_ROUTE_STORAGE_KEY);
+      const cachedRoute = this.readStorage(MenuService.CURRENT_ROUTE_STORAGE_KEY);
       if (cachedRoute) {
         return this.normalizeRoute(cachedRoute);
       }
@@ -215,6 +213,42 @@ export class MenuService {
       // ignore storage access issues and fall back to browser URL
     }
 
-    return this.normalizeRoute(typeof window !== 'undefined' ? window.location.pathname : MenuService.DEFAULT_ROUTE);
+    return this.normalizeRoute(
+      typeof window !== 'undefined' ? window.location.pathname : MenuService.DEFAULT_ROUTE,
+    );
+  }
+
+  private readStorage(key: string): string | null {
+    try {
+      return typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeStorage(key: string, value: string): void {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(key, value);
+      }
+    } catch {
+      // Storage can be unavailable in restricted browser contexts.
+    }
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+  }
+
+  private stringValue(value: unknown, fallback = ''): string {
+    return typeof value === 'string' ? value : fallback;
+  }
+
+  private numberValue(value: unknown, fallback = 0): number {
+    return typeof value === 'number' ? value : fallback;
+  }
+
+  private nullableNumberValue(value: unknown): number | null {
+    return typeof value === 'number' ? value : null;
   }
 }
