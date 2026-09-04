@@ -4,18 +4,18 @@ using System.Text.Json;
 
 namespace Api.Services;
 
-public sealed class GitHubModelsAiService : IAiService
+public sealed class GroqModelsAiService : IAiService
 {
     private readonly AiOptions _options;
     private readonly HttpClient _httpClient;
-    private readonly ILogger<GitHubModelsAiService> _logger;
+    private readonly ILogger<GroqModelsAiService> _logger;
 
     public bool IsEnabled => _options.Enabled && !string.IsNullOrWhiteSpace(_options.GroqApiKey);
 
-    public GitHubModelsAiService(
+    public GroqModelsAiService(
         IOptions<AiOptions> options,
         HttpClient httpClient,
-        ILogger<GitHubModelsAiService> logger)
+        ILogger<GroqModelsAiService> logger)
     {
         _options = options.Value;
         _httpClient = httpClient;

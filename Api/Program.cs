@@ -18,8 +18,8 @@ builder.Services
     .AddSingletonServices(typeof(Program).Assembly, typeof(ICurrentUser).Assembly, typeof(AppDbContext).Assembly);
 
 // Register AI service
-builder.Services.AddScoped<IAiService, GitHubModelsAiService>();
-builder.Services.AddHttpClient<GitHubModelsAiService>();
+builder.Services.AddScoped<IAiService, GroqModelsAiService>();
+builder.Services.AddHttpClient<GroqModelsAiService>();
 
 builder.Services.AddEndpoints(typeof(Program).Assembly);
 builder.Services.AddObservability(builder.Configuration, Shared.Constants.ServiceName);
