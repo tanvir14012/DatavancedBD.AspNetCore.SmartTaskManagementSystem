@@ -1,4 +1,4 @@
-namespace Api.Validators;
+namespace Application.Validators;
 
 public static class ValidationHelper
 {

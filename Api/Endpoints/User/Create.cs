@@ -1,5 +1,5 @@
 using Application.Interfaces;
-using Api.Validators;
+using Application.Validators;
 using Domain;
 using Infrastructure.Bootstrap;
 using Infrastructure.Caching.Abstractions;

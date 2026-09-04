@@ -1,8 +1,10 @@
-using Api.Options;
+using Application.Interfaces;
+using Infrastructure.Bootstrap.Options;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 
-namespace Api.Services;
+namespace Infrastructure.Services;
 
 public sealed class GroqModelsAiService : IAiService
 {
@@ -69,7 +71,7 @@ public sealed class GroqModelsAiService : IAiService
                 Content = new StringContent(requestJson, System.Text.Encoding.UTF8, "application/json")
             };
 
-            requestMessage.Headers.Add("Authorization", $"Bearer {_options.GroqApiKey}");
+            requestMessage.Headers.Add("Authorization", $"******");
 
             var response = await _httpClient.SendAsync(requestMessage, cancellationToken);
 
