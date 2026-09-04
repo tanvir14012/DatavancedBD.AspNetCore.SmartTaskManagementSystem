@@ -30,6 +30,8 @@
       <PackageReference Include="Serilog.Sinks.File" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" />
       <PackageReference Include="Swashbuckle.AspNetCore" />
+      <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
+      <PackageReference Include="StackExchange.Redis" />
   </ItemGroup>
 
   <ItemGroup>

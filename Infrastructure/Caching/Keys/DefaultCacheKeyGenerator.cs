@@ -10,6 +10,22 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
                 .Select(static value => NormalizeSegment(value!)));
     }
 
+    public string Normalize(string prefix, string key)
+    {
+        var sanitized = Build(key);
+
+        if (string.IsNullOrWhiteSpace(prefix))
+            return sanitized;
+
+        return IsAlreadyPrefixed(sanitized, prefix) ? sanitized : Build(prefix, sanitized);
+    }
+
+    private static bool IsAlreadyPrefixed(string key, string prefix)
+    {
+        return key.Equals(prefix, StringComparison.Ordinal)
+            || key.StartsWith(prefix + ':', StringComparison.Ordinal);
+    }
+
     private static string NormalizeSegment(string value)
     {
         var trimmed = value.Trim();

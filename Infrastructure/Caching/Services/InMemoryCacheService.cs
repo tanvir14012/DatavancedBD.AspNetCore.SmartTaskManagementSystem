@@ -41,7 +41,7 @@ internal sealed class InMemoryCacheService(
     public Task SetAsync<T>(string key, T value, CacheEntryOptions? options = null, CancellationToken cancellationToken = default)
     {
         var normalizedKey = NormalizeKey(key);
-        var effectiveOptions = ResolveOptions(options);
+        var effectiveOptions = ResolveOptions(options, value);
 
         StoreInCache(normalizedKey, value, effectiveOptions);
         RegisterCategory(normalizedKey);          // <-- Track category
@@ -54,14 +54,6 @@ internal sealed class InMemoryCacheService(
         var normalizedKey = NormalizeKey(key);
         _memoryCache.Remove(normalizedKey);
         UnregisterCategory(normalizedKey);        // <-- Remove from category index
-
-        return Task.CompletedTask;
-    }
-
-    public Task RemoveWithoutNormalizingAsync(string key, CancellationToken cancellationToken = default)
-    {
-        _memoryCache.Remove(key);
-        UnregisterCategory(key);        // <-- Remove from category index
 
         return Task.CompletedTask;
     }
@@ -127,7 +119,6 @@ internal sealed class InMemoryCacheService(
         {
             cancellationToken.ThrowIfCancellationRequested();
             await RemoveAsync(key, cancellationToken);
-            await RemoveWithoutNormalizingAsync(key, cancellationToken);
         }
     }
 
@@ -181,11 +172,7 @@ internal sealed class InMemoryCacheService(
 
     // ─── Private Helpers ──────────────────────────────────────────────────────
 
-    private string NormalizeKey(string key)
-    {
-        var builtKey = _keyGenerator.Build(key);
-        return _keyGenerator.Build(_options.KeyPrefix, builtKey);
-    }
+    private string NormalizeKey(string key) => _keyGenerator.Normalize(_options.KeyPrefix, key);
 
     private SemaphoreSlim GetOrCreateKeySemaphore(string key)
     {
@@ -229,7 +216,7 @@ internal sealed class InMemoryCacheService(
         _memoryCache.Set(normalizedKey, new CacheValue<T>(true, value), options);
     }
 
-    private MemoryCacheEntryOptions ResolveOptions(CacheEntryOptions? options)
+    private MemoryCacheEntryOptions ResolveOptions<T>(CacheEntryOptions? options, T? value)
     {
         var effectiveAbsoluteSeconds = options?.AbsoluteExpirationRelativeToNow?.TotalSeconds
             ?? _options.DefaultAbsoluteExpirationSeconds;
@@ -244,7 +231,27 @@ internal sealed class InMemoryCacheService(
         if (effectiveSlidingSeconds is > 0)
             memoryOptions.SlidingExpiration = TimeSpan.FromSeconds(effectiveSlidingSeconds.Value);
 
+        // Only pay the estimation cost when a size budget is actually configured.
+        if (_options.Memory.SizeLimit is > 0)
+            memoryOptions.Size = EstimateSize(value);
+
         return memoryOptions;
+    }
+
+    private long EstimateSize<T>(T? value)
+    {
+        if (value is null)
+            return 1;
+
+        try
+        {
+            return Math.Max(1, _serializer.Serialize(value).Length);
+        }
+        catch
+        {
+            // Non-serializable payloads still occupy a slot; charge a minimal weight rather than failing the write.
+            return 1;
+        }
     }
 
     // ─── Category Index Management ────────────────────────────────────────────
@@ -292,16 +299,6 @@ internal sealed class InMemoryCacheService(
                 if (keys.Count == 0)
                     _categoryKeys.Remove(category);
             }
-        }
-    }
-
-    private IReadOnlyCollection<string> GetKeysForCategory(string category)
-    {
-        lock (_categoryLockGuard)
-        {
-            return _categoryKeys.TryGetValue(category, out var keys)
-                ? keys.ToList().AsReadOnly()
-                : Array.Empty<string>();
         }
     }
 
