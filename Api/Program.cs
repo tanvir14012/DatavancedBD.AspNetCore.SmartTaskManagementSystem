@@ -30,10 +30,6 @@ builder.Services.AddAutoMapper(cfg => { }, typeof(ICurrentUser).Assembly);
 var app = builder.Build()
     .UseDefaultMiddleware();
 
-app.UseHttpsRedirection();
-
-app.MapEndpoints();
-
 app.MapHealthChecks("/health");
 app.MapGet("/", () => Results.Ok(new
 {

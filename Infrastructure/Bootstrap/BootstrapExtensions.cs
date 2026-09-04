@@ -191,16 +191,7 @@ public static class BootstrapExtensions
 
     public static WebApplication UseDefaultMiddleware(this WebApplication app)
     {
-        if (app.Environment.IsDevelopment())
-        {
-            app.MapOpenApi().AllowAnonymous();
-            app.UseSwagger();
-            app.UseSwaggerUI();
-        }
-
-        app.UseMiddleware<RequestTracingMiddleware>();
-        app.UseCors(); // CORS must be before exception handler to handle preflight requests
-
+        // 1. Exception handling — must be outermost so it catches everything downstream
         app.UseExceptionHandler(errorApp =>
         {
             errorApp.Run(async context =>
@@ -247,12 +238,47 @@ public static class BootstrapExtensions
             });
         });
 
+        // 2. HSTS — only in non-development environments, before HTTPS redirection
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseHsts();
+        }
+
+        app.UseHttpsRedirection();
+
+        // 3. Dev-only tooling
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapOpenApi().AllowAnonymous();
+            app.UseSwagger();
+            app.UseSwaggerUI();
+        }
+
+        // 4. Tracing/logging — early so every request (incl. static/routing failures) gets a trace id
+        app.UseMiddleware<RequestTracingMiddleware>();
         app.UseSerilogRequestLogging();
-        app.UseRateLimiter();   // 429 + Retry-After before auth — protects all endpoints
+
+        // 5. Explicit routing — required before CORS/AuthN/AuthZ in endpoint-routing pattern
+        app.UseRouting();
+
+        // 6. CORS must sit between UseRouting and UseAuthorization
+        app.UseCors();
+
+        // 7. Rate limiting — after routing (needs endpoint metadata), before auth
+        app.UseRateLimiter();
+
+        // 8. AuthN/AuthZ — order matters, AuthN before AuthZ
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // 9. Response caching — after auth so cache policies can vary by user/role
         app.UseHttpResponseCaching();
+
+        // 10. Audit logging — after auth so user identity/claims are available
         app.UseMiddleware<AuditLoggingMiddleware>();
+
+        // 11. Endpoint execution — must be last
+        app.MapEndpoints();
 
         return app;
     }
