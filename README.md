@@ -142,6 +142,9 @@ Configuration details:
 
 See [AI_SETUP.md](./AI_SETUP.md) for the full setup guide.
 
+### IIS deployment
+For hosting the Angular frontend and .NET API on IIS, see [DeploymentToIIS.md](./DeploymentToIIS.md).
+
 ---
 
 ## API overview
