@@ -71,7 +71,7 @@ public sealed class GroqModelsAiService : IAiService
                 Content = new StringContent(requestJson, System.Text.Encoding.UTF8, "application/json")
             };
 
-            requestMessage.Headers.Add("Authorization", $"******");
+            requestMessage.Headers.Add("Authorization", $"Bearer {_options.GroqApiKey}");
 
             var response = await _httpClient.SendAsync(requestMessage, cancellationToken);
 
