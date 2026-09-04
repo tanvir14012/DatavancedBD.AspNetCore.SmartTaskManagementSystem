@@ -211,9 +211,10 @@ iisreset
 
 ## Additional Production Notes
 
+* Database requirement: SQL Server must be installed on the target server, and the connection string must be updated in `Api/appsettings.json` before deployment to ensure the application connects to the correct SQL Server instance.
 * Keep the Angular site root and API sub-application on the same hostname to simplify authentication cookies and CORS behavior.
 * Use a dedicated certificate and enforce HTTPS only in production.
-* If the app uses a database, configure its connection string before deployment and ensure the IIS AppPool identity has access to that database or use a SQL Server login with the appropriate rights.
+* If the app uses a database, ensure the IIS AppPool identity has access to that database or use a SQL Server login with the appropriate rights.
 * Consider configuring HTTP to HTTPS redirect rules and setting strict security headers for production deployments.
 
 This setup gives you a clean hosting model for a modern Angular frontend and ASP.NET Core backend behind IIS while keeping static assets and API endpoints isolated and easy to manage.
