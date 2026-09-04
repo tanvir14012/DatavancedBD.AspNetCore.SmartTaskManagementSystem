@@ -1,4 +1,4 @@
-using Api.Options;
+using Infrastructure.Bootstrap.Options;
 using Application.Features.Auth.Login;
 using Infrastructure.Bootstrap;
 using MediatR;

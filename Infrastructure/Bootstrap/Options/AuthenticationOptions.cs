@@ -1,4 +1,4 @@
-namespace Api.Options;
+namespace Infrastructure.Bootstrap.Options;
 
 public sealed class AuthenticationOptions
 {

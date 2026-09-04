@@ -1,10 +1,10 @@
-using Api.Options;
+using Infrastructure.Bootstrap.Options;
 using Application.Interfaces;
-using Infrastructure.AssemblyScan;
 using Infrastructure.Bootstrap;
+using Infrastructure.AssemblyScan;
 using Infrastructure.Data.EfCore.Persistence;
 using Application;
-using Api.Services;
+using Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

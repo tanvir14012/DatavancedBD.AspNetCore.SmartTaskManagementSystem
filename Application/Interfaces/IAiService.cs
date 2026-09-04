@@ -1,4 +1,4 @@
-namespace Api.Services;
+namespace Application.Interfaces;
 
 public interface IAiService
 {

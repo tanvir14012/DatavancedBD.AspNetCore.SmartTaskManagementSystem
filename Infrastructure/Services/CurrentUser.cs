@@ -1,8 +1,9 @@
 using System.Security.Claims;
 using Application.Interfaces;
 using Infrastructure.AssemblyScan;
+using Microsoft.AspNetCore.Http;
 
-namespace Api.Services;
+namespace Infrastructure.Services;
 
 public sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser, IScopedService
 {

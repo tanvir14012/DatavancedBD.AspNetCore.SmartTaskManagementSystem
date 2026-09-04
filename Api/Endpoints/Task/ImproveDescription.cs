@@ -1,4 +1,4 @@
-using Api.Services;
+using Application.Interfaces;
 using Infrastructure.Bootstrap;
 using Microsoft.AspNetCore.Mvc;
 

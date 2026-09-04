@@ -2,17 +2,18 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using Api.Options;
 using Application.Interfaces;
 using Domain;
 using Infrastructure.AssemblyScan;
+using Infrastructure.Bootstrap.Options;
 using Infrastructure.Data.EfCore.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Api.Services;
+namespace Infrastructure.Services;
 
 public sealed class AuthService(
     AppDbContext dbContext,
