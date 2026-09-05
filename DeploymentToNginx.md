@@ -56,37 +56,11 @@ Test it:
 sqlcmd -S localhost -U sa -P 'P00ntang1!' -C -Q "SELECT @@VERSION"
 ```
 
-The `-C` is important for local self-signed SQL Server certificates.
+The `-C` flag is important for local/self-signed SQL Server certificates.
 
 ---
 
-## 3. Create the database and set the connection string
-
-```bash
-sqlcmd -S localhost -U sa -P 'P00ntang1!' -C -Q "CREATE DATABASE SmartTaskManagementSystem;"
-```
-
-On the Ubuntu server, set the app connection string in:
-
-```bash
-sudo nano /var/www/stms-api/appsettings.json
-```
-
-Use:
-
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost,1433;Database=SmartTaskManagementSystem;User Id=sa;Password=P00ntang1!;Encrypt=True;TrustServerCertificate=True;"
-  }
-}
-```
-
-This was the working connection string in the live setup.
-
----
-
-## 4. Install the system-wide .NET 10 runtime
+## 3. Install the system-wide .NET 10 runtime
 
 ```bash
 curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/prod.list | sudo tee /etc/apt/sources.list.d/microsoft-prod.list
@@ -102,7 +76,7 @@ Verify:
 
 ---
 
-## 5. Copy the published app files
+## 4. Copy the published app files
 
 Create the folders:
 
@@ -113,12 +87,38 @@ sudo chown -R $USER:$USER /var/www/stms-api /var/www/stms-web
 ```
 
 Use FileZilla or SFTP to copy:
-* published ASP.NET Core files to `/var/www/stms-api`
-* built Angular static files to `/var/www/stms-web`
+- published ASP.NET Core files to `/var/www/stms-api`
+- built Angular static files to `/var/www/stms-web`
 
 ---
 
-## 6. Create the self-signed SSL cert
+## 5. Linux runtime config: prefer environment variables
+
+On Linux, the app should normally be configured through environment variables in `systemd`, not only through `appsettings.json`.
+
+`appsettings.json` can still exist for local development, but for a real Ubuntu server we pass settings like this in the service:
+
+```ini
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment="ConnectionStrings__DefaultConnection=Server=localhost,1433;Database=SmartTaskManagementSystem;User Id=sa;Password=P00ntang1!;Encrypt=True;TrustServerCertificate=True;"
+```
+
+In practice, pass all runtime config values as environment variables, not just the connection string. Example pattern:
+
+```ini
+Environment="ConnectionStrings__DefaultConnection=..."
+Environment="Jwt__Key=..."
+Environment="Jwt__Issuer=..."
+Environment="Jwt__Audience=..."
+```
+
+This is the correct Linux pattern when running ASP.NET Core under `systemd`.
+
+---
+
+## 6. Create the SSL certificate
+
+For local testing, a self-signed cert is fine:
 
 ```bash
 sudo mkdir -p /etc/nginx/ssl
@@ -129,6 +129,8 @@ sudo openssl req -x509 -nodes -newkey rsa:2048 \
   -subj "/CN=stms.local" \
   -addext "subjectAltName=DNS:stms.local,DNS:localhost,IP:127.0.0.1"
 ```
+
+For a real server, replace the self-signed certificate with a proper certificate from a trusted provider (for example Comodo/Sectigo/GlobalSign or a supported CA such as Let’s Encrypt if allowed). You then point nginx to the certificate files in `/etc/ssl/...` or `/etc/nginx/ssl/...`.
 
 ---
 
@@ -144,33 +146,33 @@ Use exactly this:
 
 ```nginx
 server {
- listen 80;
- server_name stms.local localhost;
- return 301 https://$host$request_uri;
+  listen 80;
+  server_name stms.local localhost;
+  return 301 https://$host$request_uri;
 }
 
 server {
- listen 443 ssl http2;
- server_name stms.local localhost;
+  listen 443 ssl http2;
+  server_name stms.local localhost;
 
- root /var/www/stms-web;
- index index.html;
+  root /var/www/stms-web;
+  index index.html;
 
- ssl_certificate /etc/nginx/ssl/stms.crt;
- ssl_certificate_key /etc/nginx/ssl/stms.key;
+  ssl_certificate /etc/nginx/ssl/stms.crt;
+  ssl_certificate_key /etc/nginx/ssl/stms.key;
 
- location /api/ {
-  proxy_pass http://127.0.0.1:5000;
-  proxy_http_version 1.1;
-  proxy_set_header Host $host;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $scheme;
- }
+  location /api/ {
+    proxy_pass http://127.0.0.1:5000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
 
- location / {
-  try_files $uri $uri/ /index.html;
- }
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
 }
 ```
 
@@ -183,11 +185,13 @@ sudo nginx -t
 sudo systemctl restart nginx
 ```
 
+Important: the trailing `/` in `proxy_pass` must be avoided. `proxy_pass http://127.0.0.1:5000;` preserves `/api` correctly.
+
 ---
 
-## 8. Host name mapping used on the real machine
+## 8. Replace `stms.local` with the real domain
 
-On Ubuntu:
+For local testing, the host pattern that worked was:
 
 ```bash
 hostname -I
@@ -199,23 +203,21 @@ Example output:
 172.27.249.191
 ```
 
-Then in Windows hosts file (`C:\Windows\System32\drivers\etc\hosts`):
+Then add this in `/etc/hosts` and the Windows hosts file:
 
 ```text
 172.27.249.191 stms.local
 ```
 
-And in Ubuntu `/etc/hosts`:
+For a real Ubuntu server, do not keep `stms.local` in production. Replace it with a real domain such as `app.example.com` or `stms.example.com` and configure DNS to point the A record to the server IP.
 
-```bash
-sudo nano /etc/hosts
+In nginx:
+
+```nginx
+server_name app.example.com www.app.example.com;
 ```
 
-```text
-172.27.249.191 stms.local
-```
-
-This is the exact hostname pattern that worked in practice.
+In the Windows host file, only keep the local test mapping while debugging. On the real server, use DNS instead of `.local`.
 
 ---
 
@@ -259,51 +261,56 @@ sudo systemctl status stms-api
 
 ## 10. Real Ubuntu server notes
 
-For a real server, also make sure:
+### Nameservers
+
+If the server cannot resolve public DNS names correctly:
 
 ```bash
-sudo nano /etc/systemd/resolved.conf
+sudo nano /etc/netplan/00-installer-config.yaml
 ```
 
-Add:
+Example:
 
-```ini
-[Resolve]
-DNS=1.1.1.1 8.8.8.8
-FallbackDNS=1.1.1.1 8.8.8.8
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: true
+      nameservers:
+        addresses: [8.8.8.8, 1.1.1.1]
 ```
 
-Then:
+Then apply:
 
 ```bash
-sudo systemctl restart systemd-resolved
+sudo netplan apply
 ```
 
-Allow the required ports:
+### Firewall / ports
+
+Open the required ports:
 
 ```bash
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw allow 1433/tcp
+sudo ufw enable
 ```
 
-If needed, open the firewall for HTTP/HTTPS and SQL Server access.
+If you are using a cloud firewall or security group, allow the same ports there too.
+
+### Production certificate
+
+On a real server, a commercial certificate is the correct setup:
+- install the key and certificate chain from your SSL provider (for example Comodo/Sectigo)
+- update nginx `ssl_certificate` and `ssl_certificate_key` to the live files
+- set `server_name` to the real public domain
+- ensure DNS points to the server IP and the certificate matches the hostname
+
+This avoids browser warnings and makes the site work normally for end users.
 
 ---
 
-## 11. Final check
+This is the exact setup pattern that worked in practice: SQL Server on localhost, ASP.NET Core on port `5000`, nginx reverse proxy on `80/443`, and runtime config supplied via environment variables in the Linux service file.
 
-From Ubuntu:
-
-```bash
-curl -k https://stms.local
-curl -k https://stms.local/api/auth/login
-```
-
-From Windows browser:
-
-```text
-https://stms.local
-```
-
-This is the working deployment pattern used for this project.
