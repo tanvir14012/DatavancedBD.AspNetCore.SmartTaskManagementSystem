@@ -1,0 +1,18 @@
+[Unit]
+Description=Smart Task Management System API
+After=network.target
+
+[Service]
+WorkingDirectory=/var/www/stms-api
+ExecStart=/usr/lib/dotnet/dotnet /var/www/stms-api/Api.dll
+Restart=always
+RestartSec=5
+
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment="ConnectionStrings__DefaultConnection=Server=localhost,1433;Database=SmartTaskManagementSystem;User Id=sa;Password=P00ntang1!;Encrypt=True;TrustServerCertificate=True;"
+
+User=tanvir
+Group=tanvir
+
+[Install]
+WantedBy=multi-user.target

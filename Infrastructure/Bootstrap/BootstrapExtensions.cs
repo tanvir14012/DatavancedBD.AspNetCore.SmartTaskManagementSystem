@@ -40,7 +40,7 @@ public static class BootstrapExtensions
         builder.Host.UseSerilog();
 
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Postgres connection string is required.");
+            ?? throw new InvalidOperationException("Database connection string is required.");
         builder.Services.AddServiceDbContext<AppDbContext>(connectionString, Shared.Constants.ServicePrefix);
         builder.Services.AddAutoMigrations<AppDbContext>();
         builder.Services.AddCustomIdentity();
