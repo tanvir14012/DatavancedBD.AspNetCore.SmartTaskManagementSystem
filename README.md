@@ -145,6 +145,9 @@ See [AI_SETUP.md](./AI_SETUP.md) for the full setup guide.
 ### IIS deployment
 For hosting the Angular frontend and .NET API on IIS, see [DeploymentToIIS.md](./DeploymentToIIS.md).
 
+### nginx deployment on Ubuntu / WSL 2
+For a Linux deployment using Ubuntu, nginx, SQL Server, a self-signed certificate, and the system-wide .NET 10 runtime, see [DeploymentToNginx.md](./DeploymentToNginx.md).
+
 ---
 
 ## API overview
