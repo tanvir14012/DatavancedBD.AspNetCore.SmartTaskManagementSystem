@@ -76,7 +76,26 @@ Or visit in browser: `https://api.github.com/repos/tanvir14012/DatavancedBD.AspN
 
 The federated credential subject must match what GitHub sends in the workflow. Use Environment type for better organization.
 
-## Step 4: Get Subscription ID
+## Step 4: Assign Contributor Role to Service Principal
+
+The service principal needs permissions to create and manage Azure resources.
+
+1. Go to Azure Portal
+2. Search for **Subscriptions**
+3. Click your subscription name
+4. Go to **Access control (IAM)**
+5. Click **Add role assignment**
+6. Fill in:
+   - **Role**: Contributor (found in "Privileged administrator roles" tab)
+   - **Assign access to**: User, group, or service principal
+7. Click **Select members**
+8. Search for and select: `github-actions-stms-dev`
+9. Click **Select**
+10. Click **Review + assign**
+
+This grants the service principal Contributor permissions on the subscription, allowing it to create resource groups and deploy resources via Bicep.
+
+## Step 5: Get Subscription ID
 
 1. Search for **Subscriptions**
 2. Click your subscription
@@ -87,7 +106,7 @@ Or use Azure CLI:
 az account show --query id -o tsv
 ```
 
-## Step 5: Store Secrets in GitHub
+## Step 6: Store Secrets in GitHub
 
 1. Go to GitHub repository
 2. Navigate to **Settings** > **Environments**
@@ -97,7 +116,7 @@ az account show --query id -o tsv
 6. Add secrets:
    - **AZURE_CLIENT_ID** = (Application ID from Step 1)
    - **AZURE_TENANT_ID** = (Directory ID from Step 1)
-   - **AZURE_SUBSCRIPTION_ID** = (Subscription ID from Step 4)
+   - **AZURE_SUBSCRIPTION_ID** = (Subscription ID from Step 5)
 
 ## Usage in GitHub Actions
 
