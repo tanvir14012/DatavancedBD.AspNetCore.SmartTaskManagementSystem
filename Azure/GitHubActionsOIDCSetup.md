@@ -24,21 +24,33 @@ The infrastructure provisioning (resource group, role assignment) is handled sep
    - **Application (client) ID**
    - **Directory (tenant) ID**
 
-## Step 2: Get GitHub Organization ID
+## Step 2: Get GitHub Organization ID and Repository ID
 
-Your GitHub username/organization numeric ID is required for the federated credential.
+Your GitHub username/organization numeric ID and repository numeric ID are required for the federated credential.
 
-**Via GitHub API:**
+**Get Organization ID via GitHub API:**
 ```bash
 curl https://api.github.com/users/tanvir14012 | jq '.id'
 ```
 
 Example output:
 ```
-12345678
+44893629
 ```
 
 Or visit in browser: `https://api.github.com/users/tanvir14012` and look for the `"id"` field.
+
+**Get Repository ID via GitHub API:**
+```bash
+curl https://api.github.com/repos/tanvir14012/DatavancedBD.AspNetCore.SmartTaskManagementSystem | jq '.id'
+```
+
+Example output:
+```
+1343056561
+```
+
+Or visit in browser: `https://api.github.com/repos/tanvir14012/DatavancedBD.AspNetCore.SmartTaskManagementSystem` and look for the `"id"` field.
 
 ## Step 3: Create Federated Credential for GitHub
 
@@ -48,15 +60,21 @@ Or visit in browser: `https://api.github.com/users/tanvir14012` and look for the
 4. Click **Add credential**
 5. Choose credential scenario: **GitHub Actions deploying Azure**
 6. Fill in:
-   - **Organization**: `12345678` (your GitHub numeric ID from Step 2)
-   - **Repository**: `DatavancedBD.AspNetCore.SmartTaskManagementSystem`
-   - **Entity type**: Branch
-   - **Branch**: `dev`
+   - **Organization**: `44893629` (your GitHub organization numeric ID from Step 2)
+   - **Repository**: `1343056561` (your GitHub repository numeric ID from Step 2)
+   - **Entity type**: Environment (recommended for multi-environment setups)
+   - **Environment**: `Development`
 7. In credential details section:
    - **Name**: `github-dev`
-   - **Description**: `GitHub Actions CI/CD for dev branch`
+   - **Description**: `GitHub Actions CI/CD for dev environment`
    - **Audience**: `api://AzureADTokenExchange`
 8. Click **Add**
+
+**Note:** The Entity type can be either:
+- **Branch**: if you use `ref:refs/heads/dev` (workflow without `environment:` keyword)
+- **Environment**: if you use `environment: Development` (recommended for separating dev/qa/prod)
+
+The federated credential subject must match what GitHub sends in the workflow. Use Environment type for better organization.
 
 ## Step 4: Get Subscription ID
 
@@ -99,15 +117,33 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Verify Azure login
+        run: az account show --query '{tenantId: tenantId, subscriptionId: id}' -o table
 ```
+
+**Important:** The `environment: Development` keyword in the workflow must match the federated credential Entity type and Environment name in Azure.
+
+## Troubleshooting
+
+If you see: `AADSTS700213: No matching federated identity record found`
+
+**Solution:** Verify the federated credential subject matches the workflow:
+- If workflow uses `environment: Development` → create federated credential with Entity type **Environment** and Environment **Development**
+- If workflow uses no environment → create federated credential with Entity type **Branch** and Branch **dev**
+
+The federated credential subject format will be shown in Azure when you view the credential details.
 
 ## Summary
 
 | Item | Value |
 |------|-------|
 | App Registration Name | `github-actions-stms-dev` |
+| GitHub Organization ID | `44893629` |
+| GitHub Repository ID | `1343056561` |
 | GitHub Environment | `Development` |
-| Federated Credential Subject | `repo:tanvir14012/DatavancedBD.AspNetCore.SmartTaskManagementSystem:ref:refs/heads/dev` |
+| Federated Credential Entity Type | Environment |
+| Federated Credential Subject | `repo:tanvir14012@44893629/DatavancedBD.AspNetCore.SmartTaskManagementSystem@1343056561:environment:Development` |
 
 ---
 
