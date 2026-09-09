@@ -108,7 +108,7 @@ jobs:
       - name: Get Key Vault Secrets Officer Role ID
         id: role_id
         run: |
-          ROLE_ID=$(az role definition list --name "Key Vault Secrets Officer" --query '[0].id' -o tsv)
+          ROLE_ID=$(az role definition list --name "Key Vault Secrets Officer" --query '[0].name' -o tsv)
           echo "role_id=$ROLE_ID" >> $GITHUB_OUTPUT
           echo "Role ID: $ROLE_ID"
 
@@ -121,14 +121,14 @@ jobs:
             --parameters tenantId="${{ secrets.AZURE_TENANT_ID }}" \
             --parameters objectId="${{ steps.azure_ids.outputs.object_id }}" \
             --parameters secretsOfficerRoleId="${{ steps.role_id.outputs.role_id }}"
-      
+
       - name: Store SQL Connection String in Key Vault
         run: |
           CONNECTION_STRING="Server=tcp:stms-dev-sql-server.database.windows.net,1433;Initial Catalog=stms-dev-db;Persist Security Info=False;User ID=sqladmin;Password=${{ secrets.SQL_ADMIN_PASSWORD }};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
-          
+
           az keyvault secret set \
             --vault-name stms-dev-kv \
             --name SqlConnectionString \
             --value "$CONNECTION_STRING"
-          
-          echo "✅ SQL Connection String stored in Key Vault" 
+
+          echo "✅ SQL Connection String stored in Key Vault"
