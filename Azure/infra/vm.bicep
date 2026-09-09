@@ -140,10 +140,55 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   }
 }
 
-// Config file contents are pre-encoded as base64 to avoid shell-quoting issues
-// with nginx's $variables and systemd unit syntax inside the extension command.
-var nginxConfigBase64 = 'c2VydmVyIHsKICBsaXN0ZW4gODA7CiAgc2VydmVyX25hbWUgXzsKCiAgbG9jYXRpb24gLyB7CiAgICBwcm94eV9wYXNzIGh0dHA6Ly8xMjcuMC4wLjE6NTAwMC87CiAgICBwcm94eV9odHRwX3ZlcnNpb24gMS4xOwogICAgcHJveHlfc2V0X2hlYWRlciBIb3N0ICRob3N0OwogICAgcHJveHlfc2V0X2hlYWRlciBYLVJlYWwtSVAgJHJlbW90ZV9hZGRyOwogICAgcHJveHlfc2V0X2hlYWRlciBYLUZvcndhcmRlZC1Gb3IgJHByb3h5X2FkZF94X2ZvcndhcmRlZF9mb3I7CiAgICBwcm94eV9zZXRfaGVhZGVyIFgtRm9yd2FyZGVkLVByb3RvICRzY2hlbWU7CiAgfQp9'
-var systemdUnitBase64 = 'W1VuaXRdCkRlc2NyaXB0aW9uPVNtYXJ0IFRhc2sgTWFuYWdlbWVudCBTeXN0ZW0gQVBJCkFmdGVyPW5ldHdvcmsudGFyZ2V0CgpbU2VydmljZV0KV29ya2luZ0RpcmVjdG9yeT0vdmFyL3d3dy9zdG1zLWFwaQpFeGVjU3RhcnQ9L3Vzci9iaW4vZG90bmV0IC92YXIvd3d3L3N0bXMtYXBpL0FwaS5kbGwKUmVzdGFydD1hbHdheXMKUmVzdGFydFNlYz01CkVudmlyb25tZW50RmlsZT0tL2V0Yy9zdG1zLWFwaS5lbnYKVXNlcj13d3ctZGF0YQpHcm91cD13d3ctZGF0YQoKW0luc3RhbGxdCldhbnRlZEJ5PW11bHRpLXVzZXIudGFyZ2V0'
+// Config file contents are readable as Bicep multi-line strings
+// Bicep's base64() function encodes them automatically
+var nginxConfig = 'server {\n  listen 80;\n  server_name _;\n\n  location / {\n    proxy_pass http://127.0.0.1:5000/;\n    proxy_http_version 1.1;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_set_header X-Forwarded-Proto $scheme;\n  }\n}'
+
+var nginxConfigBase64 = base64(nginxConfig)
+
+var systemdUnitConfig = '[Unit]\nDescription=Smart Task Management System API\nAfter=network.target\n\n[Service]\nWorkingDirectory=/var/www/stms-api\nExecStart=/usr/bin/dotnet /var/www/stms-api/Api.dll\nRestart=always\nRestartSec=5\nEnvironmentFile=-/etc/stms-api.env\nUser=www-data\nGroup=www-data\n\n[Install]\nWantedBy=multi-user.target'
+
+var systemdUnitBase64 = base64(systemdUnitConfig)
+
+var setupScript = '''#!/bin/bash
+set -euxo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+# Update package lists
+apt-get update
+apt-get install -y --no-install-recommends wget curl gnupg ca-certificates nginx unzip
+
+# Add Microsoft package repository
+ARCH=$(dpkg --print-architecture)
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft-prod.gpg
+echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod stable main" > /etc/apt/sources.list.d/microsoft-prod.list
+
+# Install .NET runtime
+apt-get update
+apt-get install -y --no-install-recommends aspnetcore-runtime-10.0
+
+# Create app directory and configure nginx
+mkdir -p /var/www/stms-api
+echo "$1" | base64 -d > /etc/nginx/sites-available/stms
+ln -sf /etc/nginx/sites-available/stms /etc/nginx/sites-enabled/stms
+rm -f /etc/nginx/sites-enabled/default
+
+# Configure systemd service
+echo "$2" | base64 -d > /etc/systemd/system/stms-api.service
+
+# Setup permissions and environment file
+touch /etc/stms-api.env
+chown www-data:www-data /var/www/stms-api /etc/stms-api.env
+
+# Enable services
+systemctl daemon-reload
+systemctl enable nginx
+systemctl restart nginx
+systemctl enable stms-api
+'''
+
+var setupScriptBase64 = base64(setupScript)
 
 resource vmCustomScript 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   parent: vm
@@ -155,7 +200,7 @@ resource vmCustomScript 'Microsoft.Compute/virtualMachines/extensions@2023-09-01
     typeHandlerVersion: '2.1'
     autoUpgradeMinorVersion: true
     settings: {
-      commandToExecute: 'set -euxo pipefail; export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y --no-install-recommends wget curl gnupg ca-certificates nginx unzip; mkdir -p /etc/apt/keyrings; curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft-prod.gpg; echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod stable main" > /etc/apt/sources.list.d/microsoft-prod.list; apt-get update; apt-get install -y --no-install-recommends aspnetcore-runtime-10.0; mkdir -p /var/www/stms-api; echo ${nginxConfigBase64} | base64 -d > /etc/nginx/sites-available/stms; ln -sf /etc/nginx/sites-available/stms /etc/nginx/sites-enabled/stms; rm -f /etc/nginx/sites-enabled/default; echo ${systemdUnitBase64} | base64 -d > /etc/systemd/system/stms-api.service; touch /etc/stms-api.env; chown www-data:www-data /var/www/stms-api /etc/stms-api.env; systemctl daemon-reload; systemctl enable nginx; systemctl restart nginx; systemctl enable stms-api'
+      commandToExecute: 'echo ${setupScriptBase64} | base64 -d > /tmp/setup.sh && bash /tmp/setup.sh "${nginxConfigBase64}" "${systemdUnitBase64}"'
     }
   }
 }
