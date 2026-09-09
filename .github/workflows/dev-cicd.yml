@@ -110,6 +110,6 @@ jobs:
           az deployment group create \
             --resource-group stms-dev-rg \
             --template-file Azure/infra/keyvault.bicep \
-            --parameters @Azure/infra/parameters/dev.json \
+            --parameters @Azure/infra/parameters/keyvault-dev.json \
             --parameters tenantId="${{ secrets.AZURE_TENANT_ID }}" \
             --parameters objectId="${{ steps.azure_ids.outputs.object_id }}"
