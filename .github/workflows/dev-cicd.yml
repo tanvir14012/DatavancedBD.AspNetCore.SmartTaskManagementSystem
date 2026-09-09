@@ -114,6 +114,18 @@ jobs:
             --parameters tenantId="${{ secrets.AZURE_TENANT_ID }}" \
             --parameters objectId="${{ steps.azure_ids.outputs.object_id }}"
       
+      - name: Grant Service Principal Key Vault Access
+        run: |
+          OBJECT_ID=${{ steps.azure_ids.outputs.object_id }}
+          
+          az keyvault set-policy \
+            --name stms-dev-kv \
+            --object-id $OBJECT_ID \
+            --secret-permissions get list set delete
+          
+          echo "✅ Access policy granted"
+          sleep 5
+
       - name: Store SQL Connection String in Key Vault
         run: |
           CONNECTION_STRING="Server=tcp:stms-dev-sql-server.database.windows.net,1433;Initial Catalog=stms-dev-db;Persist Security Info=False;User ID=sqladmin;Password=${{ secrets.SQL_ADMIN_PASSWORD }};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
@@ -123,4 +135,4 @@ jobs:
             --name SqlConnectionString \
             --value "$CONNECTION_STRING"
           
-          echo "✅ SQL Connection String stored in Key Vault"            
+          echo "✅ SQL Connection String stored in Key Vault"         
