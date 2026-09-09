@@ -140,7 +140,8 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   }
 }
 
-// Nginx config with actual newlines (triple quotes)
+// Config file contents are pre-encoded as base64 to avoid shell-quoting issues
+// with nginx's $variables and systemd unit syntax inside the extension command.
 var nginxConfig = '''server {
   listen 80;
   server_name _;
@@ -155,9 +156,6 @@ var nginxConfig = '''server {
   }
 }'''
 
-var nginxConfigBase64 = base64(nginxConfig)
-
-// Systemd unit config with actual newlines (triple quotes)
 var systemdUnitConfig = '''[Unit]
 Description=Smart Task Management System API
 After=network.target
@@ -174,23 +172,16 @@ Group=www-data
 [Install]
 WantedBy=multi-user.target'''
 
-var systemdUnitBase64 = base64(systemdUnitConfig)
-
-// Setup script with actual newlines (triple quotes)
 var setupScript = '''#!/bin/bash
 set -euxo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y --no-install-recommends wget curl gnupg ca-certificates nginx unzip
+apt-get install -y --no-install-recommends wget curl ca-certificates nginx unzip
 
-ARCH=$(dpkg --print-architecture)
-mkdir -p /etc/apt/keyrings
-curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft-prod.gpg
-echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod stable main" > /etc/apt/sources.list.d/microsoft-prod.list
-
-apt-get update
-apt-get install -y --no-install-recommends aspnetcore-runtime-10.0
+curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+bash /tmp/dotnet-install.sh --channel 10.0 --runtime aspnetcore --install-dir /usr/share/dotnet
+ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
 
 mkdir -p /var/www/stms-api
 echo "$1" | base64 -d > /etc/nginx/sites-available/stms
@@ -198,7 +189,6 @@ ln -sf /etc/nginx/sites-available/stms /etc/nginx/sites-enabled/stms
 rm -f /etc/nginx/sites-enabled/default
 
 echo "$2" | base64 -d > /etc/systemd/system/stms-api.service
-
 touch /etc/stms-api.env
 chown www-data:www-data /var/www/stms-api /etc/stms-api.env
 
@@ -208,6 +198,8 @@ systemctl restart nginx
 systemctl enable stms-api
 '''
 
+var nginxConfigBase64 = base64(nginxConfig)
+var systemdUnitBase64 = base64(systemdUnitConfig)
 var setupScriptBase64 = base64(setupScript)
 
 resource vmCustomScript 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
