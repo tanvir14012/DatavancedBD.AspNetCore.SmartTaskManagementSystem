@@ -105,6 +105,13 @@ jobs:
           echo "object_id=$OBJECT_ID" >> $GITHUB_OUTPUT
           echo "Service Principal Object ID: $OBJECT_ID"
 
+      - name: Get Key Vault Secrets Officer Role ID
+        id: role_id
+        run: |
+          ROLE_ID=$(az role definition list --name "Key Vault Secrets Officer" --query '[0].id' -o tsv)
+          echo "role_id=$ROLE_ID" >> $GITHUB_OUTPUT
+          echo "Role ID: $ROLE_ID"
+
       - name: Deploy Key Vault via Bicep
         run: |
           az deployment group create \
@@ -112,21 +119,9 @@ jobs:
             --template-file Azure/infra/keyvault.bicep \
             --parameters @Azure/infra/parameters/keyvault-dev.json \
             --parameters tenantId="${{ secrets.AZURE_TENANT_ID }}" \
-            --parameters objectId="${{ steps.azure_ids.outputs.object_id }}"
+            --parameters objectId="${{ steps.azure_ids.outputs.object_id }}" \
+            --parameters secretsOfficerRoleId="${{ steps.role_id.outputs.role_id }}"
       
-      - name: Grant Service Principal Key Vault Secrets Officer Role
-        run: |
-          OBJECT_ID=${{ steps.azure_ids.outputs.object_id }}
-          KEYVAULT_RESOURCE_ID=$(az keyvault show --name stms-dev-kv --query id -o tsv)
-          
-          az role assignment create \
-            --role "Key Vault Secrets Officer" \
-            --assignee-object-id $OBJECT_ID \
-            --scope $KEYVAULT_RESOURCE_ID
-          
-          echo "✅ Key Vault Secrets Officer role assigned"
-          sleep 10
-
       - name: Store SQL Connection String in Key Vault
         run: |
           CONNECTION_STRING="Server=tcp:stms-dev-sql-server.database.windows.net,1433;Initial Catalog=stms-dev-db;Persist Security Info=False;User ID=sqladmin;Password=${{ secrets.SQL_ADMIN_PASSWORD }};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
@@ -136,4 +131,4 @@ jobs:
             --name SqlConnectionString \
             --value "$CONNECTION_STRING"
           
-          echo "✅ SQL Connection String stored in Key Vault"      
+          echo "✅ SQL Connection String stored in Key Vault" 
