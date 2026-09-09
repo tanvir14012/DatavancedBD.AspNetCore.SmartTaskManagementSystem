@@ -140,48 +140,68 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   }
 }
 
-// Config file contents are readable as Bicep multi-line strings
-// Bicep's base64() function encodes them automatically
-var nginxConfig = 'server {\n  listen 80;\n  server_name _;\n\n  location / {\n    proxy_pass http://127.0.0.1:5000/;\n    proxy_http_version 1.1;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_set_header X-Forwarded-Proto $scheme;\n  }\n}'
+// Nginx config with actual newlines (triple quotes)
+var nginxConfig = '''server {
+  listen 80;
+  server_name _;
+
+  location / {
+    proxy_pass http://127.0.0.1:5000/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}'''
 
 var nginxConfigBase64 = base64(nginxConfig)
 
-var systemdUnitConfig = '[Unit]\nDescription=Smart Task Management System API\nAfter=network.target\n\n[Service]\nWorkingDirectory=/var/www/stms-api\nExecStart=/usr/bin/dotnet /var/www/stms-api/Api.dll\nRestart=always\nRestartSec=5\nEnvironmentFile=-/etc/stms-api.env\nUser=www-data\nGroup=www-data\n\n[Install]\nWantedBy=multi-user.target'
+// Systemd unit config with actual newlines (triple quotes)
+var systemdUnitConfig = '''[Unit]
+Description=Smart Task Management System API
+After=network.target
+
+[Service]
+WorkingDirectory=/var/www/stms-api
+ExecStart=/usr/bin/dotnet /var/www/stms-api/Api.dll
+Restart=always
+RestartSec=5
+EnvironmentFile=-/etc/stms-api.env
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target'''
 
 var systemdUnitBase64 = base64(systemdUnitConfig)
 
+// Setup script with actual newlines (triple quotes)
 var setupScript = '''#!/bin/bash
 set -euxo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
-# Update package lists
 apt-get update
 apt-get install -y --no-install-recommends wget curl gnupg ca-certificates nginx unzip
 
-# Add Microsoft package repository
 ARCH=$(dpkg --print-architecture)
 mkdir -p /etc/apt/keyrings
 curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft-prod.gpg
 echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod stable main" > /etc/apt/sources.list.d/microsoft-prod.list
 
-# Install .NET runtime
 apt-get update
 apt-get install -y --no-install-recommends aspnetcore-runtime-10.0
 
-# Create app directory and configure nginx
 mkdir -p /var/www/stms-api
 echo "$1" | base64 -d > /etc/nginx/sites-available/stms
 ln -sf /etc/nginx/sites-available/stms /etc/nginx/sites-enabled/stms
 rm -f /etc/nginx/sites-enabled/default
 
-# Configure systemd service
 echo "$2" | base64 -d > /etc/systemd/system/stms-api.service
 
-# Setup permissions and environment file
 touch /etc/stms-api.env
 chown www-data:www-data /var/www/stms-api /etc/stms-api.env
 
-# Enable services
 systemctl daemon-reload
 systemctl enable nginx
 systemctl restart nginx
