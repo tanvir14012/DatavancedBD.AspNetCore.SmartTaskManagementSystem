@@ -132,3 +132,149 @@ jobs:
             --value "$CONNECTION_STRING"
 
           echo "✅ SQL Connection String stored in Key Vault"
+
+      - name: Get SQL Connection String from Key Vault
+        id: get_conn
+        run: |
+          CONN=$(az keyvault secret show --vault-name stms-dev-kv --name SqlConnectionString --query value -o tsv)
+          echo "::add-mask::$CONN"
+          echo "value=$CONN" >> $GITHUB_OUTPUT
+
+      - name: Deploy Storage Account via Bicep
+        run: |
+          az deployment group create \
+            --resource-group stms-dev-rg \
+            --template-file Azure/infra/storage.bicep \
+            --parameters @Azure/infra/parameters/storage-dev.json
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: publish
+          path: ./publish
+
+      - name: Zip Published App
+        run: |
+          cd publish
+          zip -r ../publish.zip .
+          cd ..
+
+      - name: Upload Artifact to Storage & Generate SAS URL
+        id: upload
+        run: |
+          STORAGE_KEY=$(az storage account keys list --account-name stmsdevartifacts --resource-group stms-dev-rg --query '[0].value' -o tsv)
+          BLOB_NAME="publish-${{ github.run_id }}.zip"
+
+          az storage blob upload \
+            --account-name stmsdevartifacts \
+            --account-key "$STORAGE_KEY" \
+            --container-name deployments \
+            --name "$BLOB_NAME" \
+            --file publish.zip \
+            --overwrite
+
+          EXPIRY=$(date -u -d "+30 minutes" '+%Y-%m-%dT%H:%MZ')
+          SAS=$(az storage blob generate-sas \
+            --account-name stmsdevartifacts \
+            --account-key "$STORAGE_KEY" \
+            --container-name deployments \
+            --name "$BLOB_NAME" \
+            --permissions r \
+            --expiry "$EXPIRY" \
+            -o tsv)
+
+          BLOB_URL="https://stmsdevartifacts.blob.core.windows.net/deployments/${BLOB_NAME}?${SAS}"
+          echo "::add-mask::$BLOB_URL"
+          echo "blob_url=$BLOB_URL" >> $GITHUB_OUTPUT
+
+      - name: Deploy VM Infrastructure via Bicep
+        run: |
+          az deployment group create \
+            --resource-group stms-dev-rg \
+            --template-file Azure/infra/vm.bicep \
+            --parameters @Azure/infra/parameters/vm-dev.json \
+            --parameters adminPassword="${{ secrets.VM_ADMIN_PASSWORD }}"
+
+      - name: Get VM Public IP
+        id: vm_ip
+        run: |
+          VM_IP=$(az deployment group show --resource-group stms-dev-rg --name vm --query properties.outputs.vmPublicIp.value -o tsv)
+          echo "ip=$VM_IP" >> $GITHUB_OUTPUT
+          echo "VM Public IP: $VM_IP"
+
+      - name: Allow VM on SQL Server Firewall
+        run: |
+          az sql server firewall-rule create \
+            --resource-group stms-dev-rg \
+            --server stms-dev-sql-server \
+            --name AllowVM \
+            --start-ip-address ${{ steps.vm_ip.outputs.ip }} \
+            --end-ip-address ${{ steps.vm_ip.outputs.ip }}
+
+      - name: Get Runner Public IP
+        id: runner_ip
+        run: |
+          RUNNER_IP=$(curl -s https://ifconfig.me)
+          echo "ip=$RUNNER_IP" >> $GITHUB_OUTPUT
+
+      - name: Allow Runner IP on SQL Server Firewall (temporary)
+        run: |
+          az sql server firewall-rule create \
+            --resource-group stms-dev-rg \
+            --server stms-dev-sql-server \
+            --name GitHubRunnerTemp \
+            --start-ip-address ${{ steps.runner_ip.outputs.ip }} \
+            --end-ip-address ${{ steps.runner_ip.outputs.ip }}
+
+      - name: Setup .NET for EF Migrations
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Run EF Core Migrations
+        env:
+          ConnectionStrings__DefaultConnection: ${{ steps.get_conn.outputs.value }}
+        run: |
+          dotnet tool install --global dotnet-ef --version 10.0.11
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          dotnet ef database update --project Infrastructure --startup-project Api
+
+      - name: Remove Temporary Runner Firewall Rule
+        if: always()
+        run: |
+          az sql server firewall-rule delete \
+            --resource-group stms-dev-rg \
+            --server stms-dev-sql-server \
+            --name GitHubRunnerTemp \
+            --yes || true
+
+      - name: Deploy App to VM via Run Command
+        run: |
+          az vm run-command invoke \
+            --resource-group stms-dev-rg \
+            --name stms-dev-vm \
+            --command-id RunShellScript \
+            --scripts \
+              'systemctl stop stms-api || true' \
+              'rm -rf /var/www/stms-api/*' \
+              'curl -sSL "$1" -o /tmp/publish.zip' \
+              'unzip -o /tmp/publish.zip -d /var/www/stms-api' \
+              'printf "ASPNETCORE_ENVIRONMENT=Production\nASPNETCORE_URLS=http://127.0.0.1:5000\nConnectionStrings__DefaultConnection=%s\n" "$2" > /etc/stms-api.env' \
+              'chown -R www-data:www-data /var/www/stms-api /etc/stms-api.env' \
+              'systemctl daemon-reload' \
+              'systemctl restart stms-api' \
+            --parameters "arg1=${{ steps.upload.outputs.blob_url }}" "arg2=${{ steps.get_conn.outputs.value }}"
+
+      - name: Smoke Test Health Endpoint
+        run: |
+          VM_IP="${{ steps.vm_ip.outputs.ip }}"
+          for i in $(seq 1 10); do
+            if curl -sf "http://$VM_IP/health"; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+            echo "Waiting for app to start... ($i/10)"
+            sleep 10
+          done
+          echo "❌ Health check failed"
+          exit 1

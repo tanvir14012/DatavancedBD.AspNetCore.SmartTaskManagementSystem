@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "westus"
+    },
+    "vmName": {
+      "value": "stms-dev-vm"
+    },
+    "vmSize": {
+      "value": "Standard_B1s"
+    },
+    "adminUsername": {
+      "value": "stmsadmin"
+    },
+    "vnetName": {
+      "value": "stms-dev-vnet"
+    },
+    "subnetName": {
+      "value": "stms-dev-subnet"
+    },
+    "nsgName": {
+      "value": "stms-dev-nsg"
+    },
+    "publicIpName": {
+      "value": "stms-dev-pip"
+    },
+    "nicName": {
+      "value": "stms-dev-nic"
+    }
+  }
+}
