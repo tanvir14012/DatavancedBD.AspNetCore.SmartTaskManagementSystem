@@ -97,3 +97,19 @@ jobs:
           az sql server list --resource-group stms-dev-rg --output table
           echo "Listing all databases..."
           az sql db list --resource-group stms-dev-rg --server stms-dev-sql-server --output table
+
+      - name: Get Service Principal Object ID
+        id: azure_ids
+        run: |
+          OBJECT_ID=$(az ad sp show --id ${{ secrets.AZURE_CLIENT_ID }} --query id -o tsv)
+          echo "object_id=$OBJECT_ID" >> $GITHUB_OUTPUT
+          echo "Service Principal Object ID: $OBJECT_ID"
+
+      - name: Deploy Key Vault via Bicep
+        run: |
+          az deployment group create \
+            --resource-group stms-dev-rg \
+            --template-file Azure/infra/keyvault.bicep \
+            --parameters @Azure/infra/parameters/dev.json \
+            --parameters tenantId="${{ secrets.AZURE_TENANT_ID }}" \
+            --parameters objectId="${{ steps.azure_ids.outputs.object_id }}"

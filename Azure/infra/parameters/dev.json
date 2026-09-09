@@ -13,6 +13,9 @@
         },
         "sqlAdminUsername": {
             "value": "sqladmin"
+        },
+        "keyVaultName": {
+            "value": "stms-dev-kv"
         }
     }
 }
