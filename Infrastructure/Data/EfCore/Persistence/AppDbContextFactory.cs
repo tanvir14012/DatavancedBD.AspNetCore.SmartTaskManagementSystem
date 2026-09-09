@@ -11,7 +11,11 @@ public sealed class AppDbContextFactory
 {
     public AppDbContext CreateDbContext(string[] args)
     {
+        // Allows CI/CD pipelines (and any other environment) to run `dotnet ef database update`
+        // against a real database (e.g. Azure SQL) by setting ConnectionStrings__DefaultConnection.
+        // Falls back to the local dev connection string when the variable isn't set.
         var connectionString =
+            Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection") ??
             "Data Source=TIRELESS;" +
             "Initial Catalog=SmartTaskManagementSystem;" +
             "Integrated Security=True;" +

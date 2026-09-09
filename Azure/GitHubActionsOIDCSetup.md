@@ -197,3 +197,14 @@ The federated credential subject format will be shown in Azure when you view the
 ---
 
 **Note:** Infrastructure provisioning (resource group creation and role assignment) is automated via Bicep templates. See `infra/` directory for details.
+
+## Additional GitHub Secrets Required for Full Deployment
+
+Beyond the OIDC secrets in Step 6, the pipeline also needs these secrets in the `Development` environment (**Settings** > **Environments** > **Development** > **Add secret**):
+
+| Secret | Purpose |
+|--------|---------|
+| `SQL_ADMIN_PASSWORD` | Admin password for the Azure SQL Server (`stms-dev-sql-server`), used both when provisioning the server via Bicep and when building the connection string stored in Key Vault |
+| `VM_ADMIN_PASSWORD` | Admin password for the Ubuntu VM (`stms-dev-vm`) that hosts nginx + the ASP.NET Core app, used when provisioning the VM via Bicep. Port 22 (SSH) is intentionally **not** opened in the NSG — deployment happens via `az vm run-command`, not SSH |
+
+Use strong, randomly generated values for both (e.g. `openssl rand -base64 24`). These are provisioning-time credentials, not used for day-to-day access.
