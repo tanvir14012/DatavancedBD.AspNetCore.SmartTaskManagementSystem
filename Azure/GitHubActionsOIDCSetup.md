@@ -143,6 +143,36 @@ jobs:
 
 **Important:** The `environment: Development` keyword in the workflow must match the federated credential Entity type and Environment name in Azure.
 
+## Important: Grant Role-Assignment Permission for Bicep-Managed RBAC
+
+Contributor (Step 4) does **not** include `Microsoft.Authorization/roleAssignments/write`. Azure deliberately excludes this action from Contributor to prevent privilege escalation. If your Bicep templates need to assign roles themselves (for example, granting the service principal **Key Vault Secrets Officer** on a Key Vault so the pipeline can write secrets), the deployment will fail with:
+
+```
+AuthorizationFailed: The client '...' does not have permission to perform action
+'Microsoft.Authorization/roleAssignments/write' at scope '...'
+```
+
+This permission can only be granted by someone who already has it (e.g., the subscription Owner) — it **cannot be automated away**, but it only needs to be done **once**. After that, all future role assignments made by Bicep (Key Vault access, managed identity access, storage, etc.) work with no further manual steps.
+
+**One-time fix — run in Azure Cloud Shell** (already authenticated as you, no `az login` needed):
+
+```bash
+SP_OBJECT_ID=$(az ad sp show --id <AZURE_CLIENT_ID> --query id -o tsv)
+RG_ID=$(az group show --name stms-dev-rg --query id -o tsv)
+
+az role assignment create \
+  --role "User Access Administrator" \
+  --assignee-object-id $SP_OBJECT_ID \
+  --assignee-principal-type ServicePrincipal \
+  --scope $RG_ID
+```
+
+- Replace `<AZURE_CLIENT_ID>` with the Application (client) ID from Step 1 (same value as the `AZURE_CLIENT_ID` GitHub secret).
+- The role is scoped to the **resource group only** (`stms-dev-rg`), not the whole subscription — this keeps the elevated permission as narrow as possible while still letting Bicep manage RBAC for any resource created inside that group.
+- Verify success: the command returns a JSON object with `"roleDefinitionName": "User Access Administrator"`.
+
+Once this is granted, Bicep templates can safely include `Microsoft.Authorization/roleAssignments` resources (e.g., to grant the service principal `Key Vault Secrets Officer` on a Key Vault) and the pipeline will run end-to-end with zero manual intervention going forward.
+
 ## Troubleshooting
 
 If you see: `AADSTS700213: No matching federated identity record found`
