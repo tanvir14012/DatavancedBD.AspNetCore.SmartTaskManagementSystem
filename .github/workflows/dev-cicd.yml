@@ -114,17 +114,18 @@ jobs:
             --parameters tenantId="${{ secrets.AZURE_TENANT_ID }}" \
             --parameters objectId="${{ steps.azure_ids.outputs.object_id }}"
       
-      - name: Grant Service Principal Key Vault Access
+      - name: Grant Service Principal Key Vault Secrets Officer Role
         run: |
           OBJECT_ID=${{ steps.azure_ids.outputs.object_id }}
+          KEYVAULT_RESOURCE_ID=$(az keyvault show --name stms-dev-kv --query id -o tsv)
           
-          az keyvault set-policy \
-            --name stms-dev-kv \
-            --object-id $OBJECT_ID \
-            --secret-permissions get list set delete
+          az role assignment create \
+            --role "Key Vault Secrets Officer" \
+            --assignee-object-id $OBJECT_ID \
+            --scope $KEYVAULT_RESOURCE_ID
           
-          echo "✅ Access policy granted"
-          sleep 5
+          echo "✅ Key Vault Secrets Officer role assigned"
+          sleep 10
 
       - name: Store SQL Connection String in Key Vault
         run: |
@@ -135,4 +136,4 @@ jobs:
             --name SqlConnectionString \
             --value "$CONNECTION_STRING"
           
-          echo "✅ SQL Connection String stored in Key Vault"         
+          echo "✅ SQL Connection String stored in Key Vault"      
