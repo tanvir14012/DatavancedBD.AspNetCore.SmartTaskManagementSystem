@@ -1,0 +1,49 @@
+name: Dev Cleanup (Rollback)
+
+on: 
+  workflow_dispatch:
+    inputs:
+      confirm_deletion:
+        description: 'Type "DELETE" to confirm resource group deletion'
+        required: true
+        type: string
+
+  permissions:
+    contents: read
+    id-token: write
+
+  env:
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+  
+  jobs:
+    cleanup:
+      name: Delete Development Resources in Azure
+      runs-on: ubuntu-latest
+      environment: Development
+
+
+      steps:
+        - name: Validate Confirmation
+        run: |
+          if [ ${{github.event.inputs.confirm_deletion}} != "DELETE" ]; then
+            echo "Deletion not confirmed. Exiting."
+            exit 1
+          fi
+          echo "✅ Confirmation received. Proceeding with cleanup."
+
+        - name: Azure Login
+          uses: azure/login@v2
+          with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+        - name: Delete Resource Group
+          run: |
+            echo "🗑️ Deleting resource group: stms-dev-rg"
+            az group delete \
+            --name stms-dev-rg \
+            --yes \
+            --no-wait
+            echo "✅ Resource group deletion initiated (may take a few minutes)"

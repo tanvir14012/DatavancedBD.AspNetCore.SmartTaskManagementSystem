@@ -72,3 +72,28 @@ jobs:
         run: |
           echo "Listing all resource groups..."
           az group list --output table
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Create Resource Group via Bicep
+        run: |
+          az deployment sub create \
+            --location eastus \
+            --template-file Azure/infra/rg.bicep \
+            --parameters location='eastus' resourceGroupName='stms-dev-rg'
+
+      - name: Deploy SQL Server Infrastructure via Bicep
+        run: |
+          az deployment group create \
+            --resource-group stms-dev-rg \
+            --template-file Azure/infra/sql.bicep \
+            --parameters Azure/infra/parameters/dev.json \
+            --parameters sqlAdminPassword="${{ secrets.SQL_ADMIN_PASSWORD }}"
+
+      - name: Verify SQL Server Deployment
+        run: |
+          echo "Listing all SQL servers in the resource group..."
+          az sql server list --resource-group stms-dev-rg --output table
+          echo "Listing all databases..."
+          az sql db list --resource-group stms-dev-rg --server stms-dev-sql-server --output table
