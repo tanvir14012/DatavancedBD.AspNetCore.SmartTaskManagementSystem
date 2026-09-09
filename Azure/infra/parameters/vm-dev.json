@@ -9,7 +9,7 @@
       "value": "stms-dev-vm"
     },
     "vmSize": {
-      "value": "Standard_B16pls_v2"
+      "value": "Standard_B2ps_v2"
     },
     "adminUsername": {
       "value": "stmsadmin"
