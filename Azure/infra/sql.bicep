@@ -30,14 +30,14 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2025-08-01-preview' = {
   name: sqlDatabaseName
   location: location
   sku: {
-    name: 'GP_Gen5_1'
+    name: 'GP_S_Gen5_1'
     tier: 'GeneralPurpose'
   }
   properties: {
     collation: 'SQL_Latin1_General_CP1_CI_AS'
     maxSizeBytes: 2147483648
     autoPauseDelay: 60
-    minCapacity: 0
+    minCapacity: 1
   }
 }
 
