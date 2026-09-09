@@ -142,7 +142,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
       imageReference: {
         publisher: 'Canonical'
         offer: 'ubuntu-24_04-lts'
-        sku: 'server-gen2'
+        sku: 'server'
         version: 'latest'
       }
 
