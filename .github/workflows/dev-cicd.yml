@@ -403,7 +403,6 @@ jobs:
             --resource-group "$RESOURCE_GROUP" \
             --server "$SQL_SERVER" \
             --name "$RULE_NAME" \
-            --yes \
             --only-show-errors \
             --output none
 
