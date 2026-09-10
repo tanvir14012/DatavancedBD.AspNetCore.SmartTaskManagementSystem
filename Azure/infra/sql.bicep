@@ -39,7 +39,6 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01' = {
 
   properties: {
     collation: 'SQL_Latin1_General_CP1_CI_AS'
-    minCapacity: 1
     autoPauseDelay: 60
     useFreeLimit: true
     freeLimitExhaustionBehavior: 'AutoPause'
