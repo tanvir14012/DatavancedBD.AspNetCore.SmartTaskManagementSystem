@@ -1,10 +1,10 @@
-name: Dev Cleanup (Rollback)
+name: Dev Cleanup (Delete Azure Resources)
 
-on: 
+on:
   workflow_dispatch:
     inputs:
       confirm_deletion:
-        description: 'Type "DELETE" to confirm resource group deletion'
+        description: 'Type DELETE to delete all development resources and purge their secrets'
         required: true
         type: string
 
@@ -12,24 +12,40 @@ permissions:
   contents: read
   id-token: write
 
+# Use this same concurrency group on the CI/CD deploy job.
+concurrency:
+  group: stms-dev-azure-resources
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  RESOURCE_GROUP: stms-dev-rg
+  KEY_VAULT_NAME: stms-dev-kv
 
 jobs:
   cleanup:
     name: Delete Development Resources in Azure
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     environment: Development
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Validate Confirmation
+        env:
+          CONFIRM_INPUT: ${{ inputs.confirm_deletion }}
         run: |
-          CONFIRM_INPUT="${{ inputs.confirm_deletion }}"
-          if [ "$CONFIRM_INPUT" != "DELETE" ]; then
-            echo "::error::Deletion not confirmed (received '$CONFIRM_INPUT'). Exiting."
+          set -euo pipefail
+
+          if [[ "$CONFIRM_INPUT" != "DELETE" ]]; then
+            echo "::error::Deletion not confirmed. Enter DELETE."
             exit 1
           fi
-          echo "✅ Confirmation received. Proceeding with cleanup."
+
+          echo "Deletion confirmed for $RESOURCE_GROUP."
 
       - name: Azure Login
         uses: azure/login@v2
@@ -38,11 +54,129 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Delete Resource Group
+      - name: Delete Resource Group and Wait for Completion
         run: |
-          echo "🗑️ Deleting resource group: stms-dev-rg"
+          set -euo pipefail
+
+          EXISTS=$(az group exists --name "$RESOURCE_GROUP")
+
+          if [[ "$EXISTS" == "false" ]]; then
+            echo "Resource group is already deleted."
+            exit 0
+          fi
+
+          echo "Resources scheduled for deletion:"
+          az resource list \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "[].{Name:name,Type:type,Location:location}" \
+            --output table
+
           az group delete \
-            --name stms-dev-rg \
+            --name "$RESOURCE_GROUP" \
             --yes \
             --no-wait
-          echo "✅ Resource group deletion initiated (may take a few minutes)"
+
+          echo "Waiting for Azure to finish deleting the resource group..."
+
+          az group wait \
+            --name "$RESOURCE_GROUP" \
+            --deleted \
+            --interval 30 \
+            --timeout 3600
+
+          EXISTS=$(az group exists --name "$RESOURCE_GROUP")
+
+          if [[ "$EXISTS" != "false" ]]; then
+            echo "::error::Resource group still exists."
+            exit 1
+          fi
+
+          echo "Resource group deletion verified."
+
+      - name: Purge Application Key Vault
+        run: |
+          set -euo pipefail
+
+          SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+          VAULT_ID="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME"
+
+          # Match the original full resource ID, not just the vault name.
+          az keyvault list-deleted --output json > deleted-vaults.json
+
+          VAULT=$(jq -c --arg id "$VAULT_ID" '
+            [
+              .[]
+              | select(
+                  (.properties.vaultId | ascii_downcase)
+                  == ($id | ascii_downcase)
+                )
+            ][0] // empty
+          ' deleted-vaults.json)
+
+          if [[ -z "$VAULT" ]]; then
+            echo "No matching soft-deleted Key Vault remains."
+            exit 0
+          fi
+
+          PROTECTED=$(jq -r \
+            '.properties.purgeProtectionEnabled // false' <<< "$VAULT")
+
+          if [[ "$PROTECTED" == "true" ]]; then
+            echo "::error::Key Vault has purge protection. Azure must retain it until its retention period expires."
+            exit 1
+          fi
+
+          LOCATION=$(jq -r '.properties.location' <<< "$VAULT")
+
+          az keyvault purge \
+            --name "$KEY_VAULT_NAME" \
+            --location "$LOCATION"
+
+          # Allow time for the purge to become visible.
+          for attempt in $(seq 1 30); do
+            az keyvault list-deleted --output json > deleted-vaults.json
+
+            REMAINING=$(jq --arg id "$VAULT_ID" '
+              [
+                .[]
+                | select(
+                    (.properties.vaultId | ascii_downcase)
+                    == ($id | ascii_downcase)
+                  )
+              ] | length
+            ' deleted-vaults.json)
+
+            if [[ "$REMAINING" == "0" ]]; then
+              echo "Key Vault purge verified."
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "::error::Key Vault purge has not completed."
+          exit 1
+
+      - name: Report Cleanup Success
+        run: |
+          {
+            echo "### Development cleanup completed"
+            echo
+            echo "- Resource group \`$RESOURCE_GROUP\` is deleted."
+            echo "- Application resources within the group are deleted."
+            echo "- No matching soft-deleted application Key Vault remains."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Show Diagnostics on Failure
+        if: failure()
+        run: |
+          echo "Cleanup did not fully complete. Review the failed step."
+
+          az group show \
+            --name "$RESOURCE_GROUP" \
+            --output json || true
+
+          az resource list \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "[].{Name:name,Type:type}" \
+            --output table || true

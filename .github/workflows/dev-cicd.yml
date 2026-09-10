@@ -55,6 +55,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: Development
     needs: build
+
+    concurrency:
+      group: stms-dev-azure-resources
+      cancel-in-progress: false
+      
     steps:
       - name: Azure Login
         uses: azure/login@v2
