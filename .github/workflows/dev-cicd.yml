@@ -246,6 +246,7 @@ jobs:
         env:
           ConnectionStrings__DefaultConnection: ${{ steps.get_conn.outputs.value }}
         run: |
+          dotnet restore
           dotnet tool install --global dotnet-ef --version 10.0.11
           export PATH="$PATH:$HOME/.dotnet/tools"
           dotnet ef database update --project Infrastructure --startup-project Api
