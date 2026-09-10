@@ -30,12 +30,12 @@ builder.Services.AddAutoMapper(cfg => { }, typeof(ICurrentUser).Assembly);
 var app = builder.Build()
     .UseDefaultMiddleware();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapGet("/", () => Results.Ok(new
 {
     Service = Shared.Constants.ServiceName,
     Status = "Up",
     Utc = DateTimeOffset.UtcNow
-}));
+})).AllowAnonymous();
 
 app.Run();

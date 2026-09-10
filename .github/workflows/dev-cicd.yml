@@ -282,16 +282,230 @@ jobs:
               "systemctl daemon-reload" \
               "systemctl restart stms-api"
 
-      - name: Smoke Test Health Endpoint
+      - name: Setup Node for Frontend Build
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Frontend/Angular/package-lock.json
+
+      - name: Build Frontend
+        working-directory: Frontend/Angular
         run: |
-          VM_IP="${{ steps.vm_ip.outputs.ip }}"
+          npm ci
+          npm run build:prod
+
+      - name: Zip Frontend Build
+        working-directory: Frontend/Angular/dist/smart-task-management-system/browser
+        run: |
+          test -f index.html
+          zip -qr "$GITHUB_WORKSPACE/frontend-build.zip" .
+
+      - name: Upload Frontend Build to Storage & Generate SAS URL
+        id: upload_frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          STORAGE_KEY=$(az storage account keys list \
+            --account-name stmsdevartifacts \
+            --resource-group stms-dev-rg \
+            --query '[0].value' -o tsv)
+          echo "::add-mask::$STORAGE_KEY"
+
+          BLOB_NAME="frontend-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.zip"
+
+          az storage blob upload \
+            --account-name stmsdevartifacts \
+            --account-key "$STORAGE_KEY" \
+            --container-name deployments \
+            --name "$BLOB_NAME" \
+            --file "$GITHUB_WORKSPACE/frontend-build.zip" \
+            --overwrite \
+            --only-show-errors \
+            --output none
+
+          EXPIRY=$(date -u -d "+30 minutes" '+%Y-%m-%dT%H:%MZ')
+
+          SAS=$(az storage blob generate-sas \
+            --account-name stmsdevartifacts \
+            --account-key "$STORAGE_KEY" \
+            --container-name deployments \
+            --name "$BLOB_NAME" \
+            --permissions r \
+            --https-only \
+            --expiry "$EXPIRY" \
+            -o tsv)
+          echo "::add-mask::$SAS"
+
+          BLOB_URL="https://stmsdevartifacts.blob.core.windows.net/deployments/${BLOB_NAME}?${SAS}"
+          echo "::add-mask::$BLOB_URL"
+          echo "frontend_blob_url=$BLOB_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Frontend to Nginx with Self-Signed HTTPS
+        shell: bash
+        env:
+          VM_IP: ${{ steps.vm_ip.outputs.ip }}
+          FRONTEND_BLOB_URL: ${{ steps.upload_frontend.outputs.frontend_blob_url }}
+        run: |
+          set -euo pipefail
+          test -n "$VM_IP"
+          test -n "$FRONTEND_BLOB_URL"
+
+          # Quoted heredocs preserve shell and Nginx variables.
+          cat > deploy-frontend.sh <<'REMOTE_SCRIPT'
+          #!/bin/sh
+          set -eu
+
+          VM_IP="$1"
+          FRONTEND_BLOB_URL="$2"
+
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y openssl nginx curl unzip ca-certificates
+
+          mkdir -p /var/www/stms-web \
+            /etc/nginx/ssl \
+            /etc/nginx/sites-available \
+            /etc/nginx/sites-enabled
+
+          # Download and validate before replacing the deployed files.
+          WORK_DIR=$(mktemp -d)
+          trap 'rm -rf "$WORK_DIR"' EXIT
+
+          curl --fail --silent --show-error --location \
+            --retry 3 "$FRONTEND_BLOB_URL" \
+            -o "$WORK_DIR/frontend-build.zip"
+
+          unzip -q "$WORK_DIR/frontend-build.zip" -d "$WORK_DIR/site"
+          test -f "$WORK_DIR/site/index.html"
+
+          # Reuse the certificate unless missing, expiring within
+          # 30 days, or issued for a different IP.
+          if [ ! -s /etc/nginx/ssl/stms.key ] ||
+             [ ! -s /etc/nginx/ssl/stms.crt ] ||
+             ! openssl x509 -in /etc/nginx/ssl/stms.crt \
+                 -checkend 2592000 -noout >/dev/null 2>&1 ||
+             ! openssl x509 -in /etc/nginx/ssl/stms.crt \
+                 -checkip "$VM_IP" -noout >/dev/null 2>&1; then
+            (
+              umask 077
+              openssl req -x509 -nodes -newkey rsa:2048 -sha256 \
+                -keyout /etc/nginx/ssl/stms.key \
+                -out /etc/nginx/ssl/stms.crt \
+                -days 365 \
+                -subj "/CN=$VM_IP" \
+                -addext "subjectAltName=IP:$VM_IP"
+            )
+          fi
+
+          chown root:root /etc/nginx/ssl/stms.key /etc/nginx/ssl/stms.crt
+          chmod 600 /etc/nginx/ssl/stms.key
+          chmod 644 /etc/nginx/ssl/stms.crt
+
+          cat > "$WORK_DIR/stms.conf" <<'NGINX_CONFIG'
+          server {
+              listen 80;
+              server_name __VM_IP__;
+              return 301 https://__VM_IP__$request_uri;
+          }
+
+          server {
+              listen 443 ssl;
+              server_name __VM_IP__;
+
+              root /var/www/stms-web;
+              index index.html;
+
+              ssl_certificate /etc/nginx/ssl/stms.crt;
+              ssl_certificate_key /etc/nginx/ssl/stms.key;
+              ssl_protocols TLSv1.2 TLSv1.3;
+
+              proxy_http_version 1.1;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+
+              location /api/ {
+                  proxy_pass http://127.0.0.1:5000;
+              }
+
+              location = /health {
+                  proxy_pass http://127.0.0.1:5000;
+              }
+
+              location / {
+                  try_files $uri $uri/ /index.html;
+              }
+          }
+          NGINX_CONFIG
+
+          sed "s/__VM_IP__/$VM_IP/g" "$WORK_DIR/stms.conf" \
+            > /etc/nginx/sites-available/stms
+
+          ln -sf /etc/nginx/sites-available/stms /etc/nginx/sites-enabled/stms
+          rm -f /etc/nginx/sites-enabled/default
+          nginx -t
+
+          # Clear old files, including hidden files.
+          find /var/www/stms-web -mindepth 1 -maxdepth 1 \
+            -exec rm -rf -- {} +
+          cp -a "$WORK_DIR/site/." /var/www/stms-web/
+          chown -R www-data:www-data /var/www/stms-web
+          find /var/www/stms-web -type d -exec chmod 755 {} +
+          find /var/www/stms-web -type f -exec chmod 644 {} +
+
+          systemctl enable nginx
+          systemctl restart nginx
+
+          # Validate HTTPS locally using the actual certificate.
+          curl --fail --silent --show-error \
+            --cacert /etc/nginx/ssl/stms.crt \
+            --resolve "$VM_IP:443:127.0.0.1" \
+            "https://$VM_IP/" -o /dev/null
+
+          echo "STMS_FRONTEND_DEPLOY_OK"
+          REMOTE_SCRIPT
+
+          az vm run-command invoke \
+            --resource-group stms-dev-rg \
+            --name stms-dev-vm \
+            --command-id RunShellScript \
+            --scripts @deploy-frontend.sh \
+            --parameters "$VM_IP" "$FRONTEND_BLOB_URL" \
+            --output json > frontend-deploy-result.json
+
+          # Check script completion as well as the Azure CLI exit code.
+          if ! jq -e \
+            'any(.value[]?; (.message // "") | contains("STMS_FRONTEND_DEPLOY_OK"))' \
+            frontend-deploy-result.json > /dev/null; then
+            cat frontend-deploy-result.json
+            echo "::error::Frontend deployment failed on the VM."
+            exit 1
+          fi
+
+      - name: Smoke Test Frontend and API over HTTPS
+        shell: bash
+        env:
+          VM_IP: ${{ steps.vm_ip.outputs.ip }}
+        run: |
+          set -euo pipefail
+
+          # -k is needed here because the runner does not trust
+          # the VM's self-signed certificate.
           for i in $(seq 1 10); do
-            if curl -sf "http://$VM_IP/health"; then
-              echo "✅ Health check passed"
+            if curl -fkSs --connect-timeout 10 --max-time 20 \
+                 "https://$VM_IP/" -o /dev/null &&
+               curl -fkSs --connect-timeout 10 --max-time 20 \
+                 "https://$VM_IP/health" -o /dev/null; then
+              echo "Frontend and API checks passed: https://$VM_IP"
               exit 0
             fi
-            echo "Waiting for app to start... ($i/10)"
+
+            echo "Waiting for frontend/API... ($i/10)"
             sleep 10
           done
-          echo "❌ Health check failed"
+
+          echo "::error::HTTPS smoke checks failed."
           exit 1
