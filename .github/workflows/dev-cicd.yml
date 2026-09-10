@@ -260,7 +260,7 @@ jobs:
             --name GitHubRunnerTemp \
             --yes || true
 
-    - name: Deploy App to VM via Run Command
+      - name: Deploy App to VM via Run Command
         run: |
           BLOB_URL="${{ steps.upload.outputs.blob_url }}"
           CONN_STR="${{ steps.get_conn.outputs.value }}"
