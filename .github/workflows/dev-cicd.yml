@@ -270,11 +270,14 @@ jobs:
             --name stms-dev-vm \
             --command-id RunShellScript \
             --scripts \
+              "apt-get update && apt-get install -y unzip curl" \
               "systemctl stop stms-api || true" \
               "rm -rf /var/www/stms-api/*" \
               "curl -sSL '$BLOB_URL' -o /tmp/publish.zip" \
               "unzip -o /tmp/publish.zip -d /var/www/stms-api" \
-              "printf 'ASPNETCORE_ENVIRONMENT=Production\nASPNETCORE_URLS=http://127.0.0.1:5000\nConnectionStrings__DefaultConnection=%%s\n' '$CONN_STR' > /etc/stms-api.env" \
+              "echo 'ASPNETCORE_ENVIRONMENT=Production' > /etc/stms-api.env" \
+              "echo 'ASPNETCORE_URLS=http://127.0.0.1:5000' >> /etc/stms-api.env" \
+              "echo 'ConnectionStrings__DefaultConnection=$CONN_STR' >> /etc/stms-api.env" \
               "chown -R www-data:www-data /var/www/stms-api /etc/stms-api.env" \
               "systemctl daemon-reload" \
               "systemctl restart stms-api"
