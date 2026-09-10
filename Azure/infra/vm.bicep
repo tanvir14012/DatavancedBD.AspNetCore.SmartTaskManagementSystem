@@ -94,6 +94,10 @@ resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
   name: nicName
   location: location
 
+  dependsOn: [
+    vnet
+  ]
+
   properties: {
     ipConfigurations: [
       {
@@ -122,7 +126,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
 resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   name: vmName
   location: location
-
+  
   properties: {
     hardwareProfile: {
       vmSize: vmSize
