@@ -468,12 +468,24 @@ jobs:
           echo "STMS_FRONTEND_DEPLOY_OK"
           REMOTE_SCRIPT
 
+          # Encode the values so the SAS URL cannot interfere with shell syntax.
+          VM_IP_BASE64=$(printf '%s' "$VM_IP" | base64 -w0)
+          BLOB_URL_BASE64=$(printf '%s' "$FRONTEND_BLOB_URL" | base64 -w0)
+          echo "::add-mask::$BLOB_URL_BASE64"
+
+          # Supply $1 and $2 inside the script, bypassing Azure parameter parsing.
+          {
+            printf '#!/bin/sh\n'
+            printf 'set -- "$(printf %%s "%s" | base64 --decode)" "$(printf %%s "%s" | base64 --decode)"\n' \
+              "$VM_IP_BASE64" "$BLOB_URL_BASE64"
+            cat deploy-frontend.sh
+          } > deploy-frontend-invoke.sh
+
           az vm run-command invoke \
             --resource-group stms-dev-rg \
             --name stms-dev-vm \
             --command-id RunShellScript \
-            --scripts @deploy-frontend.sh \
-            --parameters "$VM_IP" "$FRONTEND_BLOB_URL" \
+            --scripts @deploy-frontend-invoke.sh \
             --output json > frontend-deploy-result.json
 
           # Check script completion as well as the Azure CLI exit code.
