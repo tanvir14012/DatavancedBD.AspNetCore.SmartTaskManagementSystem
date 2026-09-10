@@ -198,9 +198,20 @@ jobs:
       - name: Get VM Public IP
         id: vm_ip
         run: |
-          VM_IP=$(az deployment group show --resource-group stms-dev-rg --name vm --query properties.outputs.vmPublicIp.value -o tsv)
-          echo "ip=$VM_IP" >> $GITHUB_OUTPUT
-          echo "VM Public IP: $VM_IP"
+          PIP_NAME=$(az deployment group show \
+            -g stms-dev-rg \
+            -n vm \
+            --query properties.outputs.publicIpName.value \
+            -o tsv)
+
+          VM_IP=$(az network public-ip show \
+            -g stms-dev-rg \
+            -n "$PIP_NAME" \
+            --query ipAddress \
+            -o tsv)
+
+          echo "ip=$VM_IP" >> "$GITHUB_OUTPUT"
+          echo "VM IP: $VM_IP"
 
       - name: Allow VM on SQL Server Firewall
         run: |
