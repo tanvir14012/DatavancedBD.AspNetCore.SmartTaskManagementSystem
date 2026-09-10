@@ -84,9 +84,9 @@ jobs:
       - name: Create Resource Group via Bicep
         run: |
           az deployment sub create \
-            --location eastus \
+            --location southeastasia \
             --template-file Azure/infra/rg.bicep \
-            --parameters location='eastus' resourceGroupName='stms-dev-rg'
+            --parameters location='southeastasia' resourceGroupName='stms-dev-rg'
 
       - name: Deploy SQL Server Infrastructure via Bicep
         run: |
@@ -265,27 +265,165 @@ jobs:
             --name GitHubRunnerTemp \
             --yes || true
 
-      - name: Deploy App to VM via Run Command
+      - name: Generate API Environment File
+        shell: bash
+        env:
+          DB_CONNECTION: ${{ steps.get_conn.outputs.value }}
+          VM_IP: ${{ steps.vm_ip.outputs.ip }}
+          JWT_KEY: ${{ secrets.JWT_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          BLOB_URL="${{ steps.upload.outputs.blob_url }}"
-          CONN_STR="${{ steps.get_conn.outputs.value }}"
+          set -euo pipefail
+          umask 077
+
+          : "${DB_CONNECTION:?Missing DB_CONNECTION}"
+          : "${VM_IP:?Missing VM_IP}"
+          : "${JWT_KEY:?Missing JWT_KEY}"
+          : "${GROQ_API_KEY:?Missing GROQ_API_KEY}"
+
+          ENV_FILE="$RUNNER_TEMP/stms-api.env"
+
+          {
+            printf '%s\n' \
+              'ASPNETCORE_ENVIRONMENT="Production"' \
+              'ASPNETCORE_URLS="http://127.0.0.1:5000"'
+
+            jq -r '
+              .ConnectionStrings.DefaultConnection = env.DB_CONNECTION
+              | .Cors.AllowedOrigins = [
+                  ("https://" + env.VM_IP),
+                  ("http://" + env.VM_IP)
+                ]
+              | .Jwt.Issuer = ("https://" + env.VM_IP)
+              | .Jwt.Audience = ("https://" + env.VM_IP)
+              | .Jwt.Key = env.JWT_KEY
+              | .Ai.GroqApiKey = env.GROQ_API_KEY
+
+              # Keep this dotted logging category in the published JSON.
+              # systemd environment names cannot contain dots.
+              | del(.Logging.LogLevel["Microsoft.AspNetCore"])
+
+              | . as $config
+              | paths(scalars) as $path
+              | ($config | getpath($path)) as $value
+
+              # Nulls and empty arrays remain defined by appsettings.json.
+              | select($value != null)
+
+              | ($path | map(tostring) | join("__")) as $key
+              | if ($key | test("^[A-Za-z_][A-Za-z0-9_]*$") | not) then
+                  error("Invalid systemd environment key: " + $key)
+                else
+                  ($value | tostring) as $text
+                  | if ($text | test("[\r\n\u0000]")) then
+                      error("Unsupported multiline or NUL value: " + $key)
+                    else
+                      ($text
+                        | gsub("\\\\"; "\\\\")
+                        | gsub("\""; "\\\"")
+                      ) as $escaped
+                      | $key + "=\"" + $escaped + "\""
+                    end
+                end
+            ' Api/appsettings.json
+          } > "$ENV_FILE"
+
+          chmod 600 "$ENV_FILE"
+          echo "Generated API environment file from appsettings.json."
+
+      - name: Deploy App to VM via Run Command
+        shell: bash
+        env:
+          BLOB_URL: ${{ steps.upload.outputs.blob_url }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          ENV_FILE="$RUNNER_TEMP/stms-api.env"
+          SCRIPT_FILE="$RUNNER_TEMP/deploy-api.sh"
+          RESULT_FILE="$RUNNER_TEMP/deploy-api-result.json"
+
+          trap 'rm -f "$ENV_FILE" "$SCRIPT_FILE" "$RESULT_FILE"' EXIT
+
+          test -s "$ENV_FILE"
+          : "${BLOB_URL:?Missing deployment URL}"
+
+          ENV_BASE64=$(base64 -w0 "$ENV_FILE")
+          URL_BASE64=$(printf '%s' "$BLOB_URL" | base64 -w0)
+
+          echo "::add-mask::$ENV_BASE64"
+          echo "::add-mask::$URL_BASE64"
+
+          {
+            printf '#!/bin/sh\nset -eu\n'
+            printf "ENV_BASE64='%s'\n" "$ENV_BASE64"
+            printf "URL_BASE64='%s'\n" "$URL_BASE64"
+
+            cat <<'REMOTE_SCRIPT'
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y unzip curl ca-certificates
+
+          WORK_DIR=$(mktemp -d)
+          trap 'rm -rf "$WORK_DIR"' EXIT
+
+          BLOB_URL=$(printf '%s' "$URL_BASE64" | base64 --decode)
+
+          # Download and validate before stopping the API.
+          curl --fail --silent --show-error --location \
+            --retry 3 "$BLOB_URL" -o "$WORK_DIR/publish.zip"
+
+          unzip -q "$WORK_DIR/publish.zip" -d "$WORK_DIR/publish"
+          test -f "$WORK_DIR/publish/Api.dll"
+
+          printf '%s' "$ENV_BASE64" | base64 --decode \
+            > "$WORK_DIR/stms-api.env"
+
+          systemctl stop stms-api
+          mkdir -p /var/www/stms-api
+
+          find /var/www/stms-api -mindepth 1 -maxdepth 1 \
+            -exec rm -rf -- {} +
+
+          cp -a "$WORK_DIR/publish/." /var/www/stms-api/
+          chown -R www-data:www-data /var/www/stms-api
+
+          # systemd reads this file as root before starting the service.
+          install -o root -g root -m 600 \
+            "$WORK_DIR/stms-api.env" /etc/stms-api.env
+
+          systemctl daemon-reload
+          systemctl restart stms-api
+
+          for attempt in $(seq 1 15); do
+            if curl --fail --silent --show-error --max-time 10 \
+              http://127.0.0.1:5000/health -o /dev/null; then
+              echo "STMS_API_DEPLOY_OK"
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "API health check failed." >&2
+          exit 1
+          REMOTE_SCRIPT
+          } > "$SCRIPT_FILE"
 
           az vm run-command invoke \
             --resource-group stms-dev-rg \
             --name stms-dev-vm \
             --command-id RunShellScript \
-            --scripts \
-              "apt-get update && apt-get install -y unzip curl" \
-              "systemctl stop stms-api || true" \
-              "rm -rf /var/www/stms-api/*" \
-              "curl -sSL '$BLOB_URL' -o /tmp/publish.zip" \
-              "unzip -o /tmp/publish.zip -d /var/www/stms-api" \
-              "echo 'ASPNETCORE_ENVIRONMENT=Production' > /etc/stms-api.env" \
-              "echo 'ASPNETCORE_URLS=http://127.0.0.1:5000' >> /etc/stms-api.env" \
-              "echo 'ConnectionStrings__DefaultConnection=$CONN_STR' >> /etc/stms-api.env" \
-              "chown -R www-data:www-data /var/www/stms-api /etc/stms-api.env" \
-              "systemctl daemon-reload" \
-              "systemctl restart stms-api"
+            --scripts @"$SCRIPT_FILE" \
+            --output json > "$RESULT_FILE"
+
+          if ! jq -e \
+            'any(.value[]?; (.message // "") | contains("STMS_API_DEPLOY_OK"))' \
+            "$RESULT_FILE" > /dev/null; then
+            cat "$RESULT_FILE"
+            echo "::error::API deployment failed."
+            exit 1
+          fi
 
       - name: Setup Node for Frontend Build
         uses: actions/setup-node@v5

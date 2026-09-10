@@ -25,19 +25,26 @@ resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2025-08-01-prev
   }
 }
 
-resource sqlDatabase 'Microsoft.Sql/servers/databases@2025-08-01-preview' = {
+resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01' = {
   parent: sqlServer
   name: sqlDatabaseName
   location: location
+
   sku: {
-    name: 'GP_S_Gen5_1'
+    name: 'GP_S_Gen5'
     tier: 'GeneralPurpose'
+    family: 'Gen5'
+    capacity: 2
   }
+
   properties: {
     collation: 'SQL_Latin1_General_CP1_CI_AS'
     maxSizeBytes: 2147483648
-    autoPauseDelay: 60
     minCapacity: 1
+    autoPauseDelay: 60
+    useFreeLimit: true
+    freeLimitExhaustionBehavior: 'AutoPause'
+    requestedBackupStorageRedundancy: 'Local'
   }
 }
 
