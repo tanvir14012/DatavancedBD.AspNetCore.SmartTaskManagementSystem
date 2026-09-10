@@ -521,3 +521,11 @@ jobs:
 
           echo "::error::HTTPS smoke checks failed."
           exit 1
+
+      - name: Show Deployed Site URL
+        env:
+          VM_IP: ${{ steps.vm_ip.outputs.ip }}
+        run: |
+          echo "Site URL: https://$VM_IP"
+          echo "### Deployed Site" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Open site](https://$VM_IP)" >> "$GITHUB_STEP_SUMMARY"          
