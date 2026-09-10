@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -23,7 +20,11 @@ public sealed class AppDbContextFactory
 
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
 
-        optionsBuilder.UseSqlServer(connectionString);
+        optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
+        {
+            // Sets the table name and the schema name explicitly
+            sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "stms");
+        });
 
         return new AppDbContext(optionsBuilder.Options);
     }
