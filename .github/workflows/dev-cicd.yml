@@ -12,261 +12,402 @@ on:
 
 permissions:
   contents: read
-  id-token: write
+
+defaults:
+  run:
+    shell: bash
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+  AZURE_LOCATION: southeastasia
+  RESOURCE_GROUP: stms-dev-rg
+  VM_NAME: stms-dev-vm
+  SQL_SERVER: stms-dev-sql-server
+  SQL_DATABASE: stms-dev-db
+  KEY_VAULT: stms-dev-kv
+  STORAGE_ACCOUNT: stmsdevartifacts
+  STORAGE_CONTAINER: deployments
 
 jobs:
-  build:
-    name: Build and Publish
+  backend:
+    name: Build and Test Backend
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Validate App Settings
+        run: jq empty Api/appsettings.json
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-      
-      - name: Restore dependencies
-        run: dotnet restore
 
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
+      - name: Cache NuGet Packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', '**/NuGet.Config', '**/nuget.config', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
-      - name: Test
-        run: dotnet test ./Infrastructure.Tests/Infrastructure.Tests.csproj --configuration Release --no-build
+      - name: Restore, Build and Test
+        run: |
+          set -euo pipefail
 
-      - name: Publish
-        run: dotnet publish ./Api/Api.csproj --configuration Release --output ./publish --no-restore
+          dotnet restore
+          dotnet build --configuration Release --no-restore
 
-      - name: Upload Artifacts
+          dotnet test \
+            ./Infrastructure.Tests/Infrastructure.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --no-restore
+
+      - name: Publish and Package
+        run: |
+          set -euo pipefail
+
+          dotnet publish ./Api/Api.csproj \
+            --configuration Release \
+            --no-build \
+            --no-restore \
+            --output ./publish
+
+          (
+            cd publish
+            zip -qr "$GITHUB_WORKSPACE/publish.zip" .
+          )
+
+      - name: Upload Backend Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: publish
-          path: ./publish
+          name: backend
+          path: publish.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Frontend/Angular/package-lock.json
+
+      - name: Install and Build
+        working-directory: Frontend/Angular
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm run build:prod
+
+      - name: Package Frontend
+        working-directory: Frontend/Angular/dist/smart-task-management-system/browser
+        run: |
+          set -euo pipefail
+          test -f index.html
+          zip -qr "$GITHUB_WORKSPACE/frontend-build.zip" .
+
+      - name: Upload Frontend Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend
+          path: frontend-build.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
 
   deploy:
     name: Deploy to Azure
+    if: github.event_name != 'pull_request'
+    needs:
+      - backend
+      - frontend
+
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment: Development
-    needs: build
+
+    permissions:
+      contents: read
+      id-token: write
 
     concurrency:
       group: stms-dev-azure-resources
       cancel-in-progress: false
-      
+
     steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Validate Deployment Configuration
+        env:
+          JWT_KEY: ${{ secrets.JWT_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+          VM_ADMIN_PASSWORD: ${{ secrets.VM_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          jq empty Api/appsettings.json
+
+          : "${JWT_KEY:?Missing JWT_KEY}"
+          : "${GROQ_API_KEY:?Missing GROQ_API_KEY}"
+          : "${SQL_ADMIN_PASSWORD:?Missing SQL_ADMIN_PASSWORD}"
+          : "${VM_ADMIN_PASSWORD:?Missing VM_ADMIN_PASSWORD}"
+
+          KEY_BYTES=$(printf '%s' "$JWT_KEY" | wc -c)
+          if (( KEY_BYTES < 32 )); then
+            echo "::error::JWT_KEY must contain at least 32 bytes for HS256."
+            exit 1
+          fi
+
       - name: Azure Login
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
-      - name: Verify Azure Login
-        run: |
-          echo "Checking Azure Login ..."
-          az account show --query '{tenantId: tenantId, subscriptionId: id, displayName: name}' -o table
 
-      - name: List resource groups
-        run: |
-          echo "Listing all resource groups..."
-          az group list --output table
-
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Create Resource Group via Bicep
-        run: |
-          az deployment sub create \
-            --location southeastasia \
-            --template-file Azure/infra/rg.bicep \
-            --parameters location='southeastasia' resourceGroupName='stms-dev-rg'
-
-      - name: Deploy SQL Server Infrastructure via Bicep
-        run: |
-          az deployment group create \
-            --resource-group stms-dev-rg \
-            --template-file Azure/infra/sql.bicep \
-            --parameters @Azure/infra/parameters/dev.json \
-            --parameters sqlAdminPassword="${{ secrets.SQL_ADMIN_PASSWORD }}"
-
-      - name: Verify SQL Server Deployment
-        run: |
-          echo "Listing all SQL servers in the resource group..."
-          az sql server list --resource-group stms-dev-rg --output table
-          echo "Listing all databases..."
-          az sql db list --resource-group stms-dev-rg --server stms-dev-sql-server --output table
-
-      - name: Get Service Principal Object ID
-        id: azure_ids
-        run: |
-          OBJECT_ID=$(az ad sp show --id ${{ secrets.AZURE_CLIENT_ID }} --query id -o tsv)
-          echo "object_id=$OBJECT_ID" >> $GITHUB_OUTPUT
-          echo "Service Principal Object ID: $OBJECT_ID"
-
-      - name: Get Key Vault Secrets Officer Role ID
-        id: role_id
-        run: |
-          ROLE_ID=$(az role definition list --name "Key Vault Secrets Officer" --query '[0].name' -o tsv)
-          echo "role_id=$ROLE_ID" >> $GITHUB_OUTPUT
-          echo "Role ID: $ROLE_ID"
-
-      - name: Deploy Key Vault via Bicep
-        run: |
-          az deployment group create \
-            --resource-group stms-dev-rg \
-            --template-file Azure/infra/keyvault.bicep \
-            --parameters @Azure/infra/parameters/keyvault-dev.json \
-            --parameters tenantId="${{ secrets.AZURE_TENANT_ID }}" \
-            --parameters objectId="${{ steps.azure_ids.outputs.object_id }}" \
-            --parameters secretsOfficerRoleId="${{ steps.role_id.outputs.role_id }}"
-
-      - name: Store SQL Connection String in Key Vault
-        run: |
-          CONNECTION_STRING="Server=tcp:stms-dev-sql-server.database.windows.net,1433;Initial Catalog=stms-dev-db;Persist Security Info=False;User ID=sqladmin;Password=${{ secrets.SQL_ADMIN_PASSWORD }};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
-
-          az keyvault secret set \
-            --vault-name stms-dev-kv \
-            --name SqlConnectionString \
-            --value "$CONNECTION_STRING"
-
-          echo "✅ SQL Connection String stored in Key Vault"
-
-      - name: Get SQL Connection String from Key Vault
-        id: get_conn
-        run: |
-          CONN=$(az keyvault secret show --vault-name stms-dev-kv --name SqlConnectionString --query value -o tsv)
-          echo "::add-mask::$CONN"
-          echo "value=$CONN" >> $GITHUB_OUTPUT
-
-      - name: Deploy Storage Account via Bicep
-        run: |
-          az deployment group create \
-            --resource-group stms-dev-rg \
-            --template-file Azure/infra/storage.bicep \
-            --parameters @Azure/infra/parameters/storage-dev.json
-
-      - name: Download Build Artifact
+      - name: Download Backend
         uses: actions/download-artifact@v6
         with:
-          name: publish
-          path: ./publish
+          name: backend
+          path: artifacts
 
-      - name: Zip Published App
+      - name: Download Frontend
+        uses: actions/download-artifact@v6
+        with:
+          name: frontend
+          path: artifacts
+
+      - name: Deploy Infrastructure
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+          VM_ADMIN_PASSWORD: ${{ secrets.VM_ADMIN_PASSWORD }}
         run: |
-          cd publish
-          zip -r ../publish.zip .
-          cd ..
+          set -euo pipefail
 
-      - name: Upload Artifact to Storage & Generate SAS URL
-        id: upload
-        run: |
-          STORAGE_KEY=$(az storage account keys list --account-name stmsdevartifacts --resource-group stms-dev-rg --query '[0].value' -o tsv)
-          BLOB_NAME="publish-${{ github.run_id }}.zip"
+          # Explicit regional name avoids deployment-history location conflicts.
+          az deployment sub create \
+            --name "stms-dev-rg-$AZURE_LOCATION" \
+            --location "$AZURE_LOCATION" \
+            --template-file Azure/infra/rg.bicep \
+            --parameters \
+              location="$AZURE_LOCATION" \
+              resourceGroupName="$RESOURCE_GROUP" \
+            --only-show-errors \
+            --output none
 
-          az storage blob upload \
-            --account-name stmsdevartifacts \
-            --account-key "$STORAGE_KEY" \
-            --container-name deployments \
-            --name "$BLOB_NAME" \
-            --file publish.zip \
-            --overwrite
-
-          EXPIRY=$(date -u -d "+30 minutes" '+%Y-%m-%dT%H:%MZ')
-          SAS=$(az storage blob generate-sas \
-            --account-name stmsdevartifacts \
-            --account-key "$STORAGE_KEY" \
-            --container-name deployments \
-            --name "$BLOB_NAME" \
-            --permissions r \
-            --expiry "$EXPIRY" \
-            -o tsv)
-
-          BLOB_URL="https://stmsdevartifacts.blob.core.windows.net/deployments/${BLOB_NAME}?${SAS}"
-          echo "::add-mask::$BLOB_URL"
-          echo "blob_url=$BLOB_URL" >> $GITHUB_OUTPUT
-
-      - name: Deploy VM Infrastructure via Bicep
-        run: |
           az deployment group create \
-            --resource-group stms-dev-rg \
+            --name sql \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file Azure/infra/sql.bicep \
+            --parameters @Azure/infra/parameters/dev.json \
+            --parameters sqlAdminPassword="$SQL_ADMIN_PASSWORD" \
+            --only-show-errors \
+            --output none
+
+          OBJECT_ID=$(az ad sp show \
+            --id "$AZURE_CLIENT_ID" \
+            --query id -o tsv)
+
+          ROLE_ID=$(az role definition list \
+            --name "Key Vault Secrets Officer" \
+            --query '[0].name' -o tsv)
+
+          test -n "$OBJECT_ID"
+          test -n "$ROLE_ID"
+
+          az deployment group create \
+            --name keyvault \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file Azure/infra/keyvault.bicep \
+            --parameters @Azure/infra/parameters/keyvault-dev.json \
+            --parameters \
+              tenantId="$AZURE_TENANT_ID" \
+              objectId="$OBJECT_ID" \
+              secretsOfficerRoleId="$ROLE_ID" \
+            --only-show-errors \
+            --output none
+
+          az deployment group create \
+            --name storage \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file Azure/infra/storage.bicep \
+            --parameters @Azure/infra/parameters/storage-dev.json \
+            --only-show-errors \
+            --output none
+
+          az deployment group create \
+            --name vm \
+            --resource-group "$RESOURCE_GROUP" \
             --template-file Azure/infra/vm.bicep \
             --parameters @Azure/infra/parameters/vm-dev.json \
-            --parameters adminPassword="${{ secrets.VM_ADMIN_PASSWORD }}"
+            --parameters adminPassword="$VM_ADMIN_PASSWORD" \
+            --only-show-errors \
+            --output none
 
-      - name: Get VM Public IP
+      - name: Store and Read SQL Connection String
+        id: get_conn
+        env:
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          # Quote the password for SQL connection-string syntax.
+          SQL_PASSWORD_ESCAPED=${SQL_ADMIN_PASSWORD//\"/\"\"}
+          CONNECTION_STRING="Server=tcp:$SQL_SERVER.database.windows.net,1433;Initial Catalog=$SQL_DATABASE;Persist Security Info=False;User ID=sqladmin;Password=\"$SQL_PASSWORD_ESCAPED\";MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+
+          echo "::add-mask::$CONNECTION_STRING"
+
+          # New Key Vault role assignments can take time to propagate.
+          STORED=false
+          for attempt in $(seq 1 12); do
+            if az keyvault secret set \
+              --vault-name "$KEY_VAULT" \
+              --name SqlConnectionString \
+              --value "$CONNECTION_STRING" \
+              --only-show-errors \
+              --output none; then
+              STORED=true
+              break
+            fi
+            sleep 10
+          done
+
+          if [[ "$STORED" != true ]]; then
+            echo "::error::Could not store SQL connection string."
+            exit 1
+          fi
+
+          CONN=$(az keyvault secret show \
+            --vault-name "$KEY_VAULT" \
+            --name SqlConnectionString \
+            --query value -o tsv)
+
+          echo "::add-mask::$CONN"
+          echo "value=$CONN" >> "$GITHUB_OUTPUT"
+
+      - name: Get VM IP and Configure SQL Firewall
         id: vm_ip
         run: |
+          set -euo pipefail
+
           PIP_NAME=$(az deployment group show \
-            -g stms-dev-rg \
-            -n vm \
+            --resource-group "$RESOURCE_GROUP" \
+            --name vm \
             --query properties.outputs.publicIpName.value \
             -o tsv)
 
           VM_IP=$(az network public-ip show \
-            -g stms-dev-rg \
-            -n "$PIP_NAME" \
-            --query ipAddress \
-            -o tsv)
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$PIP_NAME" \
+            --query ipAddress -o tsv)
 
+          test -n "$VM_IP"
           echo "ip=$VM_IP" >> "$GITHUB_OUTPUT"
-          echo "VM IP: $VM_IP"
 
-      - name: Allow VM on SQL Server Firewall
-        run: |
           az sql server firewall-rule create \
-            --resource-group stms-dev-rg \
-            --server stms-dev-sql-server \
+            --resource-group "$RESOURCE_GROUP" \
+            --server "$SQL_SERVER" \
             --name AllowVM \
-            --start-ip-address ${{ steps.vm_ip.outputs.ip }} \
-            --end-ip-address ${{ steps.vm_ip.outputs.ip }}
+            --start-ip-address "$VM_IP" \
+            --end-ip-address "$VM_IP" \
+            --only-show-errors \
+            --output none
 
-      - name: Get Runner Public IP
-        id: runner_ip
-        run: |
-          RUNNER_IP=$(curl -s https://ifconfig.me)
-          echo "ip=$RUNNER_IP" >> $GITHUB_OUTPUT
-
-      - name: Allow Runner IP on SQL Server Firewall (temporary)
-        run: |
-          az sql server firewall-rule create \
-            --resource-group stms-dev-rg \
-            --server stms-dev-sql-server \
-            --name GitHubRunnerTemp \
-            --start-ip-address ${{ steps.runner_ip.outputs.ip }} \
-            --end-ip-address ${{ steps.runner_ip.outputs.ip }}
-
-      - name: Setup .NET for EF Migrations
+      - name: Setup .NET for Migrations
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+
+      - name: Restore NuGet Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', '**/NuGet.Config', '**/nuget.config', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Prepare EF Migrations
+        run: |
+          set -euo pipefail
+
+          dotnet restore
+          dotnet tool install \
+            --tool-path "$RUNNER_TEMP/ef-tools" \
+            dotnet-ef \
+            --version 10.0.11
+
+      - name: Allow Runner on SQL Firewall
+        id: runner_firewall
+        run: |
+          set -euo pipefail
+
+          RUNNER_IP=$(curl -4fsS --retry 3 https://api.ipify.org)
+          RULE_NAME="GitHubRunner-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          # Save the name before creation so cleanup can run after partial failure.
+          echo "rule_name=$RULE_NAME" >> "$GITHUB_OUTPUT"
+
+          az sql server firewall-rule create \
+            --resource-group "$RESOURCE_GROUP" \
+            --server "$SQL_SERVER" \
+            --name "$RULE_NAME" \
+            --start-ip-address "$RUNNER_IP" \
+            --end-ip-address "$RUNNER_IP" \
+            --only-show-errors \
+            --output none
 
       - name: Run EF Core Migrations
         env:
           ConnectionStrings__DefaultConnection: ${{ steps.get_conn.outputs.value }}
         run: |
-          dotnet restore
-          dotnet tool install --global dotnet-ef --version 10.0.11
-          export PATH="$PATH:$HOME/.dotnet/tools"
-          dotnet ef database update --project Infrastructure --startup-project Api
+          set -euo pipefail
 
-      - name: Remove Temporary Runner Firewall Rule
-        if: always()
+          "$RUNNER_TEMP/ef-tools/dotnet-ef" database update \
+            --project Infrastructure \
+            --startup-project Api
+
+      - name: Remove Runner SQL Firewall Rule
+        if: always() && steps.runner_firewall.outputs.rule_name != ''
+        env:
+          RULE_NAME: ${{ steps.runner_firewall.outputs.rule_name }}
         run: |
           az sql server firewall-rule delete \
-            --resource-group stms-dev-rg \
-            --server stms-dev-sql-server \
-            --name GitHubRunnerTemp \
-            --yes || true
+            --resource-group "$RESOURCE_GROUP" \
+            --server "$SQL_SERVER" \
+            --name "$RULE_NAME" \
+            --yes \
+            --only-show-errors \
+            --output none
 
       - name: Generate API Environment File
-        shell: bash
         env:
           DB_CONNECTION: ${{ steps.get_conn.outputs.value }}
           VM_IP: ${{ steps.vm_ip.outputs.ip }}
@@ -278,10 +419,6 @@ jobs:
 
           : "${DB_CONNECTION:?Missing DB_CONNECTION}"
           : "${VM_IP:?Missing VM_IP}"
-          : "${JWT_KEY:?Missing JWT_KEY}"
-          : "${GROQ_API_KEY:?Missing GROQ_API_KEY}"
-
-          ENV_FILE="$RUNNER_TEMP/stms-api.env"
 
           {
             printf '%s\n' \
@@ -298,25 +435,18 @@ jobs:
               | .Jwt.Audience = ("https://" + env.VM_IP)
               | .Jwt.Key = env.JWT_KEY
               | .Ai.GroqApiKey = env.GROQ_API_KEY
-
-              # Keep this dotted logging category in the published JSON.
-              # systemd environment names cannot contain dots.
               | del(.Logging.LogLevel["Microsoft.AspNetCore"])
-
               | . as $config
               | paths(scalars) as $path
               | ($config | getpath($path)) as $value
-
-              # Nulls and empty arrays remain defined by appsettings.json.
               | select($value != null)
-
               | ($path | map(tostring) | join("__")) as $key
               | if ($key | test("^[A-Za-z_][A-Za-z0-9_]*$") | not) then
-                  error("Invalid systemd environment key: " + $key)
+                  error("Invalid environment key: " + $key)
                 else
                   ($value | tostring) as $text
                   | if ($text | test("[\r\n\u0000]")) then
-                      error("Unsupported multiline or NUL value: " + $key)
+                      error("Unsupported environment value: " + $key)
                     else
                       ($text
                         | gsub("\\\\"; "\\\\")
@@ -326,227 +456,148 @@ jobs:
                     end
                 end
             ' Api/appsettings.json
-          } > "$ENV_FILE"
+          } > "$RUNNER_TEMP/stms-api.env"
 
-          chmod 600 "$ENV_FILE"
-          echo "Generated API environment file from appsettings.json."
+      - name: Upload Deployment Packages
+        id: packages
+        run: |
+          set -euo pipefail
 
-      - name: Deploy App to VM via Run Command
-        shell: bash
+          STORAGE_KEY=$(az storage account keys list \
+            --account-name "$STORAGE_ACCOUNT" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query '[0].value' -o tsv)
+
+          echo "::add-mask::$STORAGE_KEY"
+
+          # Avoid passing account keys repeatedly as command arguments.
+          export AZURE_STORAGE_ACCOUNT="$STORAGE_ACCOUNT"
+          export AZURE_STORAGE_KEY="$STORAGE_KEY"
+
+          upload_package() {
+            local file="$1"
+            local prefix="$2"
+            local output_name="$3"
+            local blob expiry sas url
+
+            blob="${prefix}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.zip"
+
+            az storage blob upload \
+              --container-name "$STORAGE_CONTAINER" \
+              --name "$blob" \
+              --file "$file" \
+              --overwrite \
+              --only-show-errors \
+              --output none
+
+            expiry=$(date -u -d '+30 minutes' '+%Y-%m-%dT%H:%MZ')
+
+            sas=$(az storage blob generate-sas \
+              --container-name "$STORAGE_CONTAINER" \
+              --name "$blob" \
+              --permissions r \
+              --https-only \
+              --expiry "$expiry" \
+              -o tsv)
+
+            echo "::add-mask::$sas"
+            url="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${STORAGE_CONTAINER}/${blob}?${sas}"
+            echo "::add-mask::$url"
+            echo "${output_name}=$url" >> "$GITHUB_OUTPUT"
+          }
+
+          upload_package artifacts/publish.zip publish api_url
+          upload_package artifacts/frontend-build.zip frontend frontend_url
+
+      - name: Deploy API and Frontend to VM
         env:
-          BLOB_URL: ${{ steps.upload.outputs.blob_url }}
+          VM_IP: ${{ steps.vm_ip.outputs.ip }}
+          API_URL: ${{ steps.packages.outputs.api_url }}
+          FRONTEND_URL: ${{ steps.packages.outputs.frontend_url }}
         run: |
           set -euo pipefail
           umask 077
 
           ENV_FILE="$RUNNER_TEMP/stms-api.env"
-          SCRIPT_FILE="$RUNNER_TEMP/deploy-api.sh"
-          RESULT_FILE="$RUNNER_TEMP/deploy-api-result.json"
+          SCRIPT_FILE="$RUNNER_TEMP/deploy-stms.sh"
+          RESULT_FILE="$RUNNER_TEMP/deploy-stms-result.json"
 
           trap 'rm -f "$ENV_FILE" "$SCRIPT_FILE" "$RESULT_FILE"' EXIT
-
           test -s "$ENV_FILE"
-          : "${BLOB_URL:?Missing deployment URL}"
 
-          ENV_BASE64=$(base64 -w0 "$ENV_FILE")
-          URL_BASE64=$(printf '%s' "$BLOB_URL" | base64 -w0)
-
-          echo "::add-mask::$ENV_BASE64"
-          echo "::add-mask::$URL_BASE64"
-
+          # Encode values to avoid shell quoting and Run Command parameter issues.
           {
-            printf '#!/bin/sh\nset -eu\n'
-            printf "ENV_BASE64='%s'\n" "$ENV_BASE64"
-            printf "URL_BASE64='%s'\n" "$URL_BASE64"
+            printf '#!/bin/sh\nset -eu\numask 077\n'
+
+            for name in VM_IP API_URL FRONTEND_URL; do
+              encoded=$(printf '%s' "${!name}" | base64 -w0)
+              echo "::add-mask::$encoded" >&2
+              printf '%s=$(printf %%s "%s" | base64 --decode)\n' \
+                "$name" "$encoded"
+            done
+
+            encoded=$(base64 -w0 "$ENV_FILE")
+            echo "::add-mask::$encoded" >&2
+            printf "ENV_BASE64='%s'\n" "$encoded"
 
             cat <<'REMOTE_SCRIPT'
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install -y unzip curl ca-certificates
+          # Provision missing tools only; avoid apt work on routine deployments.
+          MISSING=false
+          for tool in curl unzip openssl nginx; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              MISSING=true
+            fi
+          done
+
+          if [ "$MISSING" = true ]; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y curl unzip openssl nginx ca-certificates
+          fi
 
           WORK_DIR=$(mktemp -d)
           trap 'rm -rf "$WORK_DIR"' EXIT
 
-          BLOB_URL=$(printf '%s' "$URL_BASE64" | base64 --decode)
+          # Stage both packages before interrupting either application.
+          curl -fsSL --retry 3 "$API_URL" -o "$WORK_DIR/api.zip"
+          curl -fsSL --retry 3 "$FRONTEND_URL" -o "$WORK_DIR/frontend.zip"
 
-          # Download and validate before stopping the API.
-          curl --fail --silent --show-error --location \
-            --retry 3 "$BLOB_URL" -o "$WORK_DIR/publish.zip"
+          unzip -q "$WORK_DIR/api.zip" -d "$WORK_DIR/api"
+          unzip -q "$WORK_DIR/frontend.zip" -d "$WORK_DIR/frontend"
 
-          unzip -q "$WORK_DIR/publish.zip" -d "$WORK_DIR/publish"
-          test -f "$WORK_DIR/publish/Api.dll"
+          test -f "$WORK_DIR/api/Api.dll"
+          test -f "$WORK_DIR/frontend/index.html"
 
           printf '%s' "$ENV_BASE64" | base64 --decode \
             > "$WORK_DIR/stms-api.env"
 
-          systemctl stop stms-api
-          mkdir -p /var/www/stms-api
-
-          find /var/www/stms-api -mindepth 1 -maxdepth 1 \
-            -exec rm -rf -- {} +
-
-          cp -a "$WORK_DIR/publish/." /var/www/stms-api/
-          chown -R www-data:www-data /var/www/stms-api
-
-          # systemd reads this file as root before starting the service.
-          install -o root -g root -m 600 \
-            "$WORK_DIR/stms-api.env" /etc/stms-api.env
-
-          systemctl daemon-reload
-          systemctl restart stms-api
-
-          for attempt in $(seq 1 15); do
-            if curl --fail --silent --show-error --max-time 10 \
-              http://127.0.0.1:5000/health -o /dev/null; then
-              echo "STMS_API_DEPLOY_OK"
-              exit 0
-            fi
-
-            sleep 10
-          done
-
-          echo "API health check failed." >&2
-          exit 1
-          REMOTE_SCRIPT
-          } > "$SCRIPT_FILE"
-
-          az vm run-command invoke \
-            --resource-group stms-dev-rg \
-            --name stms-dev-vm \
-            --command-id RunShellScript \
-            --scripts @"$SCRIPT_FILE" \
-            --output json > "$RESULT_FILE"
-
-          if ! jq -e \
-            'any(.value[]?; (.message // "") | contains("STMS_API_DEPLOY_OK"))' \
-            "$RESULT_FILE" > /dev/null; then
-            cat "$RESULT_FILE"
-            echo "::error::API deployment failed."
-            exit 1
-          fi
-
-      - name: Setup Node for Frontend Build
-        uses: actions/setup-node@v5
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: Frontend/Angular/package-lock.json
-
-      - name: Build Frontend
-        working-directory: Frontend/Angular
-        run: |
-          npm ci
-          npm run build:prod
-
-      - name: Zip Frontend Build
-        working-directory: Frontend/Angular/dist/smart-task-management-system/browser
-        run: |
-          test -f index.html
-          zip -qr "$GITHUB_WORKSPACE/frontend-build.zip" .
-
-      - name: Upload Frontend Build to Storage & Generate SAS URL
-        id: upload_frontend
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          STORAGE_KEY=$(az storage account keys list \
-            --account-name stmsdevartifacts \
-            --resource-group stms-dev-rg \
-            --query '[0].value' -o tsv)
-          echo "::add-mask::$STORAGE_KEY"
-
-          BLOB_NAME="frontend-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.zip"
-
-          az storage blob upload \
-            --account-name stmsdevartifacts \
-            --account-key "$STORAGE_KEY" \
-            --container-name deployments \
-            --name "$BLOB_NAME" \
-            --file "$GITHUB_WORKSPACE/frontend-build.zip" \
-            --overwrite \
-            --only-show-errors \
-            --output none
-
-          EXPIRY=$(date -u -d "+30 minutes" '+%Y-%m-%dT%H:%MZ')
-
-          SAS=$(az storage blob generate-sas \
-            --account-name stmsdevartifacts \
-            --account-key "$STORAGE_KEY" \
-            --container-name deployments \
-            --name "$BLOB_NAME" \
-            --permissions r \
-            --https-only \
-            --expiry "$EXPIRY" \
-            -o tsv)
-          echo "::add-mask::$SAS"
-
-          BLOB_URL="https://stmsdevartifacts.blob.core.windows.net/deployments/${BLOB_NAME}?${SAS}"
-          echo "::add-mask::$BLOB_URL"
-          echo "frontend_blob_url=$BLOB_URL" >> "$GITHUB_OUTPUT"
-
-      - name: Deploy Frontend to Nginx with Self-Signed HTTPS
-        shell: bash
-        env:
-          VM_IP: ${{ steps.vm_ip.outputs.ip }}
-          FRONTEND_BLOB_URL: ${{ steps.upload_frontend.outputs.frontend_blob_url }}
-        run: |
-          set -euo pipefail
-          test -n "$VM_IP"
-          test -n "$FRONTEND_BLOB_URL"
-
-          # Quoted heredocs preserve shell and Nginx variables.
-          cat > deploy-frontend.sh <<'REMOTE_SCRIPT'
-          #!/bin/sh
-          set -eu
-
-          VM_IP="$1"
-          FRONTEND_BLOB_URL="$2"
-
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install -y openssl nginx curl unzip ca-certificates
-
-          mkdir -p /var/www/stms-web \
+          # nginx must be able to traverse its configuration directories.
+          install -d -m 755 \
             /etc/nginx/ssl \
             /etc/nginx/sites-available \
-            /etc/nginx/sites-enabled
+            /etc/nginx/sites-enabled \
+            /var/www/stms-api \
+            /var/www/stms-web
 
-          # Download and validate before replacing the deployed files.
-          WORK_DIR=$(mktemp -d)
-          trap 'rm -rf "$WORK_DIR"' EXIT
-
-          curl --fail --silent --show-error --location \
-            --retry 3 "$FRONTEND_BLOB_URL" \
-            -o "$WORK_DIR/frontend-build.zip"
-
-          unzip -q "$WORK_DIR/frontend-build.zip" -d "$WORK_DIR/site"
-          test -f "$WORK_DIR/site/index.html"
-
-          # Reuse the certificate unless missing, expiring within
-          # 30 days, or issued for a different IP.
           if [ ! -s /etc/nginx/ssl/stms.key ] ||
              [ ! -s /etc/nginx/ssl/stms.crt ] ||
              ! openssl x509 -in /etc/nginx/ssl/stms.crt \
-                 -checkend 2592000 -noout >/dev/null 2>&1 ||
+               -checkend 2592000 -noout >/dev/null 2>&1 ||
              ! openssl x509 -in /etc/nginx/ssl/stms.crt \
-                 -checkip "$VM_IP" -noout >/dev/null 2>&1; then
-            (
-              umask 077
-              openssl req -x509 -nodes -newkey rsa:2048 -sha256 \
-                -keyout /etc/nginx/ssl/stms.key \
-                -out /etc/nginx/ssl/stms.crt \
-                -days 365 \
-                -subj "/CN=$VM_IP" \
-                -addext "subjectAltName=IP:$VM_IP"
-            )
+               -checkip "$VM_IP" -noout >/dev/null 2>&1; then
+            openssl req -x509 -nodes -newkey rsa:2048 -sha256 \
+              -keyout /etc/nginx/ssl/stms.key \
+              -out /etc/nginx/ssl/stms.crt \
+              -days 365 \
+              -subj "/CN=$VM_IP" \
+              -addext "subjectAltName=IP:$VM_IP"
           fi
 
           chown root:root /etc/nginx/ssl/stms.key /etc/nginx/ssl/stms.crt
           chmod 600 /etc/nginx/ssl/stms.key
           chmod 644 /etc/nginx/ssl/stms.crt
 
-          cat > "$WORK_DIR/stms.conf" <<'NGINX_CONFIG'
+          cat > "$WORK_DIR/nginx.conf" <<'NGINX_CONFIG'
           server {
               listen 80;
               server_name __VM_IP__;
@@ -584,91 +635,106 @@ jobs:
           }
           NGINX_CONFIG
 
-          sed "s/__VM_IP__/$VM_IP/g" "$WORK_DIR/stms.conf" \
+          sed "s/__VM_IP__/$VM_IP/g" "$WORK_DIR/nginx.conf" \
             > /etc/nginx/sites-available/stms
+          chmod 644 /etc/nginx/sites-available/stms
 
           ln -sf /etc/nginx/sites-available/stms /etc/nginx/sites-enabled/stms
           rm -f /etc/nginx/sites-enabled/default
           nginx -t
 
-          # Clear old files, including hidden files.
+          systemctl stop stms-api
+
+          find /var/www/stms-api -mindepth 1 -maxdepth 1 \
+            -exec rm -rf -- {} +
+          cp -a "$WORK_DIR/api/." /var/www/stms-api/
+          chown -R www-data:www-data /var/www/stms-api
+
+          install -o root -g root -m 600 \
+            "$WORK_DIR/stms-api.env" /etc/stms-api.env
+
           find /var/www/stms-web -mindepth 1 -maxdepth 1 \
             -exec rm -rf -- {} +
-          cp -a "$WORK_DIR/site/." /var/www/stms-web/
+          cp -a "$WORK_DIR/frontend/." /var/www/stms-web/
           chown -R www-data:www-data /var/www/stms-web
           find /var/www/stms-web -type d -exec chmod 755 {} +
           find /var/www/stms-web -type f -exec chmod 644 {} +
 
+          systemctl daemon-reload
+          systemctl restart stms-api
           systemctl enable nginx
-          systemctl restart nginx
 
-          # Validate HTTPS locally using the actual certificate.
-          curl --fail --silent --show-error \
-            --cacert /etc/nginx/ssl/stms.crt \
-            --resolve "$VM_IP:443:127.0.0.1" \
-            "https://$VM_IP/" -o /dev/null
+          if systemctl is-active --quiet nginx; then
+            systemctl reload nginx
+          else
+            systemctl start nginx
+          fi
 
-          echo "STMS_FRONTEND_DEPLOY_OK"
+          for attempt in $(seq 1 15); do
+            if curl -fsS --max-time 10 \
+                 http://127.0.0.1:5000/health -o /dev/null &&
+               curl -fsS --max-time 10 \
+                 --cacert /etc/nginx/ssl/stms.crt \
+                 --resolve "$VM_IP:443:127.0.0.1" \
+                 "https://$VM_IP/" -o /dev/null; then
+              echo "STMS_DEPLOY_OK"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Application health checks failed." >&2
+          exit 1
           REMOTE_SCRIPT
-
-          # Encode the values so the SAS URL cannot interfere with shell syntax.
-          VM_IP_BASE64=$(printf '%s' "$VM_IP" | base64 -w0)
-          BLOB_URL_BASE64=$(printf '%s' "$FRONTEND_BLOB_URL" | base64 -w0)
-          echo "::add-mask::$BLOB_URL_BASE64"
-
-          # Supply $1 and $2 inside the script, bypassing Azure parameter parsing.
-          {
-            printf '#!/bin/sh\n'
-            printf 'set -- "$(printf %%s "%s" | base64 --decode)" "$(printf %%s "%s" | base64 --decode)"\n' \
-              "$VM_IP_BASE64" "$BLOB_URL_BASE64"
-            cat deploy-frontend.sh
-          } > deploy-frontend-invoke.sh
+          } > "$SCRIPT_FILE"
 
           az vm run-command invoke \
-            --resource-group stms-dev-rg \
-            --name stms-dev-vm \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$VM_NAME" \
             --command-id RunShellScript \
-            --scripts @deploy-frontend-invoke.sh \
-            --output json > frontend-deploy-result.json
+            --scripts @"$SCRIPT_FILE" \
+            --output json > "$RESULT_FILE"
 
-          # Check script completion as well as the Azure CLI exit code.
           if ! jq -e \
-            'any(.value[]?; (.message // "") | contains("STMS_FRONTEND_DEPLOY_OK"))' \
-            frontend-deploy-result.json > /dev/null; then
-            cat frontend-deploy-result.json
-            echo "::error::Frontend deployment failed on the VM."
+            'any(.value[]?; (.message // "") | contains("STMS_DEPLOY_OK"))' \
+            "$RESULT_FILE" > /dev/null; then
+            cat "$RESULT_FILE"
+            echo "::error::VM deployment failed."
             exit 1
           fi
 
-      - name: Smoke Test Frontend and API over HTTPS
-        shell: bash
+      - name: Smoke Test and Publish Site URL
         env:
           VM_IP: ${{ steps.vm_ip.outputs.ip }}
         run: |
           set -euo pipefail
 
-          # -k is needed here because the runner does not trust
-          # the VM's self-signed certificate.
-          for i in $(seq 1 10); do
+          # The runner does not trust the VM self-signed certificate.
+          for attempt in $(seq 1 10); do
             if curl -fkSs --connect-timeout 10 --max-time 20 \
                  "https://$VM_IP/" -o /dev/null &&
                curl -fkSs --connect-timeout 10 --max-time 20 \
                  "https://$VM_IP/health" -o /dev/null; then
-              echo "Frontend and API checks passed: https://$VM_IP"
+              echo "Deployment verified: https://$VM_IP"
+
+              {
+                echo "### Deployed Site"
+                echo
+                echo "[Open site](https://$VM_IP)"
+              } >> "$GITHUB_STEP_SUMMARY"
+
               exit 0
             fi
-
-            echo "Waiting for frontend/API... ($i/10)"
             sleep 10
           done
 
-          echo "::error::HTTPS smoke checks failed."
+          echo "::error::Public HTTPS health checks failed."
           exit 1
 
-      - name: Show Deployed Site URL
-        env:
-          VM_IP: ${{ steps.vm_ip.outputs.ip }}
+      - name: Remove Temporary Deployment Files
+        if: always()
         run: |
-          echo "Site URL: https://$VM_IP"
-          echo "### Deployed Site" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Open site](https://$VM_IP)" >> "$GITHUB_STEP_SUMMARY"          
+          rm -f \
+            "$RUNNER_TEMP/stms-api.env" \
+            "$RUNNER_TEMP/deploy-stms.sh" \
+            "$RUNNER_TEMP/deploy-stms-result.json"
