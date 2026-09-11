@@ -1158,16 +1158,18 @@ stages:
                     }
                   }
 
-                  $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
-                  $builder.DataSource = "localhost\SQLEXPRESS"
-                  $builder.InitialCatalog = "stms-prod-db"
-                  $builder.UserID = "sa"
-                  $builder.Password = $sqlPassword
-                  $builder.Encrypt = $true
-                  $builder.TrustServerCertificate = $true
-                  $builder.MultipleActiveResultSets = $true
-                  $builder.ConnectTimeout = 30
+                  $builder = [System.Data.SqlClient.SqlConnectionStringBuilder]::new()
+                  $builder["Data Source"] = ".\SQLEXPRESS"
+                  $builder["Initial Catalog"] = "stms-prod-db"
+                  $builder["User ID"] = "sa"
+                  $builder["Password"] = $sqlPassword
+                  $builder["Encrypt"] = $true
+                  $builder["TrustServerCertificate"] = $true
+                  $builder["MultipleActiveResultSets"] = $true
+                  $builder["Connect Timeout"] = 30
                   $connectionString = $builder.ConnectionString
+
+                  Write-Host "SQL connection target: .\SQLEXPRESS / stms-prod-db"
 
                   $env:ASPNETCORE_ENVIRONMENT = "Production"
                   $env:DOTNET_ENVIRONMENT = "Production"
