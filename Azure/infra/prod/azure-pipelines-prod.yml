@@ -17,6 +17,9 @@ variables:
   vmName: 'stms-prod-vm'
   storageAccount: 'stmsprodartifacts'
   storageContainer: 'deployments'
+  vmSize: 'Standard_D2_v3'
+  vmFamily: 'standardDv3Family'
+  vmVcpus: '2'
 
   efToolsVersion: '10.0.9'
 
@@ -32,7 +35,7 @@ stages:
     - checkout: none
 
     - task: AzureCLI@2
-      displayName: Check VM Quota
+      displayName: Check $(vmSize) Quota
       condition: ne(variables['Build.Reason'], 'PullRequest')
       inputs:
         azureSubscription: 'STMS-Azure-Service-Connection'
@@ -41,45 +44,35 @@ stages:
         inlineScript: |
           $ErrorActionPreference = 'Stop'
 
-          $candidates = @(
-            'Standard_B2s_v2',
-            'Standard_B2as_v2',
-            'Standard_D2as_v5',
-            'Standard_D2s_v5'
-          )
-
-          $usage = (az vm list-usage --location "$(azureLocation)" --output json --only-show-errors | Out-String) | ConvertFrom-Json
-          $skus = (az vm list-skus --location "$(azureLocation)" --resource-type virtualMachines --all --output json --only-show-errors | Out-String) | ConvertFrom-Json
+          $usage = (az vm list-usage `
+            --location "$(azureLocation)" `
+            --output json `
+            --only-show-errors | Out-String) | ConvertFrom-Json
 
           if ($LASTEXITCODE -ne 0) {
-            throw 'Unable to query Azure VM quota/SKUs.'
+            throw 'Unable to read Azure VM quota.'
           }
 
-          $regional = $usage | Where-Object { $_.name.value -eq 'cores' } | Select-Object -First 1
-          $found = $false
+          $family = $usage |
+            Where-Object { $_.name.value -eq "$(vmFamily)" } |
+            Select-Object -First 1
 
-          foreach ($name in $candidates) {
-            $sku = $skus | Where-Object { $_.name -eq $name } | Select-Object -First 1
-            if (-not $sku) { continue }
+          $regional = $usage |
+            Where-Object { $_.name.value -eq 'cores' } |
+            Select-Object -First 1
 
-            $vcpu = [int](($sku.capabilities | Where-Object { $_.name -eq 'vCPUs' } | Select-Object -First 1).value)
-            $familyQuota = $usage | Where-Object { $_.name.value -eq $sku.family } | Select-Object -First 1
-
-            if (-not $familyQuota) { continue }
-
-            $familyRemaining = [int]$familyQuota.limit - [int]$familyQuota.currentValue
-            $regionalRemaining = if ($regional) { [int]$regional.limit - [int]$regional.currentValue } else { 999999 }
-
-            Write-Host "$name : family=$($sku.family), required=$vcpu, familyRemaining=$familyRemaining, regionalRemaining=$regionalRemaining"
-
-            if ($familyRemaining -ge $vcpu -and $regionalRemaining -ge $vcpu) {
-              $found = $true
-              break
-            }
+          if (-not $family -or -not $regional) {
+            throw 'Azure did not return the expected VM quota records.'
           }
 
-          if (-not $found) {
-            throw 'No approved VM family has enough vCPU quota in southeastasia. Request quota or add a VM family that has quota.'
+          $required = [int]"$(vmVcpus)"
+          $familyRemaining = [int]$family.limit - [int]$family.currentValue
+          $regionalRemaining = [int]$regional.limit - [int]$regional.currentValue
+
+          Write-Host "$(vmSize): familyRemaining=$familyRemaining, regionalRemaining=$regionalRemaining, required=$required"
+
+          if ($familyRemaining -lt $required -or $regionalRemaining -lt $required) {
+            throw 'Insufficient Azure vCPU quota for $(vmSize).'
           }
 
           Write-Host 'VM quota check passed.'
@@ -425,65 +418,19 @@ stages:
 
                 if ($LASTEXITCODE -ne 0) { throw 'Storage deployment failed.' }
 
-                $candidates = @(
-                  'Standard_B2s_v2',
-                  'Standard_B2as_v2',
-                  'Standard_D2as_v5',
-                  'Standard_D2s_v5'
-                )
+                Write-Host "Deploying $(vmSize)..."
 
-                $usage = (az vm list-usage --location "$(azureLocation)" --output json --only-show-errors | Out-String) | ConvertFrom-Json
-                $skus = (az vm list-skus --location "$(azureLocation)" --resource-type virtualMachines --all --output json --only-show-errors | Out-String) | ConvertFrom-Json
-                $regional = $usage | Where-Object { $_.name.value -eq 'cores' } | Select-Object -First 1
+                $result = az deployment group create `
+                  --name stms-prod-vm-deployment `
+                  --resource-group "$(resourceGroup)" `
+                  --template-file "$root\vm-windows.bicep" `
+                  --parameters $paramFile adminPassword="$env:VM_ADMIN_PASSWORD" vmSize="$(vmSize)" `
+                  --only-show-errors `
+                  --output none 2>&1
 
-                $deployed = $null
-                $retryable = 'QuotaExceeded|SkuNotAvailable|AllocationFailed|ZonalAllocationFailed|OverconstrainedAllocationRequest|Capacity Restrictions'
-
-                foreach ($name in $candidates) {
-                  $sku = $skus | Where-Object { $_.name -eq $name } | Select-Object -First 1
-                  if (-not $sku) { continue }
-
-                  $vcpu = [int](($sku.capabilities | Where-Object { $_.name -eq 'vCPUs' } | Select-Object -First 1).value)
-                  $familyQuota = $usage | Where-Object { $_.name.value -eq $sku.family } | Select-Object -First 1
-
-                  if ($familyQuota) {
-                    $familyRemaining = [int]$familyQuota.limit - [int]$familyQuota.currentValue
-                    $regionalRemaining = if ($regional) { [int]$regional.limit - [int]$regional.currentValue } else { 999999 }
-
-                    if ($familyRemaining -lt $vcpu -or $regionalRemaining -lt $vcpu) {
-                      Write-Host "Skipping $name: insufficient quota."
-                      continue
-                    }
-                  }
-
-                  Write-Host "Deploying VM with $name..."
-
-                  $result = az deployment group create `
-                    --name stms-prod-vm-deployment `
-                    --resource-group "$(resourceGroup)" `
-                    --template-file "$root\vm-windows.bicep" `
-                    --parameters $paramFile adminPassword="$env:VM_ADMIN_PASSWORD" vmSize="$name" `
-                    --only-show-errors `
-                    --output none 2>&1
-
-                  if ($LASTEXITCODE -eq 0) {
-                    $deployed = $name
-                    break
-                  }
-
-                  $errorText = $result | Out-String
-
-                  if ($errorText -match $retryable) {
-                    Write-Warning "$name rejected by Azure; trying next size."
-                    continue
-                  }
-
-                  Write-Host $errorText
-                  throw "VM deployment failed for $name."
-                }
-
-                if (-not $deployed) {
-                  throw 'No approved VM size could be deployed. Check vCPU quota in southeastasia.'
+                if ($LASTEXITCODE -ne 0) {
+                  Write-Host ($result | Out-String)
+                  throw 'VM deployment failed.'
                 }
 
                 $pipName = az deployment group show `
@@ -502,9 +449,8 @@ stages:
                   throw 'Could not resolve VM public IP.'
                 }
 
-                Write-Host "VM: $deployed"
+                Write-Host "VM: $(vmSize)"
                 Write-Host "IP: $vmIp"
-                Write-Host "##vso[task.setvariable variable=DEPLOYED_VM_SIZE]$deployed"
                 Write-Host "##vso[task.setvariable variable=VM_PUBLIC_IP]$vmIp"
 
           - task: AzureCLI@2
