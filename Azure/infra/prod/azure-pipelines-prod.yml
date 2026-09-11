@@ -392,7 +392,7 @@ stages:
                 az deployment sub create `
                   --name "stms-prod-rg-deployment" `
                   --location "$(azureLocation)" `
-                  --template-file "$(Build.SourcesDirectory)\Azure\prod\infra\rg.bicep" `
+                  --template-file "$(Build.SourcesDirectory)\Azure\infra\prod\rg.bicep" `
                   --parameters `
                     location="$(azureLocation)" `
                     resourceGroupName="$(resourceGroup)" `
@@ -416,7 +416,7 @@ stages:
                 az deployment group create `
                   --name "stms-prod-storage-deployment" `
                   --resource-group "$(resourceGroup)" `
-                  --template-file "$(Build.SourcesDirectory)\Azure\prod\infra\storage.bicep" `
+                  --template-file "$(Build.SourcesDirectory)\Azure\infra\prod\storage.bicep" `
                   --parameters `
                     location="$(azureLocation)" `
                     storageAccountName="$(storageAccount)" `
@@ -443,9 +443,9 @@ stages:
                 az deployment group create `
                   --name "stms-prod-vm-deployment" `
                   --resource-group "$(resourceGroup)" `
-                  --template-file "$(Build.SourcesDirectory)\Azure\prod\infra\vm-windows.bicep" `
+                  --template-file "$(Build.SourcesDirectory)\Azure\infra\prod\vm-windows.bicep" `
                   --parameters `
-                    @"$(Build.SourcesDirectory)\Azure\prod\infra\parameters\vm-windows-prod.json" `
+                    @"$(Build.SourcesDirectory)\Azure\infra\prod\parameters\vm-windows-prod.json" `
                     adminPassword="$env:VM_ADMIN_PASSWORD" `
                   --only-show-errors `
                   --output none
