@@ -744,11 +744,29 @@ stages:
                   if (-not (Test-Path -LiteralPath $rewriteDll)) {
                     Write-Host "Installing IIS URL Rewrite..."
                     $msi = "$root\rewrite.msi"
-                    Invoke-WebRequest `
-                      -UseBasicParsing `
-                      -Uri "https://download.microsoft.com/download/D/D/9/DD9A82D0-52EF-40DB-8D13-4B2325F124BE/rewrite_amd64_en-US.msi" `
-                      -OutFile $msi `
-                      -TimeoutSec 300
+                    $rewriteUrl = "https://download.microsoft.com/download/1/2/8/128E2E22-C1B9-44A4-BE2A-5859ED1D4592/rewrite_amd64_en-US.msi"
+                    $downloaded = $false
+
+                    for ($attempt = 1; $attempt -le 3 -and -not $downloaded; $attempt++) {
+                      try {
+                        Write-Host "Downloading IIS URL Rewrite (attempt $attempt of 3)..."
+                        Invoke-WebRequest `
+                          -UseBasicParsing `
+                          -Uri $rewriteUrl `
+                          -OutFile $msi `
+                          -TimeoutSec 300
+
+                        if (-not (Test-Path -LiteralPath $msi) -or (Get-Item $msi).Length -lt 1MB) {
+                          throw "Downloaded URL Rewrite MSI is missing or unexpectedly small."
+                        }
+
+                        $downloaded = $true
+                      }
+                      catch {
+                        if ($attempt -ge 3) { throw }
+                        Start-Sleep -Seconds 5
+                      }
+                    }
 
                     $code = Run-Installer `
                       -FilePath "msiexec.exe" `
