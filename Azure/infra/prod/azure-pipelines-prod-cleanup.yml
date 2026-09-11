@@ -1,0 +1,81 @@
+trigger: none
+pr: none
+
+parameters:
+- name: confirmDestroy
+  displayName: Type true to delete ALL production Azure resources
+  type: boolean
+  default: false
+
+variables:
+  resourceGroup: 'stms-prod-rg'
+
+pool:
+  vmImage: 'windows-latest'
+
+steps:
+- checkout: none
+
+- task: AzureCLI@2
+  displayName: Delete Production Resource Group
+  condition: eq('${{ parameters.confirmDestroy }}', 'true')
+  inputs:
+    azureSubscription: 'STMS-Azure-Service-Connection'
+    scriptType: pscore
+    scriptLocation: inlineScript
+    inlineScript: |
+      $ErrorActionPreference = 'Stop'
+
+      $resourceGroup = "$(resourceGroup)"
+
+      Write-Host "Target resource group: $resourceGroup"
+
+      $exists = az group exists `
+        --name $resourceGroup `
+        --output tsv
+
+      if ($LASTEXITCODE -ne 0) {
+        throw "Failed to check resource group existence."
+      }
+
+      if ($exists -ne 'true') {
+        Write-Host "Resource group '$resourceGroup' does not exist. Nothing to delete."
+        exit 0
+      }
+
+      Write-Host "Deleting resource group '$resourceGroup' and every resource inside it..."
+
+      az group delete `
+        --name $resourceGroup `
+        --yes `
+        --only-show-errors
+
+      if ($LASTEXITCODE -ne 0) {
+        throw "Resource group deletion failed."
+      }
+
+      $stillExists = az group exists `
+        --name $resourceGroup `
+        --output tsv
+
+      if ($LASTEXITCODE -ne 0) {
+        throw "Failed to verify resource group deletion."
+      }
+
+      if ($stillExists -eq 'true') {
+        throw "Resource group still exists after delete command completed."
+      }
+
+      Write-Host "============================================"
+      Write-Host "PRODUCTION AZURE CLEANUP SUCCESSFUL"
+      Write-Host "Deleted resource group: $resourceGroup"
+      Write-Host "============================================"
+
+- task: PowerShell@2
+  displayName: Confirmation Required
+  condition: ne('${{ parameters.confirmDestroy }}', 'true')
+  inputs:
+    pwsh: true
+    targetType: inline
+    script: |
+      throw "Cleanup was not executed. Run this pipeline manually with confirmDestroy = true."
