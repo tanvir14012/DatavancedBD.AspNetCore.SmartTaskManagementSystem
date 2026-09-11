@@ -1,0 +1,1032 @@
+trigger:
+  branches:
+    include:
+      - master
+
+pr:
+  branches:
+    include:
+      - master
+
+variables:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+  azureLocation: 'southeastasia'
+
+  resourceGroup: 'stms-prod-rg'
+  vmName: 'stms-prod-vm'
+
+  storageAccount: 'stmsprodartifacts'
+  storageContainer: 'deployments'
+
+stages:
+
+# ============================================================
+# BUILD
+# ============================================================
+
+- stage: Build
+  displayName: Build and Test
+
+  jobs:
+
+  # ==========================================================
+  # BACKEND
+  # ==========================================================
+
+  - job: Backend
+    displayName: Build and Test Backend
+
+    pool:
+      vmImage: 'windows-latest'
+
+    steps:
+
+    - checkout: self
+      clean: true
+
+    - task: UseDotNet@2
+      displayName: Install .NET 10
+      inputs:
+        packageType: sdk
+        version: '10.0.x'
+
+    - task: PowerShell@2
+      displayName: Restore Build Test
+      inputs:
+        pwsh: true
+        targetType: inline
+        script: |
+          $ErrorActionPreference = 'Stop'
+
+          Set-Location "$(Build.SourcesDirectory)"
+
+          dotnet restore
+          if ($LASTEXITCODE -ne 0) {
+              throw "dotnet restore failed."
+          }
+
+          dotnet build `
+            --configuration Release `
+            --no-restore
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "dotnet build failed."
+          }
+
+          dotnet test `
+            .\Infrastructure.Tests\Infrastructure.Tests.csproj `
+            --configuration Release `
+            --no-build `
+            --no-restore
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "dotnet test failed."
+          }
+
+    - task: PowerShell@2
+      displayName: Publish API
+      inputs:
+        pwsh: true
+        targetType: inline
+        script: |
+          $ErrorActionPreference = 'Stop'
+
+          $publishDirectory = "$(Build.ArtifactStagingDirectory)\api"
+
+          dotnet publish `
+            "$(Build.SourcesDirectory)\Api\Api.csproj" `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --output $publishDirectory
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "API publish failed."
+          }
+
+    - task: PowerShell@2
+      displayName: Create EF Migration Bundle
+      inputs:
+        pwsh: true
+        targetType: inline
+        script: |
+          $ErrorActionPreference = 'Stop'
+
+          Set-Location "$(Build.SourcesDirectory)"
+
+          $toolPath = "$(Agent.TempDirectory)\ef-tools"
+
+          dotnet tool install `
+            --tool-path $toolPath `
+            dotnet-ef `
+            --version 10.0.11
+
+          & "$toolPath\dotnet-ef.exe" migrations bundle `
+            --project Infrastructure `
+            --startup-project Api `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained `
+            --output "$(Build.ArtifactStagingDirectory)\api\stms-migrate.exe"
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Migration bundle creation failed."
+          }
+
+    - task: ArchiveFiles@2
+      displayName: Package Backend
+      inputs:
+        rootFolderOrFile: '$(Build.ArtifactStagingDirectory)\api'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: '$(Build.ArtifactStagingDirectory)\backend.zip'
+        replaceExistingArchive: true
+
+    - publish: '$(Build.ArtifactStagingDirectory)\backend.zip'
+      artifact: backend
+
+
+  # ==========================================================
+  # FRONTEND
+  # ==========================================================
+
+  - job: Frontend
+    displayName: Build Angular Frontend
+
+    pool:
+      vmImage: 'windows-latest'
+
+    steps:
+
+    - checkout: self
+      clean: true
+
+    - task: NodeTool@0
+      displayName: Install Node 22
+      inputs:
+        versionSpec: '22.x'
+
+    - task: PowerShell@2
+      displayName: Verify Production API Base URL
+      inputs:
+        pwsh: true
+        targetType: inline
+        script: |
+          $ErrorActionPreference = 'Stop'
+
+          $file = "$(Build.SourcesDirectory)\Frontend\Angular\src\environments\environment.prod.ts"
+
+          $content = Get-Content $file -Raw
+
+          if ($content -notmatch "apiBaseUrl\s*:\s*'/services/api'") {
+              throw "environment.prod.ts must use apiBaseUrl: '/services/api'"
+          }
+
+    - task: PowerShell@2
+      displayName: Build Angular
+      inputs:
+        pwsh: true
+        targetType: inline
+        workingDirectory: '$(Build.SourcesDirectory)\Frontend\Angular'
+        script: |
+          $ErrorActionPreference = 'Stop'
+
+          npm ci --no-audit --no-fund
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "npm ci failed."
+          }
+
+          npm run build:prod
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Angular build failed."
+          }
+
+    - task: PowerShell@2
+      displayName: Create IIS web.config
+      inputs:
+        pwsh: true
+        targetType: inline
+        script: |
+          $ErrorActionPreference = 'Stop'
+
+          $frontend = "$(Build.SourcesDirectory)\Frontend\Angular\dist\smart-task-management-system\browser"
+
+          if (-not (Test-Path "$frontend\index.html")) {
+              throw "Angular index.html missing."
+          }
+
+          $webConfig = @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <system.webServer>
+
+              <rewrite>
+                <rules>
+
+                  <rule name="Angular Routes" stopProcessing="true">
+                    <match url=".*" />
+
+                    <conditions logicalGrouping="MatchAll">
+                      <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" />
+                      <add input="{REQUEST_FILENAME}" matchType="IsDirectory" negate="true" />
+                      <add input="{REQUEST_URI}" pattern="^/services" negate="true" />
+                      <add input="{REQUEST_URI}" pattern="^/api" negate="true" />
+                    </conditions>
+
+                    <action type="Rewrite" url="/index.html" />
+                  </rule>
+
+                </rules>
+              </rewrite>
+
+              <staticContent>
+                <remove fileExtension=".json" />
+                <mimeMap fileExtension=".json" mimeType="application/json" />
+              </staticContent>
+
+            </system.webServer>
+          </configuration>
+          '@
+
+          Set-Content `
+            -Path "$frontend\web.config" `
+            -Value $webConfig `
+            -Encoding utf8
+
+    - task: ArchiveFiles@2
+      displayName: Package Angular
+      inputs:
+        rootFolderOrFile: '$(Build.SourcesDirectory)\Frontend\Angular\dist\smart-task-management-system\browser'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: '$(Build.ArtifactStagingDirectory)\frontend.zip'
+        replaceExistingArchive: true
+
+    - publish: '$(Build.ArtifactStagingDirectory)\frontend.zip'
+      artifact: frontend
+
+
+# ============================================================
+# DEPLOY
+# ============================================================
+
+- stage: Deploy
+  displayName: Deploy Production
+
+  dependsOn:
+    - Build
+
+  condition: |
+    and(
+      succeeded(),
+      ne(variables['Build.Reason'], 'PullRequest')
+    )
+
+  jobs:
+
+  - deployment: DeployProduction
+    displayName: Deploy STMS Production
+
+    environment: Production
+
+    pool:
+      vmImage: 'windows-latest'
+
+    strategy:
+      runOnce:
+        deploy:
+
+          steps:
+
+          - checkout: self
+
+          - download: current
+            artifact: backend
+
+          - download: current
+            artifact: frontend
+
+
+          # ====================================================
+          # RESOURCE GROUP
+          # ====================================================
+
+          - task: AzureCLI@2
+            displayName: Deploy Production Resource Group
+            inputs:
+              azureSubscription: 'STMS-Azure-Service-Connection'
+              scriptType: pscore
+              scriptLocation: inlineScript
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+
+                az deployment sub create `
+                  --name "stms-prod-rg-deployment" `
+                  --location "$(azureLocation)" `
+                  --template-file "$(Build.SourcesDirectory)\Azure\prod\infra\rg.bicep" `
+                  --parameters `
+                    location="$(azureLocation)" `
+                    resourceGroupName="$(resourceGroup)" `
+                  --only-show-errors `
+                  --output none
+
+
+          # ====================================================
+          # STORAGE
+          # ====================================================
+
+          - task: AzureCLI@2
+            displayName: Deploy Production Storage
+            inputs:
+              azureSubscription: 'STMS-Azure-Service-Connection'
+              scriptType: pscore
+              scriptLocation: inlineScript
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+
+                az deployment group create `
+                  --name "stms-prod-storage-deployment" `
+                  --resource-group "$(resourceGroup)" `
+                  --template-file "$(Build.SourcesDirectory)\Azure\prod\infra\storage.bicep" `
+                  --parameters `
+                    location="$(azureLocation)" `
+                    storageAccountName="$(storageAccount)" `
+                    containerName="$(storageContainer)" `
+                  --only-show-errors `
+                  --output none
+
+
+          # ====================================================
+          # WINDOWS VM
+          # ====================================================
+
+          - task: AzureCLI@2
+            displayName: Deploy Production Windows VM
+            env:
+              VM_ADMIN_PASSWORD: $(VM_ADMIN_PASSWORD)
+            inputs:
+              azureSubscription: 'STMS-Azure-Service-Connection'
+              scriptType: pscore
+              scriptLocation: inlineScript
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+
+                az deployment group create `
+                  --name "stms-prod-vm-deployment" `
+                  --resource-group "$(resourceGroup)" `
+                  --template-file "$(Build.SourcesDirectory)\Azure\prod\infra\vm-windows.bicep" `
+                  --parameters `
+                    @"$(Build.SourcesDirectory)\Azure\prod\infra\parameters\vm-windows-prod.json" `
+                    adminPassword="$env:VM_ADMIN_PASSWORD" `
+                  --only-show-errors `
+                  --output none
+
+
+          # ====================================================
+          # GET VM IP
+          # ====================================================
+
+          - task: AzureCLI@2
+            displayName: Get Production VM IP
+            inputs:
+              azureSubscription: 'STMS-Azure-Service-Connection'
+              scriptType: pscore
+              scriptLocation: inlineScript
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+
+                $pipName = az deployment group show `
+                  --resource-group "$(resourceGroup)" `
+                  --name "stms-prod-vm-deployment" `
+                  --query properties.outputs.publicIpName.value `
+                  --output tsv
+
+                $vmIp = az network public-ip show `
+                  --resource-group "$(resourceGroup)" `
+                  --name $pipName `
+                  --query ipAddress `
+                  --output tsv
+
+                if ([string]::IsNullOrWhiteSpace($vmIp)) {
+                    throw "Could not resolve VM public IP."
+                }
+
+                Write-Host "VM IP: $vmIp"
+
+                Write-Host "##vso[task.setvariable variable=VM_PUBLIC_IP]$vmIp"
+
+
+          # ====================================================
+          # UPLOAD BUILD ARTIFACTS
+          # ====================================================
+
+          - task: AzureCLI@2
+            displayName: Upload Deployment Packages
+            inputs:
+              azureSubscription: 'STMS-Azure-Service-Connection'
+              scriptType: pscore
+              scriptLocation: inlineScript
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+
+                $storageKey = az storage account keys list `
+                  --account-name "$(storageAccount)" `
+                  --resource-group "$(resourceGroup)" `
+                  --query "[0].value" `
+                  --output tsv
+
+                Write-Host "##vso[task.setsecret]$storageKey"
+
+                $backend = "$(Pipeline.Workspace)\backend\backend.zip"
+                $frontend = "$(Pipeline.Workspace)\frontend\frontend.zip"
+
+                $backendBlob = "backend-$(Build.BuildId).zip"
+                $frontendBlob = "frontend-$(Build.BuildId).zip"
+
+                az storage blob upload `
+                  --account-name "$(storageAccount)" `
+                  --account-key $storageKey `
+                  --container-name "$(storageContainer)" `
+                  --name $backendBlob `
+                  --file $backend `
+                  --overwrite `
+                  --output none
+
+                az storage blob upload `
+                  --account-name "$(storageAccount)" `
+                  --account-key $storageKey `
+                  --container-name "$(storageContainer)" `
+                  --name $frontendBlob `
+                  --file $frontend `
+                  --overwrite `
+                  --output none
+
+                $expiry = (Get-Date).ToUniversalTime().AddHours(2).ToString("yyyy-MM-ddTHH:mmZ")
+
+                $backendSas = az storage blob generate-sas `
+                  --account-name "$(storageAccount)" `
+                  --account-key $storageKey `
+                  --container-name "$(storageContainer)" `
+                  --name $backendBlob `
+                  --permissions r `
+                  --https-only `
+                  --expiry $expiry `
+                  --output tsv
+
+                $frontendSas = az storage blob generate-sas `
+                  --account-name "$(storageAccount)" `
+                  --account-key $storageKey `
+                  --container-name "$(storageContainer)" `
+                  --name $frontendBlob `
+                  --permissions r `
+                  --https-only `
+                  --expiry $expiry `
+                  --output tsv
+
+                $backendUrl = "https://$(storageAccount).blob.core.windows.net/$(storageContainer)/$backendBlob?$backendSas"
+
+                $frontendUrl = "https://$(storageAccount).blob.core.windows.net/$(storageContainer)/$frontendBlob?$frontendSas"
+
+                Write-Host "##vso[task.setsecret]$backendUrl"
+                Write-Host "##vso[task.setsecret]$frontendUrl"
+
+                Write-Host "##vso[task.setvariable variable=BACKEND_PACKAGE_URL;issecret=true]$backendUrl"
+                Write-Host "##vso[task.setvariable variable=FRONTEND_PACKAGE_URL;issecret=true]$frontendUrl"
+
+
+          # ====================================================
+          # CONFIGURE WINDOWS / IIS / SQL SERVER
+          # ====================================================
+
+          - task: AzureCLI@2
+            displayName: Configure IIS SQL Server and Deploy
+            env:
+              SQL_SA_PASSWORD: $(SQL_SA_PASSWORD)
+              JWT_KEY: $(JWT_KEY)
+              GROQ_API_KEY: $(GROQ_API_KEY)
+              BACKEND_PACKAGE_URL: $(BACKEND_PACKAGE_URL)
+              FRONTEND_PACKAGE_URL: $(FRONTEND_PACKAGE_URL)
+
+            inputs:
+              azureSubscription: 'STMS-Azure-Service-Connection'
+              scriptType: pscore
+              scriptLocation: inlineScript
+
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+
+                function Encode([string]$value) {
+                    [Convert]::ToBase64String(
+                        [Text.Encoding]::UTF8.GetBytes($value)
+                    )
+                }
+
+                $backend64 = Encode $env:BACKEND_PACKAGE_URL
+                $frontend64 = Encode $env:FRONTEND_PACKAGE_URL
+                $sql64 = Encode $env:SQL_SA_PASSWORD
+                $jwt64 = Encode $env:JWT_KEY
+                $groq64 = Encode $env:GROQ_API_KEY
+                $ip64 = Encode "$(VM_PUBLIC_IP)"
+
+                $script = @'
+                $ErrorActionPreference = "Stop"
+                $ProgressPreference = "SilentlyContinue"
+
+                function Decode([string]$value) {
+                    [Text.Encoding]::UTF8.GetString(
+                        [Convert]::FromBase64String($value)
+                    )
+                }
+
+                $BackendUrl = Decode "__BACKEND__"
+                $FrontendUrl = Decode "__FRONTEND__"
+                $SqlPassword = Decode "__SQL__"
+                $JwtKey = Decode "__JWT__"
+                $GroqKey = Decode "__GROQ__"
+                $VmIp = Decode "__IP__"
+
+                $InstallRoot = "C:\stms-prod-install"
+                $ApiRoot = "C:\inetpub\stms-prod-api"
+                $WebRoot = "C:\inetpub\stms-prod-web"
+
+                New-Item `
+                  -ItemType Directory `
+                  -Force `
+                  -Path $InstallRoot,$ApiRoot,$WebRoot |
+                  Out-Null
+
+
+                # ==========================================
+                # IIS
+                # ==========================================
+
+                Install-WindowsFeature `
+                  Web-Server, `
+                  Web-Static-Content, `
+                  Web-Default-Doc, `
+                  Web-Http-Errors, `
+                  Web-Http-Logging, `
+                  Web-Filtering, `
+                  Web-Stat-Compression, `
+                  Web-Mgmt-Console, `
+                  Web-WebSockets `
+                  -IncludeManagementTools |
+                  Out-Null
+
+
+                # ==========================================
+                # URL REWRITE
+                # ==========================================
+
+                $rewriteDll = "C:\Windows\System32\inetsrv\rewrite.dll"
+
+                if (-not (Test-Path $rewriteDll)) {
+
+                    $rewriteMsi = "$InstallRoot\rewrite.msi"
+
+                    Invoke-WebRequest `
+                      -Uri "https://download.microsoft.com/download/D/D/9/DD9A82D0-52EF-40DB-8D13-4B2325F124BE/rewrite_amd64_en-US.msi" `
+                      -OutFile $rewriteMsi
+
+                    Start-Process `
+                      msiexec.exe `
+                      -ArgumentList "/i `"$rewriteMsi`" /quiet /norestart" `
+                      -Wait
+                }
+
+
+                # ==========================================
+                # ASP.NET CORE HOSTING BUNDLE
+                # ==========================================
+
+                $hostingBundle = "$InstallRoot\dotnet-hosting.exe"
+
+                if (-not (Test-Path "C:\Program Files\IIS\Asp.Net Core Module\V2\aspnetcorev2.dll")) {
+
+                    Invoke-WebRequest `
+                      -Uri "https://aka.ms/dotnet/10.0/dotnet-hosting-win.exe" `
+                      -OutFile $hostingBundle
+
+                    Start-Process `
+                      $hostingBundle `
+                      -ArgumentList "/install /quiet /norestart" `
+                      -Wait
+                }
+
+
+                # ==========================================
+                # SQL SERVER EXPRESS
+                # ==========================================
+
+                $sqlService = Get-Service `
+                  "MSSQL`$SQLEXPRESS" `
+                  -ErrorAction SilentlyContinue
+
+                if (-not $sqlService) {
+
+                    $installer = "$InstallRoot\SQL2022-SSEI-Expr.exe"
+
+                    Invoke-WebRequest `
+                      -Uri "https://go.microsoft.com/fwlink/?linkid=2216019" `
+                      -OutFile $installer
+
+                    $media = "$InstallRoot\sql-media"
+
+                    New-Item `
+                      -ItemType Directory `
+                      -Force `
+                      -Path $media |
+                      Out-Null
+
+                    Start-Process `
+                      $installer `
+                      -ArgumentList @(
+                          "/ACTION=Download",
+                          "/MEDIATYPE=Core",
+                          "/MEDIAPATH=`"$media`"",
+                          "/QUIET",
+                          "/IACCEPTSQLSERVERLICENSETERMS"
+                      ) `
+                      -Wait
+
+                    $sqlPackage = Get-ChildItem `
+                      $media `
+                      -Filter "SQLEXPR*x64*.exe" `
+                      -Recurse |
+                      Select-Object -First 1
+
+                    if (-not $sqlPackage) {
+                        throw "SQL Express package not found."
+                    }
+
+                    $extracted = "$InstallRoot\sql"
+
+                    New-Item `
+                      -ItemType Directory `
+                      -Force `
+                      -Path $extracted |
+                      Out-Null
+
+                    Start-Process `
+                      $sqlPackage.FullName `
+                      -ArgumentList "/x:`"$extracted`" /q" `
+                      -Wait
+
+                    $setup = Get-ChildItem `
+                      $extracted `
+                      -Filter setup.exe `
+                      -Recurse |
+                      Select-Object -First 1
+
+                    if (-not $setup) {
+                        throw "SQL Server setup.exe not found."
+                    }
+
+                    Start-Process `
+                      $setup.FullName `
+                      -ArgumentList @(
+                          "/Q",
+                          "/ACTION=Install",
+                          "/FEATURES=SQLENGINE",
+                          "/INSTANCENAME=SQLEXPRESS",
+                          "/SECURITYMODE=SQL",
+                          "/SAPWD=`"$SqlPassword`"",
+                          "/SQLSYSADMINACCOUNTS=`"BUILTIN\Administrators`"",
+                          "/TCPENABLED=0",
+                          "/NPENABLED=0",
+                          "/IACCEPTSQLSERVERLICENSETERMS"
+                      ) `
+                      -Wait
+                }
+
+
+                # ==========================================
+                # DOWNLOAD APPLICATION
+                # ==========================================
+
+                $backendZip = "$InstallRoot\backend.zip"
+                $frontendZip = "$InstallRoot\frontend.zip"
+
+                Invoke-WebRequest `
+                  $BackendUrl `
+                  -OutFile $backendZip
+
+                Invoke-WebRequest `
+                  $FrontendUrl `
+                  -OutFile $frontendZip
+
+                $apiStage = "$InstallRoot\api-stage"
+                $webStage = "$InstallRoot\web-stage"
+
+                Remove-Item $apiStage `
+                  -Force `
+                  -Recurse `
+                  -ErrorAction SilentlyContinue
+
+                Remove-Item $webStage `
+                  -Force `
+                  -Recurse `
+                  -ErrorAction SilentlyContinue
+
+                Expand-Archive $backendZip $apiStage -Force
+                Expand-Archive $frontendZip $webStage -Force
+
+
+                # ==========================================
+                # CONNECTION STRING
+                # ==========================================
+
+                $ConnectionString = `
+                  "Server=localhost\SQLEXPRESS;" +
+                  "Database=stms-prod-db;" +
+                  "User ID=sa;" +
+                  "Password=$SqlPassword;" +
+                  "Encrypt=True;" +
+                  "TrustServerCertificate=True;" +
+                  "MultipleActiveResultSets=True;"
+
+
+                # ==========================================
+                # EF MIGRATION
+                # ==========================================
+
+                & "$apiStage\stms-migrate.exe" `
+                  --connection $ConnectionString
+
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Database migration failed."
+                }
+
+
+                # ==========================================
+                # IIS DEPLOYMENT
+                # ==========================================
+
+                Import-Module WebAdministration
+
+                if (Test-Path "IIS:\Sites\STMS-PROD") {
+                    Stop-Website "STMS-PROD"
+                }
+
+                Remove-Item "$ApiRoot\*" `
+                  -Recurse `
+                  -Force `
+                  -ErrorAction SilentlyContinue
+
+                Remove-Item "$WebRoot\*" `
+                  -Recurse `
+                  -Force `
+                  -ErrorAction SilentlyContinue
+
+                Copy-Item "$apiStage\*" `
+                  $ApiRoot `
+                  -Recurse `
+                  -Force
+
+                Copy-Item "$webStage\*" `
+                  $WebRoot `
+                  -Recurse `
+                  -Force
+
+
+                # ==========================================
+                # APP POOLS
+                # ==========================================
+
+                if (-not (Test-Path "IIS:\AppPools\STMS-PROD-Web-Pool")) {
+
+                    New-WebAppPool "STMS-PROD-Web-Pool"
+                }
+
+                if (-not (Test-Path "IIS:\AppPools\STMS-PROD-Api-Pool")) {
+
+                    New-WebAppPool "STMS-PROD-Api-Pool"
+                }
+
+                Set-ItemProperty `
+                  "IIS:\AppPools\STMS-PROD-Web-Pool" `
+                  managedRuntimeVersion `
+                  ""
+
+                Set-ItemProperty `
+                  "IIS:\AppPools\STMS-PROD-Api-Pool" `
+                  managedRuntimeVersion `
+                  ""
+
+
+                # ==========================================
+                # APP SETTINGS
+                # ==========================================
+
+                [Environment]::SetEnvironmentVariable(
+                    "ASPNETCORE_ENVIRONMENT",
+                    "Production",
+                    "Machine"
+                )
+
+                [Environment]::SetEnvironmentVariable(
+                    "ConnectionStrings__DefaultConnection",
+                    $ConnectionString,
+                    "Machine"
+                )
+
+                [Environment]::SetEnvironmentVariable(
+                    "Cors__AllowedOrigins__0",
+                    "https://$VmIp",
+                    "Machine"
+                )
+
+                [Environment]::SetEnvironmentVariable(
+                    "Jwt__Issuer",
+                    "https://$VmIp",
+                    "Machine"
+                )
+
+                [Environment]::SetEnvironmentVariable(
+                    "Jwt__Audience",
+                    "https://$VmIp",
+                    "Machine"
+                )
+
+                [Environment]::SetEnvironmentVariable(
+                    "Jwt__Key",
+                    $JwtKey,
+                    "Machine"
+                )
+
+                [Environment]::SetEnvironmentVariable(
+                    "Ai__GroqApiKey",
+                    $GroqKey,
+                    "Machine"
+                )
+
+
+                # ==========================================
+                # WEBSITE
+                # ==========================================
+
+                if (Test-Path "IIS:\Sites\Default Web Site") {
+                    Remove-Website "Default Web Site"
+                }
+
+                if (-not (Test-Path "IIS:\Sites\STMS-PROD")) {
+
+                    New-Website `
+                      -Name "STMS-PROD" `
+                      -PhysicalPath $WebRoot `
+                      -ApplicationPool "STMS-PROD-Web-Pool" `
+                      -Port 80 `
+                      -IPAddress "*"
+                }
+
+
+                # ==========================================
+                # /services API APPLICATION
+                # ==========================================
+
+                if (Test-Path "IIS:\Sites\STMS-PROD\services") {
+
+                    Remove-WebApplication `
+                      -Site "STMS-PROD" `
+                      -Name "services"
+                }
+
+                New-WebApplication `
+                  -Site "STMS-PROD" `
+                  -Name "services" `
+                  -PhysicalPath $ApiRoot `
+                  -ApplicationPool "STMS-PROD-Api-Pool"
+
+
+                # ==========================================
+                # SELF-SIGNED IP CERT
+                # ==========================================
+
+                $certificate = Get-ChildItem `
+                  Cert:\LocalMachine\My |
+                  Where-Object {
+                      $_.Subject -eq "CN=$VmIp" -and
+                      $_.NotAfter -gt (Get-Date).AddDays(30)
+                  } |
+                  Select-Object -First 1
+
+                if (-not $certificate) {
+
+                    $certificate = New-SelfSignedCertificate `
+                      -Subject "CN=$VmIp" `
+                      -CertStoreLocation "Cert:\LocalMachine\My" `
+                      -KeyAlgorithm RSA `
+                      -KeyLength 2048 `
+                      -HashAlgorithm SHA256 `
+                      -NotAfter (Get-Date).AddYears(1) `
+                      -TextExtension @(
+                          "2.5.29.17={text}IPAddress=$VmIp"
+                      )
+                }
+
+
+                # ==========================================
+                # HTTPS
+                # ==========================================
+
+                Get-WebBinding `
+                  -Name "STMS-PROD" `
+                  -Protocol https `
+                  -ErrorAction SilentlyContinue |
+                  Remove-WebBinding `
+                    -ErrorAction SilentlyContinue
+
+                New-WebBinding `
+                  -Name "STMS-PROD" `
+                  -Protocol https `
+                  -Port 443 `
+                  -IPAddress "*"
+
+                $sslBinding = "0.0.0.0!443"
+
+                if (Test-Path "IIS:\SslBindings\$sslBinding") {
+
+                    Remove-Item `
+                      "IIS:\SslBindings\$sslBinding" `
+                      -Force
+                }
+
+                Push-Location IIS:\SslBindings
+
+                Get-Item `
+                  "Cert:\LocalMachine\My\$($certificate.Thumbprint)" |
+                  New-Item `
+                    $sslBinding `
+                    -Force
+
+                Pop-Location
+
+                iisreset
+
+                Write-Host "STMS_PROD_DEPLOY_OK"
+                '@
+
+                $script = $script `
+                  .Replace("__BACKEND__", $backend64) `
+                  .Replace("__FRONTEND__", $frontend64) `
+                  .Replace("__SQL__", $sql64) `
+                  .Replace("__JWT__", $jwt64) `
+                  .Replace("__GROQ__", $groq64) `
+                  .Replace("__IP__", $ip64)
+
+                $scriptPath = "$(Agent.TempDirectory)\deploy-prod.ps1"
+
+                Set-Content `
+                  $scriptPath `
+                  $script `
+                  -Encoding utf8
+
+                az vm run-command invoke `
+                  --resource-group "$(resourceGroup)" `
+                  --name "$(vmName)" `
+                  --command-id RunPowerShellScript `
+                  --scripts "@$scriptPath" `
+                  --output none
+
+
+          # ====================================================
+          # SMOKE TEST
+          # ====================================================
+
+          - task: PowerShell@2
+            displayName: Verify Production Site
+            inputs:
+              pwsh: true
+              targetType: inline
+              script: |
+                $ErrorActionPreference = 'Stop'
+
+                $url = "https://$(VM_PUBLIC_IP)"
+
+                for ($attempt = 1; $attempt -le 10; $attempt++) {
+
+                    try {
+
+                        $response = Invoke-WebRequest `
+                          $url `
+                          -SkipCertificateCheck `
+                          -TimeoutSec 20
+
+                        if ($response.StatusCode -eq 200) {
+
+                            Write-Host "Deployment successful."
+                            Write-Host "Site: $url"
+
+                            exit 0
+                        }
+                    }
+                    catch {
+                        Start-Sleep 10
+                    }
+                }
+
+                throw "Production site health check failed."
