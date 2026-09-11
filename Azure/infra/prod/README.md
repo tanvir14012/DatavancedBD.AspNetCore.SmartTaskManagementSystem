@@ -1,8 +1,26 @@
 # Production Azure DevOps deployment
 
-This folder contains the production Azure DevOps CI/CD and Infrastructure-as-Code for Smart Task Management System. It is intentionally separate from the repository's development GitHub Actions deployment.
+This folder contains the production Azure DevOps CI/CD and Infrastructure-as-Code for Smart Task Management System. It is intentionally separate from the repository's **development-only GitHub Actions deployment**.
 
 The production design uses a **Windows Server 2022 Azure VM** in **Southeast Asia**, **IIS** for both the Angular frontend and ASP.NET Core API, and **SQL Server 2022 Express** on the same VM. Azure DevOps builds the backend and frontend, provisions/reconciles Azure infrastructure with Bicep, applies EF Core migrations, deploys the application, configures IIS/HTTPS, and performs a public smoke test.
+
+## Development vs. production CI/CD
+
+There are two intentionally separate Azure deployment systems in this repository. New contributors should not treat the GitHub Actions workflow and the Azure DevOps pipeline as interchangeable.
+
+| System | Environment | Primary branch/triggers | Hosting design |
+| --- | --- | --- | --- |
+| **GitHub Actions** (`.github/workflows/dev-cicd.yml`) | **Development only** | Automatic on pushes to `dev` and `feature/dev/**`; PRs targeting `dev` run validation without deployment; `workflow_dispatch` is also available. It does **not** automatically run for `master`. | Ubuntu VM + Nginx + Azure SQL and development Azure resources (`stms-dev-*`). |
+| **Azure DevOps** (`Azure/infra/prod/azure-pipelines-prod.yml`) | **Production only** | Pushes to `master` build/test/deploy; PRs targeting `master` build/test but do not deploy; manual runs are supported. | Windows Server 2022 + IIS + local SQL Server Express and production Azure resources (`stms-prod-*`). |
+
+In short:
+
+```text
+dev / feature/dev/**  -> GitHub Actions -> DEVELOPMENT
+master                 -> Azure DevOps   -> PRODUCTION
+```
+
+The GitHub Actions workflow must not be used as the production deployment path. Likewise, the production Azure DevOps pipeline must not be treated as the development pipeline. The development cleanup workflow and the production cleanup pipeline are also separate and target different resource groups.
 
 ## Files
 
@@ -149,7 +167,7 @@ The current production certificate is self-signed, so the pipeline smoke test us
 
 ### 1. Connect GitHub to Azure DevOps
 
-The repository remains hosted on GitHub while Azure DevOps executes the production pipeline.
+The repository remains hosted on GitHub while Azure DevOps executes the production pipeline. This GitHub connection is for the **production Azure DevOps pipeline**; it is separate from GitHub Actions, which continues to handle development CI/CD from the repository itself.
 
 In Azure DevOps:
 
