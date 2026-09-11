@@ -162,7 +162,6 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
       osDisk: {
         createOption: 'FromImage'
         deleteOption: 'Delete'
-        diskSizeGB: 64
 
         managedDisk: {
           storageAccountType: 'StandardSSD_LRS'
