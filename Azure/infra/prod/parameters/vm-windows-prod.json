@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+
+  "parameters": {
+
+    "location": {
+      "value": "southeastasia"
+    },
+
+    "vmName": {
+      "value": "stms-prod-vm"
+    },
+
+    "vmSize": {
+      "value": "Standard_B2s"
+    },
+
+    "adminUsername": {
+      "value": "stmsadmin"
+    },
+
+    "vnetName": {
+      "value": "stms-prod-vnet"
+    },
+
+    "subnetName": {
+      "value": "stms-prod-subnet"
+    },
+
+    "nsgName": {
+      "value": "stms-prod-nsg"
+    },
+
+    "publicIpName": {
+      "value": "stms-prod-pip"
+    },
+
+    "nicName": {
+      "value": "stms-prod-nic"
+    }
+
+  }
+}
