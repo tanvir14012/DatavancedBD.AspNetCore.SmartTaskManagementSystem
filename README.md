@@ -2,7 +2,7 @@
 
 A full-stack project and task management application built with ASP.NET Core 10 and Angular 21. It includes role-based access control, project membership, task assignments and boards, dashboard summaries, and AI-assisted task description refinement through Groq.
 
-The application has been successfully deployed to Azure. This repository includes Bicep infrastructure, parallel backend/frontend builds, an Ubuntu/Nginx development deployment driven by GitHub Actions, and a separate Windows Server/IIS production deployment driven by Azure DevOps.
+The application has been successfully deployed to Azure. This repository intentionally has **two separate CI/CD paths**: GitHub Actions is for **development only** (Ubuntu/Nginx development resources), while Azure DevOps is for **production only** (Windows Server/IIS/SQL Express production resources). GitHub Actions does not automatically deploy from `master`; production deployments from `master` are handled by Azure DevOps.
 
 ## Contents
 
@@ -11,7 +11,7 @@ The application has been successfully deployed to Azure. This repository include
 - [API routes](#api-routes)
 - [Azure infrastructure](#azure-infrastructure)
 - [Production CI/CD in Azure DevOps](#production-cicd-in-azure-devops)
-- [GitHub Actions pipeline](#github-actions-pipeline)
+- [GitHub Actions development pipeline](#github-actions-development-pipeline)
 - [Configuration on the VM](#configuration-on-the-vm)
 - [Cleanup and operations](#cleanup-and-operations)
 - [Azure deployment screenshots](#azure-deployment-screenshots)
@@ -68,7 +68,8 @@ Shared/
 Infrastructure.Tests/
 Frontend/Angular/
 Azure/infra/                        # Bicep templates and development parameters
-.github/workflows/                  # CI/CD and development cleanup
+.github/workflows/                  # Development GitHub Actions CI/CD and cleanup
+Azure/infra/prod/                   # Production Azure DevOps CI/CD and Bicep
 docs/images/azure/                  # Deployment screenshots
 ```
 
@@ -180,7 +181,7 @@ flowchart LR
     Nginx -->|API and health routes| API[ASP.NET Core on loopback port 5000]
     API --> SQL[Azure SQL Database]
     API --> Groq[Groq API]
-    Actions[GitHub Actions] --> Vault[Key Vault connection string]
+    Actions[GitHub Actions - development] --> Vault[Key Vault connection string]
     Actions --> Storage[Private deployment ZIPs]
     Actions -->|VM Run Command| Nginx
 ```
@@ -220,7 +221,9 @@ That guide includes:
 - Required production secret variables (`VM_ADMIN_PASSWORD`, `SQL_SA_PASSWORD`, `JWT_KEY`, `GROQ_API_KEY`).
 - Production resources, VM quota notes, runtime configuration, IIS/SQL behavior, HTTPS certificate handling, troubleshooting, and cleanup/recreation instructions.
 
-## GitHub Actions pipeline
+## GitHub Actions development pipeline
+
+> **Development only.** This workflow is not the production deployment mechanism. Production is owned by the Azure DevOps pipeline described above.
 
 Source of truth: [dev-cicd.yml](.github/workflows/dev-cicd.yml). All runner commands use Bash on `ubuntu-latest`; the generated VM script uses `/bin/sh`.
 
@@ -228,20 +231,21 @@ Source of truth: [dev-cicd.yml](.github/workflows/dev-cicd.yml). All runner comm
 
 | Event | Behavior |
 | --- | --- |
-| Push to `dev` or `feature/dev/**` | Build/test backend and build frontend, then deploy if both succeed. |
+| Push to `dev` | Build/test backend and build frontend, then deploy development if both succeed. |
+| Push to `feature/dev/**` | Build/test and deploy the development environment using the same development workflow. |
 | Pull request targeting `dev` | Run both build jobs; skip Azure deployment. |
 | Manual `workflow_dispatch` | Run both builds and deploy the selected ref, subject to environment rules. |
-| Push to `master` or pull request targeting `master` | Not matched by the current automatic triggers. |
+| Push to `master` or pull request targeting `master` | **Not matched by the GitHub Actions development workflow.** Production on `master` is handled by Azure DevOps. |
 
 ```mermaid
 flowchart TD
-    Trigger[Push / pull request / manual run] --> Backend[Backend: validate, restore, build, test, publish]
+    Trigger[Development push / PR / manual run] --> Backend[Backend: validate, restore, build, test, publish]
     Trigger --> Frontend[Frontend: npm ci, production build, ZIP]
     Backend --> Gate{Both succeeded and not a pull request?}
     Frontend --> Gate
     Gate -->|Yes| Deploy[Development: infrastructure, migrations, VM deployment]
-    Gate -->|No deployment on PR| Validation[Build results and artifacts]
-    Deploy --> Verify[Health checks and site URL summary]
+    Gate -->|PR| Validation[Build results and artifacts only]
+    Deploy --> Verify[Development health checks and site URL summary]
 ```
 
 1. **Backend job (25-minute timeout):** checks `Api/appsettings.json` using `jq empty`; installs .NET 10; caches NuGet packages keyed by project/package configuration; restores, builds Release, and runs `Infrastructure.Tests`. Publish uses `--no-build --no-restore` to reuse the build. `publish.zip` is uploaded as artifact `backend`.
@@ -262,19 +266,21 @@ Create an environment named **`Development`** with these secrets:
 
 | Secret | Used for |
 | --- | --- |
-| `AZURE_CLIENT_ID` | Deployment service principal/application ID |
+| `AZURE_CLIENT_ID` | Development deployment service principal/application ID |
 | `AZURE_TENANT_ID` | Microsoft Entra tenant |
 | `AZURE_SUBSCRIPTION_ID` | Target subscription |
-| `SQL_ADMIN_PASSWORD` | SQL provisioning and application connection string |
-| `VM_ADMIN_PASSWORD` | VM administrator provisioning |
-| `JWT_KEY` | JWT signing secret; at least 32 bytes |
+| `SQL_ADMIN_PASSWORD` | Development Azure SQL provisioning and application connection string |
+| `VM_ADMIN_PASSWORD` | Development VM administrator provisioning |
+| `JWT_KEY` | Development JWT signing secret; at least 32 bytes |
 | `GROQ_API_KEY` | Groq API authentication |
 
 Configure a federated identity credential for this repository's `Development` environment (subject `repo:tanvir14012/DatavancedBD.AspNetCore.SmartTaskManagementSystem:environment:Development`). For a fork, use its owner/repository. Configure environment deployment-branch rules and approvals as appropriate; YAML referencing an environment does not itself create an approval policy.
 
-The Azure principal needs access to subscription/resource-group deployments, resource creation, role assignment creation, its service-principal lookup, Key Vault secret operations, storage account key retrieval, SQL firewall changes, and VM Run Command. Cleanup additionally needs group deletion and deleted-vault read/purge permissions. A resource-scoped Secrets Officer assignment alone is not sufficient for all these operations. Resource names must be available in the target subscription/region and globally unique where Azure requires it.
+The development Azure principal needs access to subscription/resource-group deployments, resource creation, role assignment creation, its service-principal lookup, Key Vault secret operations, storage account key retrieval, SQL firewall changes, and VM Run Command. Development cleanup additionally needs group deletion and deleted-vault read/purge permissions. A resource-scoped Secrets Officer assignment alone is not sufficient for all these operations. Resource names must be available in the target subscription/region and globally unique where Azure requires it.
 
 ## Configuration on the VM
+
+This section describes the **development Ubuntu/Nginx VM** used by GitHub Actions, not the production Windows/IIS VM. For production runtime details, see [Azure/infra/prod/README.md](Azure/infra/prod/README.md).
 
 The generator reads **`Api/appsettings.json` only**, not `appsettings.Development.json`. Because it uses `jq`, the base file must contain strict JSON without comments or trailing commas.
 
@@ -285,7 +291,7 @@ The generator reads **`Api/appsettings.json` only**, not `appsettings.Developmen
 | `Cors:AllowedOrigins` | First two entries overridden with HTTPS/HTTP VM IP origins. |
 | `Jwt:Issuer`, `Jwt:Audience` | Set to the HTTPS VM IP URL. |
 | `Jwt:Key`, `Ai:GroqApiKey` | Supplied from GitHub environment secrets. |
-| `ASPNETCORE_ENVIRONMENT` | `Production`, despite the GitHub environment being named `Development`. |
+| `ASPNETCORE_ENVIRONMENT` | `Production` for the deployed app process, even though this infrastructure is the repository's development environment. |
 | `ASPNETCORE_URLS` | `http://127.0.0.1:5000`. |
 | Dotted `Microsoft.AspNetCore` logging key, nulls, empty arrays | Omitted from the environment file; retained in the published JSON configuration. |
 
@@ -293,22 +299,24 @@ The API still loads its normal JSON configuration, with environment values overr
 
 | VM path | Purpose |
 | --- | --- |
-| `/var/www/stms-api` | Published API, owned by `www-data` |
-| `/var/www/stms-web` | Angular browser files |
-| `/etc/stms-api.env` | Environment settings, installed as `root:root`, mode `600` |
-| `/etc/systemd/system/stms-api.service` | Service created by Bicep; runs as `www-data` and references the environment file |
-| `/etc/nginx/sites-available/stms` | Nginx site, linked from `sites-enabled` |
-| `/etc/nginx/ssl/stms.crt` and `stms.key` | Public certificate (mode `644`) and private key (mode `600`) |
+| `/var/www/stms-api` | Published development API, owned by `www-data` |
+| `/var/www/stms-web` | Development Angular browser files |
+| `/etc/stms-api.env` | Development environment settings, installed as `root:root`, mode `600` |
+| `/etc/systemd/system/stms-api.service` | Development service created by Bicep; runs as `www-data` and references the environment file |
+| `/etc/nginx/sites-available/stms` | Development Nginx site, linked from `sites-enabled` |
+| `/etc/nginx/ssl/stms.crt` and `stms.key` | Development public certificate (mode `644`) and private key (mode `600`) |
 
-The certificate includes the public IP as an IP SAN, lasts 365 days, and is regenerated during deployment when missing, within 30 days of expiry, or not matching the IP. It is not automatically trusted by browsers, and renewal requires a deployment run. Base64 in Run Command is used for transport/quoting, not encryption; do not publish generated environment files, SAS URLs, or keys.
+The development certificate includes the public IP as an IP SAN, lasts 365 days, and is regenerated during deployment when missing, within 30 days of expiry, or not matching the IP. It is not automatically trusted by browsers, and renewal requires a development deployment run. Base64 in Run Command is used for transport/quoting, not encryption; do not publish generated environment files, SAS URLs, or keys.
 
 ## Cleanup and operations
 
-[dev-cleanup.yml](.github/workflows/dev-cleanup.yml) is manually dispatched and requires the exact confirmation **`DELETE`**. It shares the deployment concurrency group, lists the group's resources, requests deletion, waits up to one hour, and verifies the group is gone. It then locates the matching soft-deleted Key Vault by original resource ID, purges it if permitted, and verifies completion. Purge protection or missing permissions cause failure; diagnostics are printed. The job timeout is 90 minutes.
+The cleanup described in this section is **development cleanup**. Production cleanup is a separate Azure DevOps pipeline documented in [Azure/infra/prod/README.md](Azure/infra/prod/README.md).
 
-This is destructive teardown, not application rollback. It deletes the application database and files with the group and permanently purges vault secrets. It does not delete unrelated resource groups, subscription deployment history, or the deployment identity. In particular, the screenshot shows `NetworkWatcher_southeastasia` in **`NetworkWatcherRG`**, outside `stms-dev-rg`; the cleanup workflow does not target that resource.
+[dev-cleanup.yml](.github/workflows/dev-cleanup.yml) is manually dispatched and requires the exact confirmation **`DELETE`**. It shares the development deployment concurrency group, lists `stms-dev-rg` resources, requests deletion, waits up to one hour, and verifies the group is gone. It then locates the matching soft-deleted Key Vault by original resource ID, purges it if permitted, and verifies completion. Purge protection or missing permissions cause failure; diagnostics are printed. The job timeout is 90 minutes.
 
-On the VM:
+This is destructive development teardown, not application rollback. It deletes the development application database and files with the group and permanently purges development vault secrets. It does not delete production resources in `stms-prod-rg`, unrelated resource groups, subscription deployment history, or the deployment identity.
+
+On the development VM:
 
 ```bash
 sudo systemctl status stms-api --no-pager
@@ -318,11 +326,11 @@ curl -fsS http://127.0.0.1:5000/health
 sudo tail -n 100 /var/www/stms-api/Logs/log-YYYYMMDD.txt
 ```
 
-Logs inside the API deployment directory are replaced along with its files on deployment; use journal output or external log retention when historical logs are needed. Health checks confirm basic availability, not every authenticated feature. Common configuration failures include invalid JSON, a short JWT secret, SQL free-offer constraints, unavailable regional SKUs, and insufficient Azure permissions.
+Logs inside the development API deployment directory are replaced along with its files on deployment; use journal output or external log retention when historical logs are needed. Health checks confirm basic availability, not every authenticated feature.
 
 ## Azure deployment screenshots
 
-These screenshots supplied from successful deployments show the running application and provisioned resources. They are historical evidence, not a live availability guarantee or an Actions-run log. The application captures show an earlier public IP; use the latest workflow summary for the current URL. The browser warning reflects the self-signed development certificate.
+These screenshots supplied from successful **development** deployments show the running application and provisioned development resources. They are historical evidence, not a live availability guarantee or a production deployment record. The application captures show an earlier development public IP; use the latest development workflow summary for the current development URL. The browser warning reflects the self-signed development certificate.
 
 ### Application home
 
@@ -355,15 +363,15 @@ These screenshots supplied from successful deployments show the running applicat
 
 ### Azure resources
 
-![Azure Resource Manager showing STMS resources in Southeast Asia and a separate Network Watcher resource](docs/images/azure/STMS-Azure-7.png)
+![Azure Resource Manager showing STMS development resources in Southeast Asia and a separate Network Watcher resource](docs/images/azure/STMS-Azure-7.png)
 
 ## Further documentation
 
 - [Production Azure DevOps CI/CD manual](Azure/infra/prod/README.md)
 - [Production Azure DevOps pipeline](Azure/infra/prod/azure-pipelines-prod.yml) and [production cleanup pipeline](Azure/infra/prod/azure-pipelines-prod-cleanup.yml)
-- [Azure CI/CD workflow](.github/workflows/dev-cicd.yml) and [development cleanup](.github/workflows/dev-cleanup.yml)
-- [Bicep infrastructure](Azure/infra)
-- [Manual Nginx deployment guide](DeploymentToNginx.md): domain/local-server walkthrough; the Azure workflow instead uses Azure SQL and an IP SAN certificate.
+- [Development GitHub Actions CI/CD workflow](.github/workflows/dev-cicd.yml) and [development cleanup](.github/workflows/dev-cleanup.yml)
+- [Development Bicep infrastructure](Azure/infra)
+- [Manual Nginx deployment guide](DeploymentToNginx.md): domain/local-server walkthrough; the GitHub Actions path uses Nginx/Azure SQL for development.
 - [IIS deployment guide](DeploymentToIIS.md)
 - [AI setup](AI_SETUP.md) and [prompt strategy](PROMPTS.md)
 - [API Postman collection](Api/SmartTaskManagementSystem.postman_collection.json)
