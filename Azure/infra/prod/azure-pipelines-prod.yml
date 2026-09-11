@@ -729,7 +729,7 @@ stages:
                       }
                     }
 
-                    throw "Installer failed with exit code $exitCode: $FilePath$logDetails"
+                    throw "Installer failed with exit code ${exitCode}: $FilePath$logDetails"
                   }
 
                   return $exitCode
@@ -903,7 +903,7 @@ stages:
                       }
                     }
 
-                    throw "Installer failed with exit code $exitCode: $FilePath$logDetails"
+                    throw "Installer failed with exit code ${exitCode}: $FilePath$logDetails"
                   }
 
                   return $exitCode
