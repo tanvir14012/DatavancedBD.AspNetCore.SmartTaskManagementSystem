@@ -520,46 +520,6 @@ stages:
                     throw 'Frontend package upload failed.'
                 }
 
-                $expiry = (Get-Date).ToUniversalTime().AddHours(2).ToString('yyyy-MM-ddTHH:mm:ssZ')
-
-                $backendSas = & az storage blob generate-sas `
-                  --account-name "$(storageAccount)" `
-                  --account-key $storageKey `
-                  --container-name "$(storageContainer)" `
-                  --name $backendBlob `
-                  --permissions r `
-                  --https-only `
-                  --expiry $expiry `
-                  --output tsv `
-                  --only-show-errors
-
-                if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($backendSas)) {
-                    throw 'Backend SAS generation failed.'
-                }
-
-                $frontendSas = & az storage blob generate-sas `
-                  --account-name "$(storageAccount)" `
-                  --account-key $storageKey `
-                  --container-name "$(storageContainer)" `
-                  --name $frontendBlob `
-                  --permissions r `
-                  --https-only `
-                  --expiry $expiry `
-                  --output tsv `
-                  --only-show-errors
-
-                if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($frontendSas)) {
-                    throw 'Frontend SAS generation failed.'
-                }
-
-                $backendUrl = "https://$(storageAccount).blob.core.windows.net/$(storageContainer)/$backendBlob?$backendSas"
-                $frontendUrl = "https://$(storageAccount).blob.core.windows.net/$(storageContainer)/$frontendBlob?$frontendSas"
-
-                Write-Host "##vso[task.setsecret]$backendUrl"
-                Write-Host "##vso[task.setsecret]$frontendUrl"
-
-                Write-Host "##vso[task.setvariable variable=BACKEND_PACKAGE_URL;issecret=true]$backendUrl"
-                Write-Host "##vso[task.setvariable variable=FRONTEND_PACKAGE_URL;issecret=true]$frontendUrl"
 
           - task: AzureCLI@2
             displayName: Configure Windows VM in Phases
@@ -567,8 +527,6 @@ stages:
               SQL_SA_PASSWORD: $(SQL_SA_PASSWORD)
               JWT_KEY: $(JWT_KEY)
               GROQ_API_KEY: $(GROQ_API_KEY)
-              BACKEND_PACKAGE_URL: $(BACKEND_PACKAGE_URL)
-              FRONTEND_PACKAGE_URL: $(FRONTEND_PACKAGE_URL)
             inputs:
               azureSubscription: 'STMS-Azure-Service-Connection'
               scriptType: pscore
@@ -668,18 +626,98 @@ stages:
                 foreach ($required in @(
                   'SQL_SA_PASSWORD',
                   'JWT_KEY',
-                  'GROQ_API_KEY',
-                  'BACKEND_PACKAGE_URL',
-                  'FRONTEND_PACKAGE_URL'
+                  'GROQ_API_KEY'
                 )) {
                   if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($required))) {
                     throw "Required deployment variable is empty: $required"
                   }
                 }
 
+                # Generate fresh full SAS URIs here, immediately before VM configuration.
+                # Do not transport SAS values through Azure DevOps logging variables.
+                $storageKey = & az storage account keys list `
+                  --account-name "$(storageAccount)" `
+                  --resource-group "$(resourceGroup)" `
+                  --query '[0].value' `
+                  --output tsv `
+                  --only-show-errors
+
+                if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($storageKey)) {
+                  throw 'Unable to obtain the deployment storage account key.'
+                }
+
+                $backendBlob = "backend-$(Build.BuildId).zip"
+                $frontendBlob = "frontend-$(Build.BuildId).zip"
+                $expiry = (Get-Date).ToUniversalTime().AddHours(3).ToString('yyyy-MM-ddTHH:mm:ssZ')
+
+                $backendUrl = (& az storage blob generate-sas `
+                  --account-name "$(storageAccount)" `
+                  --account-key $storageKey `
+                  --container-name "$(storageContainer)" `
+                  --name $backendBlob `
+                  --permissions r `
+                  --https-only `
+                  --expiry $expiry `
+                  --full-uri `
+                  --output tsv `
+                  --only-show-errors | Out-String).Trim()
+
+                if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($backendUrl)) {
+                  throw 'Backend SAS URI generation failed.'
+                }
+
+                $frontendUrl = (& az storage blob generate-sas `
+                  --account-name "$(storageAccount)" `
+                  --account-key $storageKey `
+                  --container-name "$(storageContainer)" `
+                  --name $frontendBlob `
+                  --permissions r `
+                  --https-only `
+                  --expiry $expiry `
+                  --full-uri `
+                  --output tsv `
+                  --only-show-errors | Out-String).Trim()
+
+                if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($frontendUrl)) {
+                  throw 'Frontend SAS URI generation failed.'
+                }
+
+                foreach ($pair in @(
+                  @{ Name = 'backend'; Url = $backendUrl },
+                  @{ Name = 'frontend'; Url = $frontendUrl }
+                )) {
+                  $uri = [Uri]$pair.Url
+
+                  if ($uri.Scheme -ne 'https' -or
+                      [string]::IsNullOrWhiteSpace($uri.Query) -or
+                      $uri.Query -notmatch '(^|[?&])sig=' -or
+                      $uri.Query -notmatch '(^|[?&])sp=r(&|$)') {
+                    throw "$($pair.Name) SAS URI is malformed."
+                  }
+
+                  # Validate the exact SAS URI from the Azure DevOps agent before
+                  # embedding it into the remote VM script.
+                  try {
+                    $response = Invoke-WebRequest `
+                      -UseBasicParsing `
+                      -Method Head `
+                      -Uri $pair.Url `
+                      -TimeoutSec 60
+
+                    if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
+                      throw "HTTP $($response.StatusCode)"
+                    }
+                  }
+                  catch {
+                    throw "$($pair.Name) SAS URI validation failed: $($_.Exception.Message)"
+                  }
+                }
+
+                Write-Host 'Backend and frontend SAS URIs validated successfully.'
+
                 $sql64 = Encode $env:SQL_SA_PASSWORD
-                $backend64 = Encode $env:BACKEND_PACKAGE_URL
-                $frontend64 = Encode $env:FRONTEND_PACKAGE_URL
+                $backend64 = Encode $backendUrl
+                $frontend64 = Encode $frontendUrl
                 $jwt64 = Encode $env:JWT_KEY
                 $groq64 = Encode $env:GROQ_API_KEY
                 $ip64 = Encode "$(VM_PUBLIC_IP)"
@@ -1042,9 +1080,65 @@ stages:
 
                   New-Item -ItemType Directory -Force -Path $root,$apiRoot,$webRoot | Out-Null
 
+                  function Download-Package {
+                    param(
+                      [Parameter(Mandatory = $true)][string]$Name,
+                      [Parameter(Mandatory = $true)][string]$Uri,
+                      [Parameter(Mandatory = $true)][string]$OutFile
+                    )
+
+                    $parsed = [Uri]$Uri
+
+                    if ($parsed.Scheme -ne "https" -or
+                        [string]::IsNullOrWhiteSpace($parsed.Query) -or
+                        $parsed.Query -notmatch "(^|[?&])sig=") {
+                      throw "$Name package URI arrived without a SAS signature."
+                    }
+
+                    try {
+                      Invoke-WebRequest `
+                        -UseBasicParsing `
+                        -Uri $Uri `
+                        -OutFile $OutFile `
+                        -TimeoutSec 600
+
+                      if (-not (Test-Path -LiteralPath $OutFile) -or
+                          (Get-Item -LiteralPath $OutFile).Length -eq 0) {
+                        throw "$Name package download produced an empty file."
+                      }
+                    }
+                    catch {
+                      $status = $null
+                      $body = $null
+
+                      try {
+                        if ($_.Exception.Response) {
+                          $status = [int]$_.Exception.Response.StatusCode
+
+                          $stream = $_.Exception.Response.GetResponseStream()
+                          if ($stream) {
+                            $reader = New-Object System.IO.StreamReader($stream)
+                            $body = $reader.ReadToEnd()
+                            $reader.Dispose()
+                          }
+                        }
+                      }
+                      catch {
+                        # Preserve the original download exception.
+                      }
+
+                      if ($body) {
+                        $body = ($body -replace "\s+", " ").Trim()
+                        throw "$Name package download failed. HTTP $status. Azure response: $body"
+                      }
+
+                      throw "$Name package download failed. $($_.Exception.Message)"
+                    }
+                  }
+
                   Write-Host "Downloading application packages..."
-                  Invoke-WebRequest -UseBasicParsing -Uri $backendUrl -OutFile $backendZip -TimeoutSec 600
-                  Invoke-WebRequest -UseBasicParsing -Uri $frontendUrl -OutFile $frontendZip -TimeoutSec 600
+                  Download-Package -Name "Backend" -Uri $backendUrl -OutFile $backendZip
+                  Download-Package -Name "Frontend" -Uri $frontendUrl -OutFile $frontendZip
 
                   Remove-Item -LiteralPath $apiStage -Recurse -Force -ErrorAction SilentlyContinue
                   Remove-Item -LiteralPath $webStage -Recurse -Force -ErrorAction SilentlyContinue
