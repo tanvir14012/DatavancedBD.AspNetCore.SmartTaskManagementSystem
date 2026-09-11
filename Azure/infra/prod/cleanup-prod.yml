@@ -1,0 +1,79 @@
+trigger: none
+pr: none
+
+variables:
+  resourceGroup: 'stms-prod-rg'
+
+stages:
+
+- stage: Cleanup
+  displayName: Destroy Production Infrastructure
+
+  jobs:
+
+  - job: Destroy
+    displayName: Delete STMS Production Resource Group
+
+    pool:
+      vmImage: windows-latest
+
+    steps:
+
+    - checkout: none
+
+    - task: AzureCLI@2
+      displayName: Verify Resource Group Exists
+      inputs:
+        azureSubscription: 'STMS-Azure-Service-Connection'
+        scriptType: pscore
+        scriptLocation: inlineScript
+        inlineScript: |
+          $ErrorActionPreference = 'Stop'
+
+          $exists = az group exists `
+            --name "$(resourceGroup)"
+
+          if ($exists -eq "false") {
+              Write-Host "Resource group does not exist."
+              exit 0
+          }
+
+          Write-Host "Resource group exists."
+
+    - task: AzureCLI@2
+      displayName: Delete Production Resource Group
+      inputs:
+        azureSubscription: 'STMS-Azure-Service-Connection'
+        scriptType: pscore
+        scriptLocation: inlineScript
+        inlineScript: |
+          $ErrorActionPreference = 'Stop'
+
+          az group delete `
+            --name "$(resourceGroup)" `
+            --yes `
+            --no-wait
+
+          Write-Host "Deletion started."
+
+    - task: AzureCLI@2
+      displayName: Wait Until Deletion Completes
+      inputs:
+        azureSubscription: 'STMS-Azure-Service-Connection'
+        scriptType: pscore
+        scriptLocation: inlineScript
+        inlineScript: |
+          $ErrorActionPreference = 'Stop'
+
+          do {
+
+            Start-Sleep -Seconds 15
+
+            $exists = az group exists `
+              --name "$(resourceGroup)"
+
+            Write-Host "Resource group exists: $exists"
+
+          } while ($exists -eq "true")
+
+          Write-Host "Production infrastructure deleted successfully."
