@@ -1,0 +1,488 @@
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+
+function Decode {
+    param([Parameter(Mandatory = $true)][string]$Value)
+    return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Value))
+}
+
+function Invoke-CheckedProcess {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [string[]]$ArgumentList = @(),
+        [int[]]$SuccessExitCodes = @(0)
+    )
+
+    $process = Start-Process `
+        -FilePath $FilePath `
+        -ArgumentList $ArgumentList `
+        -Wait `
+        -PassThru `
+        -NoNewWindow
+
+    if ($SuccessExitCodes -notcontains $process.ExitCode) {
+        throw "Process failed with exit code $($process.ExitCode): $FilePath"
+    }
+
+    return $process.ExitCode
+}
+
+try {
+    $BackendUrl = Decode "__BACKEND__"
+    $FrontendUrl = Decode "__FRONTEND__"
+    $SqlPassword = Decode "__SQL__"
+    $JwtKey = Decode "__JWT__"
+    $GroqKey = Decode "__GROQ__"
+    $VmIp = Decode "__IP__"
+
+    $InstallRoot = "C:\stms-prod-install"
+    $ApiRoot = "C:\inetpub\stms-prod-api"
+    $WebRoot = "C:\inetpub\stms-prod-web"
+
+    New-Item -ItemType Directory -Force -Path $InstallRoot,$ApiRoot,$WebRoot | Out-Null
+
+    # ------------------------------------------
+    # IIS
+    # ------------------------------------------
+
+    $featureResult = Install-WindowsFeature `
+        Web-Server, `
+        Web-Static-Content, `
+        Web-Default-Doc, `
+        Web-Http-Errors, `
+        Web-Http-Logging, `
+        Web-Filtering, `
+        Web-Stat-Compression, `
+        Web-Mgmt-Console, `
+        Web-WebSockets `
+        -IncludeManagementTools
+
+    if (-not $featureResult.Success) {
+        throw "IIS feature installation failed."
+    }
+
+    if ($featureResult.RestartNeeded -eq "Yes") {
+        Write-Host "STMS_REBOOT_REQUIRED"
+        exit 0
+    }
+
+    # ------------------------------------------
+    # SQL SERVER 2022 EXPRESS
+    # ------------------------------------------
+
+    $sqlService = Get-Service "MSSQL`$SQLEXPRESS" -ErrorAction SilentlyContinue
+
+    if (-not $sqlService) {
+        $bootstrapper = "$InstallRoot\SQL2022-SSEI-Expr.exe"
+        $bootstrapperUri = "https://download.microsoft.com/download/5/1/4/5145fe04-4d30-4b85-b0d1-39533663a2f1/SQL2022-SSEI-Expr.exe"
+        $media = "$InstallRoot\sql-media"
+        $extracted = "$InstallRoot\sql"
+
+        New-Item -ItemType Directory -Force -Path $media,$extracted | Out-Null
+
+        $sqlPackage = Get-ChildItem `
+            -Path $media `
+            -Filter "SQLEXPR*x64*.exe" `
+            -Recurse `
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+
+        if (-not $sqlPackage) {
+            if (-not (Test-Path -LiteralPath $bootstrapper)) {
+                Invoke-WebRequest -Uri $bootstrapperUri -OutFile $bootstrapper
+            }
+
+            if ((Get-Item -LiteralPath $bootstrapper).Length -lt 1MB) {
+                throw "SQL Server 2022 Express bootstrapper download is unexpectedly small."
+            }
+
+            $downloadExit = Invoke-CheckedProcess `
+                -FilePath $bootstrapper `
+                -ArgumentList @(
+                    "/ACTION=Download",
+                    "/MEDIATYPE=Core",
+                    "/MEDIAPATH=`"$media`"",
+                    "/QUIET",
+                    "/IACCEPTSQLSERVERLICENSETERMS"
+                )
+
+            $sqlPackage = Get-ChildItem `
+                -Path $media `
+                -Filter "SQLEXPR*x64*.exe" `
+                -Recurse |
+                Select-Object -First 1
+        }
+
+        if (-not $sqlPackage) {
+            throw "SQL Server 2022 Express Core media was not downloaded."
+        }
+
+        $setup = Get-ChildItem `
+            -Path $extracted `
+            -Filter "setup.exe" `
+            -Recurse `
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+
+        if (-not $setup) {
+            Invoke-CheckedProcess `
+                -FilePath $sqlPackage.FullName `
+                -ArgumentList @("/x:`"$extracted`"", "/q") |
+                Out-Null
+
+            $setup = Get-ChildItem `
+                -Path $extracted `
+                -Filter "setup.exe" `
+                -Recurse |
+                Select-Object -First 1
+        }
+
+        if (-not $setup) {
+            throw "SQL Server setup.exe was not found after media extraction."
+        }
+
+        $sqlExit = Invoke-CheckedProcess `
+            -FilePath $setup.FullName `
+            -ArgumentList @(
+                "/Q",
+                "/ACTION=Install",
+                "/FEATURES=SQLENGINE",
+                "/INSTANCENAME=SQLEXPRESS",
+                "/SECURITYMODE=SQL",
+                "/SAPWD=`"$SqlPassword`"",
+                "/SQLSYSADMINACCOUNTS=`"BUILTIN\Administrators`"",
+                "/SQLSVCSTARTUPTYPE=Automatic",
+                "/TCPENABLED=0",
+                "/NPENABLED=0",
+                "/UPDATEENABLED=False",
+                "/IACCEPTSQLSERVERLICENSETERMS"
+            ) `
+            -SuccessExitCodes @(0, 1641, 3010)
+
+        if ($sqlExit -in @(1641, 3010)) {
+            Write-Host "STMS_REBOOT_REQUIRED"
+            exit 0
+        }
+
+        for ($attempt = 1; $attempt -le 30; $attempt++) {
+            $sqlService = Get-Service "MSSQL`$SQLEXPRESS" -ErrorAction SilentlyContinue
+            if ($sqlService) {
+                break
+            }
+            Start-Sleep -Seconds 2
+        }
+
+        if (-not $sqlService) {
+            throw "SQL Server Express service was not created."
+        }
+    }
+
+    if ($sqlService.Status -ne "Running") {
+        Start-Service "MSSQL`$SQLEXPRESS"
+        (Get-Service "MSSQL`$SQLEXPRESS").WaitForStatus("Running", [TimeSpan]::FromSeconds(60))
+    }
+
+    # ------------------------------------------
+    # IIS URL REWRITE
+    # ------------------------------------------
+
+    $rewriteDll = "C:\Windows\System32\inetsrv\rewrite.dll"
+
+    if (-not (Test-Path -LiteralPath $rewriteDll)) {
+        $rewriteMsi = "$InstallRoot\rewrite.msi"
+
+        if (-not (Test-Path -LiteralPath $rewriteMsi)) {
+            Invoke-WebRequest `
+                -Uri "https://download.microsoft.com/download/D/D/9/DD9A82D0-52EF-40DB-8D13-4B2325F124BE/rewrite_amd64_en-US.msi" `
+                -OutFile $rewriteMsi
+        }
+
+        $rewriteExit = Invoke-CheckedProcess `
+            -FilePath "msiexec.exe" `
+            -ArgumentList @("/i", "`"$rewriteMsi`"", "/quiet", "/norestart") `
+            -SuccessExitCodes @(0, 1641, 3010)
+
+        if ($rewriteExit -in @(1641, 3010)) {
+            Write-Host "STMS_REBOOT_REQUIRED"
+            exit 0
+        }
+    }
+
+    # ------------------------------------------
+    # .NET 10 IIS HOSTING BUNDLE
+    # ------------------------------------------
+
+    $ancm = "C:\Program Files\IIS\Asp.Net Core Module\V2\aspnetcorev2.dll"
+
+    if (-not (Test-Path -LiteralPath $ancm)) {
+        $hostingBundle = "$InstallRoot\dotnet-hosting-10-current-win.exe"
+
+        if (-not (Test-Path -LiteralPath $hostingBundle)) {
+            Invoke-WebRequest `
+                -Uri "https://aka.ms/dotnetcore-10-0-windowshosting" `
+                -OutFile $hostingBundle
+        }
+
+        $hostingExit = Invoke-CheckedProcess `
+            -FilePath $hostingBundle `
+            -ArgumentList @("/install", "/quiet", "/norestart", "OPT_NO_RUNTIME=1", "OPT_NO_SHAREDFX=1", "OPT_NO_X86=1") `
+            -SuccessExitCodes @(0, 1641, 3010)
+
+        if ($hostingExit -in @(1641, 3010)) {
+            Write-Host "STMS_REBOOT_REQUIRED"
+            exit 0
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $ancm)) {
+        throw "ASP.NET Core Module V2 was not installed."
+    }
+
+    # ------------------------------------------
+    # DOWNLOAD APPLICATION PACKAGES
+    # ------------------------------------------
+
+    $backendZip = "$InstallRoot\backend.zip"
+    $frontendZip = "$InstallRoot\frontend.zip"
+
+    Invoke-WebRequest -Uri $BackendUrl -OutFile $backendZip
+    Invoke-WebRequest -Uri $FrontendUrl -OutFile $frontendZip
+
+    if ((Get-Item -LiteralPath $backendZip).Length -eq 0) {
+        throw "Downloaded backend package is empty."
+    }
+
+    if ((Get-Item -LiteralPath $frontendZip).Length -eq 0) {
+        throw "Downloaded frontend package is empty."
+    }
+
+    $apiStage = "$InstallRoot\api-stage"
+    $webStage = "$InstallRoot\web-stage"
+
+    Remove-Item -LiteralPath $apiStage -Force -Recurse -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $webStage -Force -Recurse -ErrorAction SilentlyContinue
+
+    Expand-Archive -LiteralPath $backendZip -DestinationPath $apiStage -Force
+    Expand-Archive -LiteralPath $frontendZip -DestinationPath $webStage -Force
+
+    if (-not (Test-Path -LiteralPath "$apiStage\Api.exe")) {
+        throw "Api.exe is missing from the backend deployment package."
+    }
+
+    if (-not (Test-Path -LiteralPath "$apiStage\stms-migrate.exe")) {
+        throw "stms-migrate.exe is missing from the backend deployment package."
+    }
+
+    if (-not (Test-Path -LiteralPath "$apiStage\web.config")) {
+        throw "API web.config is missing from the backend deployment package."
+    }
+
+    if (-not (Test-Path -LiteralPath "$webStage\index.html")) {
+        throw "index.html is missing from the frontend deployment package."
+    }
+
+    if (-not (Test-Path -LiteralPath "$webStage\web.config")) {
+        throw "Angular web.config is missing from the frontend deployment package."
+    }
+
+    # ------------------------------------------
+    # CONNECTION STRING
+    # ------------------------------------------
+
+    $connectionBuilder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+    $connectionBuilder.DataSource = "localhost\SQLEXPRESS"
+    $connectionBuilder.InitialCatalog = "stms-prod-db"
+    $connectionBuilder.UserID = "sa"
+    $connectionBuilder.Password = $SqlPassword
+    $connectionBuilder.Encrypt = $true
+    $connectionBuilder.TrustServerCertificate = $true
+    $connectionBuilder.MultipleActiveResultSets = $true
+    $connectionBuilder.ConnectTimeout = 30
+
+    $ConnectionString = $connectionBuilder.ConnectionString
+
+    # ------------------------------------------
+    # APPLICATION ENVIRONMENT
+    # ------------------------------------------
+
+    $env:ASPNETCORE_ENVIRONMENT = "Production"
+    $env:DOTNET_ENVIRONMENT = "Production"
+    $env:ConnectionStrings__DefaultConnection = $ConnectionString
+
+    [Environment]::SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production", "Machine")
+    [Environment]::SetEnvironmentVariable("DOTNET_ENVIRONMENT", "Production", "Machine")
+    [Environment]::SetEnvironmentVariable("ConnectionStrings__DefaultConnection", $ConnectionString, "Machine")
+    [Environment]::SetEnvironmentVariable("Cors__AllowedOrigins__0", "https://$VmIp", "Machine")
+    [Environment]::SetEnvironmentVariable("Cors__AllowedOrigins__1", "http://$VmIp", "Machine")
+    [Environment]::SetEnvironmentVariable("Jwt__Issuer", "https://$VmIp", "Machine")
+    [Environment]::SetEnvironmentVariable("Jwt__Audience", "https://$VmIp", "Machine")
+    [Environment]::SetEnvironmentVariable("Jwt__Key", $JwtKey, "Machine")
+    [Environment]::SetEnvironmentVariable("Ai__GroqApiKey", $GroqKey, "Machine")
+
+    # ------------------------------------------
+    # EF DATABASE MIGRATION
+    # ------------------------------------------
+
+    & "$apiStage\stms-migrate.exe" --connection $ConnectionString
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Database migration failed with exit code $LASTEXITCODE."
+    }
+
+    # ------------------------------------------
+    # IIS DEPLOYMENT
+    # ------------------------------------------
+
+    Import-Module WebAdministration
+
+    if (Test-Path "IIS:\Sites\STMS-PROD") {
+        Stop-Website "STMS-PROD" -ErrorAction SilentlyContinue
+    }
+
+    Remove-Item "$ApiRoot\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$WebRoot\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+    Copy-Item "$apiStage\*" $ApiRoot -Recurse -Force
+    Copy-Item "$webStage\*" $WebRoot -Recurse -Force
+
+    & icacls $ApiRoot /grant "IIS_IUSRS:(OI)(CI)RX" /T /C /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to grant IIS read/execute access to the API directory."
+    }
+
+    & icacls $WebRoot /grant "IIS_IUSRS:(OI)(CI)RX" /T /C /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to grant IIS read/execute access to the frontend directory."
+    }
+
+    foreach ($pool in @("STMS-PROD-Web-Pool", "STMS-PROD-Api-Pool")) {
+        if (-not (Test-Path "IIS:\AppPools\$pool")) {
+            New-WebAppPool $pool | Out-Null
+        }
+
+        Set-ItemProperty "IIS:\AppPools\$pool" managedRuntimeVersion ""
+        Set-ItemProperty "IIS:\AppPools\$pool" enable32BitAppOnWin64 $false
+    }
+
+    if (Test-Path "IIS:\Sites\Default Web Site") {
+        Remove-Website "Default Web Site"
+    }
+
+    if (-not (Test-Path "IIS:\Sites\STMS-PROD")) {
+        New-Website `
+            -Name "STMS-PROD" `
+            -PhysicalPath $WebRoot `
+            -ApplicationPool "STMS-PROD-Web-Pool" `
+            -Port 80 `
+            -IPAddress "*" |
+            Out-Null
+    }
+    else {
+        Set-ItemProperty "IIS:\Sites\STMS-PROD" physicalPath $WebRoot
+        Set-ItemProperty "IIS:\Sites\STMS-PROD" applicationPool "STMS-PROD-Web-Pool"
+    }
+
+    if (Test-Path "IIS:\Sites\STMS-PROD\services") {
+        Remove-WebApplication -Site "STMS-PROD" -Name "services"
+    }
+
+    New-WebApplication `
+        -Site "STMS-PROD" `
+        -Name "services" `
+        -PhysicalPath $ApiRoot `
+        -ApplicationPool "STMS-PROD-Api-Pool" |
+        Out-Null
+
+    # ------------------------------------------
+    # SELF-SIGNED IP CERTIFICATE
+    # ------------------------------------------
+
+    $certificate = Get-ChildItem Cert:\LocalMachine\My |
+        Where-Object {
+            $_.Subject -eq "CN=$VmIp" -and
+            $_.NotAfter -gt (Get-Date).AddDays(30)
+        } |
+        Sort-Object NotAfter -Descending |
+        Select-Object -First 1
+
+    if (-not $certificate) {
+        $certificate = New-SelfSignedCertificate `
+            -Subject "CN=$VmIp" `
+            -CertStoreLocation "Cert:\LocalMachine\My" `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -NotAfter (Get-Date).AddYears(1) `
+            -FriendlyName "STMS-PROD-$VmIp" `
+            -TextExtension @("2.5.29.17={text}IPAddress=$VmIp")
+    }
+
+    if (-not $certificate.HasPrivateKey) {
+        throw "HTTPS certificate does not contain a private key."
+    }
+
+    # ------------------------------------------
+    # HTTPS BINDING
+    # ------------------------------------------
+
+    Get-WebBinding `
+        -Name "STMS-PROD" `
+        -Protocol https `
+        -ErrorAction SilentlyContinue |
+        Remove-WebBinding -ErrorAction SilentlyContinue
+
+    New-WebBinding `
+        -Name "STMS-PROD" `
+        -Protocol https `
+        -Port 443 `
+        -IPAddress "*" |
+        Out-Null
+
+    $httpsBinding = Get-WebBinding `
+        -Name "STMS-PROD" `
+        -Protocol https `
+        -Port 443
+
+    if (-not $httpsBinding) {
+        throw "IIS HTTPS binding was not created."
+    }
+
+    $httpsBinding.AddSslCertificate($certificate.Thumbprint, "My")
+
+    # Restart IIS after Hosting Bundle installation and configuration.
+    & iisreset /restart | Out-Null
+
+    # ------------------------------------------
+    # LOCAL HEALTH CHECK
+    # ------------------------------------------
+
+    $healthy = $false
+
+    for ($attempt = 1; $attempt -le 12; $attempt++) {
+        try {
+            $response = Invoke-WebRequest `
+                -Uri "http://localhost/services/health" `
+                -UseBasicParsing `
+                -TimeoutSec 15
+
+            if ($response.StatusCode -eq 200) {
+                $healthy = $true
+                break
+            }
+        }
+        catch {
+            Start-Sleep -Seconds 5
+        }
+    }
+
+    if (-not $healthy) {
+        throw "Local API health check failed: http://localhost/services/health"
+    }
+
+    Write-Host "STMS_PROD_DEPLOY_OK"
+    exit 0
+}
+catch {
+    [Console]::Error.WriteLine("STMS_PROD_DEPLOY_FAILED: $($_.Exception.Message)")
+    exit 1
+}
