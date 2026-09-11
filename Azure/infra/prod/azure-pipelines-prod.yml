@@ -116,17 +116,18 @@ stages:
               throw 'VM_ADMIN_PASSWORD must contain at least 3 of: lowercase, uppercase, digit, special character.'
           }
 
-          if ($env:SQL_SA_PASSWORD.Length -lt 8) {
-              throw 'SQL_SA_PASSWORD must be at least 8 characters.'
+          if ($env:SQL_SA_PASSWORD.Length -lt 8 -or $env:SQL_SA_PASSWORD.Length -gt 128) {
+              throw 'SQL_SA_PASSWORD must be between 8 and 128 characters.'
           }
 
-          if (
-              $env:SQL_SA_PASSWORD -notcmatch '[a-z]' -or
-              $env:SQL_SA_PASSWORD -notcmatch '[A-Z]' -or
-              $env:SQL_SA_PASSWORD -notmatch '\d' -or
-              $env:SQL_SA_PASSWORD -notmatch '[\W_]'
-          ) {
-              throw 'SQL_SA_PASSWORD must contain lowercase, uppercase, digit, and special characters.'
+          $sqlPasswordClasses = 0
+          if ($env:SQL_SA_PASSWORD -cmatch '[a-z]') { $sqlPasswordClasses++ }
+          if ($env:SQL_SA_PASSWORD -cmatch '[A-Z]') { $sqlPasswordClasses++ }
+          if ($env:SQL_SA_PASSWORD -match '\d') { $sqlPasswordClasses++ }
+          if ($env:SQL_SA_PASSWORD -match '[\W_]') { $sqlPasswordClasses++ }
+
+          if ($sqlPasswordClasses -lt 3) {
+              throw 'SQL_SA_PASSWORD must contain characters from at least 3 of these 4 categories: lowercase, uppercase, digit, special character.'
           }
 
           if ($env:SQL_SA_PASSWORD.Contains('"') -or $env:SQL_SA_PASSWORD.Contains("`r") -or $env:SQL_SA_PASSWORD.Contains("`n")) {
