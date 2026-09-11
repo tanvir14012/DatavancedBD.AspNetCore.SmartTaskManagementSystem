@@ -67,30 +67,6 @@ stages:
               }
           }
 
-          function Get-AvailableVmSku {
-              param([Parameter(Mandatory = $true)][string]$Sku)
-
-              $raw = & az vm list-skus `
-                --location "$(azureLocation)" `
-                --resource-type virtualMachines `
-                --size $Sku `
-                --output json `
-                --only-show-errors
-
-              if ($LASTEXITCODE -ne 0) {
-                  throw "Unable to query Azure VM SKU availability for '$Sku'."
-              }
-
-              $items = $raw | ConvertFrom-Json
-
-              return @(
-                  $items | Where-Object {
-                      $_.name -eq $Sku -and
-                      ($null -eq $_.restrictions -or $_.restrictions.Count -eq 0)
-                  }
-              ).Count -gt 0
-          }
-
           function Test-CapacityError {
               param([string]$Text)
 
@@ -277,16 +253,49 @@ stages:
               'Standard_D2s_v5'
           )
 
+          # Diagnostic only: list-skus already omits restricted SKUs unless --all is used.
+          # Do NOT use this as a deployment gate. Provider validation below is authoritative.
+          $accountJson = & az account show --output json --only-show-errors
+          if ($LASTEXITCODE -ne 0) {
+              throw 'Unable to read the Azure service-connection subscription.'
+          }
+
+          $account = ($accountJson | Out-String) | ConvertFrom-Json
+          Write-Host "Azure subscription: $($account.name) ($($account.id))"
+          Write-Host "Azure tenant: $($account.tenantId)"
+          Write-Host "Azure location: $(azureLocation)"
+
+          $skuJson = & az vm list-skus `
+            --location "$(azureLocation)" `
+            --resource-type virtualMachines `
+            --output json `
+            --only-show-errors
+
+          if ($LASTEXITCODE -ne 0) {
+              throw 'Unable to query Azure VM SKU availability.'
+          }
+
+          $skuItems = (($skuJson | Out-String) | ConvertFrom-Json)
+          $availableSkuNames = @($skuItems | ForEach-Object { $_.name })
+
+          Write-Host ''
+          Write-Host 'Azure CLI list-skus diagnostics:'
+          foreach ($candidate in $candidateVmSizes) {
+              if ($availableSkuNames -contains $candidate) {
+                  Write-Host "  $candidate : listed as available for this subscription/location"
+              }
+              else {
+                  Write-Warning "  $candidate : not listed by az vm list-skus for this subscription/location"
+              }
+          }
+
           $parameterFileArgument = "@$vmParameters"
           $validatedVmSize = $null
+          $capacityErrors = New-Object System.Collections.Generic.List[string]
 
           foreach ($candidate in $candidateVmSizes) {
-              if (-not (Get-AvailableVmSku -Sku $candidate)) {
-                  Write-Host "VM SKU unavailable for subscription/location: $candidate"
-                  continue
-              }
-
-              Write-Host "ARM-validating VM SKU: $candidate"
+              Write-Host ''
+              Write-Host "Provider-validating VM SKU: $candidate"
 
               $vmValidateArgs = @(
                   'deployment', 'group', 'validate',
@@ -298,29 +307,37 @@ stages:
                   "vmSize=$candidate",
                   '--validation-level', 'Provider',
                   '--only-show-errors',
-                  '--output', 'none'
+                  '--output', 'json'
               )
 
               $validationOutput = & az @vmValidateArgs 2>&1
               $validationExitCode = $LASTEXITCODE
-              $validationText = $validationOutput | Out-String
+              $validationText = ($validationOutput | Out-String).Trim()
 
               if ($validationExitCode -eq 0) {
                   $validatedVmSize = $candidate
+                  Write-Host "Provider preflight accepted: $candidate"
                   break
               }
 
               if (Test-CapacityError -Text $validationText) {
-                  Write-Warning "Azure capacity rejected $candidate during provider preflight. Trying next candidate."
+                  $capacityErrors.Add("$candidate => $validationText")
+                  Write-Warning "Provider preflight rejected $candidate for capacity/SKU availability."
                   continue
               }
 
               Write-Host $validationText
-              throw "VM ARM validation failed for a non-capacity reason while testing $candidate."
+              throw "VM provider validation failed for a non-capacity reason while testing $candidate."
           }
 
           if ([string]::IsNullOrWhiteSpace($validatedVmSize)) {
-              throw "None of the approved 8 GiB VM sizes passed Azure preflight in $(azureLocation)."
+              Write-Host ''
+              Write-Host 'Provider preflight rejection details:'
+              foreach ($errorText in $capacityErrors) {
+                  Write-Host $errorText
+              }
+
+              throw "Azure provider preflight rejected every approved VM size in $(azureLocation). See the exact per-SKU Azure errors above."
           }
 
           Write-Host ''
@@ -739,30 +756,6 @@ stages:
               inlineScript: |
                 $ErrorActionPreference = 'Stop'
 
-                function Get-AvailableVmSku {
-                    param([Parameter(Mandatory = $true)][string]$Sku)
-
-                    $raw = & az vm list-skus `
-                      --location "$(azureLocation)" `
-                      --resource-type virtualMachines `
-                      --size $Sku `
-                      --output json `
-                      --only-show-errors
-
-                    if ($LASTEXITCODE -ne 0) {
-                        throw "Unable to query VM SKU availability for '$Sku'."
-                    }
-
-                    $items = $raw | ConvertFrom-Json
-
-                    return @(
-                        $items | Where-Object {
-                            $_.name -eq $Sku -and
-                            ($null -eq $_.restrictions -or $_.restrictions.Count -eq 0)
-                        }
-                    ).Count -gt 0
-                }
-
                 function Test-CapacityError {
                     param([string]$Text)
 
@@ -793,11 +786,6 @@ stages:
                 $capacityFailures = @()
 
                 foreach ($candidate in $candidateVmSizes) {
-                    if (-not (Get-AvailableVmSku -Sku $candidate)) {
-                        Write-Warning "Skipping unavailable VM SKU: $candidate"
-                        continue
-                    }
-
                     Write-Host "Attempting VM deployment with: $candidate"
 
                     $args = @(
@@ -823,7 +811,7 @@ stages:
                     }
 
                     if (Test-CapacityError -Text $resultText) {
-                        $capacityFailures += $candidate
+                        $capacityFailures += "$candidate => $($resultText.Trim())"
                         Write-Warning "Azure capacity rejected $candidate. Trying the next approved size."
                         continue
                     }
@@ -833,7 +821,13 @@ stages:
                 }
 
                 if ([string]::IsNullOrWhiteSpace($deployedVmSize)) {
-                    throw "VM deployment failed: all approved sizes were unavailable. Capacity failures: $($capacityFailures -join ', ')"
+                    Write-Host ''
+                    Write-Host 'VM deployment capacity failure details:'
+                    foreach ($failure in $capacityFailures) {
+                        Write-Host $failure
+                    }
+
+                    throw 'VM deployment failed because Azure rejected every approved size for capacity/SKU availability. See exact Azure errors above.'
                 }
 
                 Write-Host "Production VM deployed with size: $deployedVmSize"
