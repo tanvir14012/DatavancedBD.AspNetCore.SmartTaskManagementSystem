@@ -693,8 +693,11 @@ stages:
                     [string]$FilePath,
                     [string[]]$Arguments,
                     [int]$TimeoutSeconds,
-                    [int[]]$SuccessCodes = @(0)
+                    [int[]]$SuccessCodes = @(0),
+                    [string]$LogPath
                   )
+
+                  Write-Host "Starting installer: $FilePath"
 
                   $p = Start-Process `
                     -FilePath $FilePath `
@@ -702,16 +705,34 @@ stages:
                     -PassThru `
                     -NoNewWindow
 
-                  if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
+                  $completed = $p.WaitForExit($TimeoutSeconds * 1000)
+
+                  if (-not $completed) {
                     & taskkill.exe /PID $p.Id /T /F | Out-Null
                     throw "Installer timed out after $TimeoutSeconds seconds: $FilePath"
                   }
 
-                  if ($SuccessCodes -notcontains $p.ExitCode) {
-                    throw "Installer failed with exit code $($p.ExitCode): $FilePath"
+                  # Ensure the native process handle is finalized before reading ExitCode.
+                  $p.WaitForExit()
+                  $p.Refresh()
+                  $exitCode = [int]$p.ExitCode
+
+                  Write-Host "Installer exit code: $exitCode ($FilePath)"
+
+                  if ($SuccessCodes -notcontains $exitCode) {
+                    $logDetails = ""
+
+                    if ($LogPath -and (Test-Path -LiteralPath $LogPath)) {
+                      $tail = Get-Content -LiteralPath $LogPath -Tail 80 -ErrorAction SilentlyContinue
+                      if ($tail) {
+                        $logDetails = "`n--- Installer log tail: $LogPath ---`n$($tail -join [Environment]::NewLine)"
+                      }
+                    }
+
+                    throw "Installer failed with exit code $exitCode: $FilePath$logDetails"
                   }
 
-                  return $p.ExitCode
+                  return $exitCode
                 }
 
                 try {
@@ -768,11 +789,28 @@ stages:
                       }
                     }
 
+                    $signature = Get-AuthenticodeSignature -FilePath $msi
+
+                    if ($signature.Status -ne "Valid" -or
+                        $signature.SignerCertificate.Subject -notmatch "Microsoft") {
+                      throw "URL Rewrite MSI does not have a valid Microsoft signature. Status: $($signature.Status)"
+                    }
+
+                    $rewriteLog = "$root\rewrite-install.log"
+
                     $code = Run-Installer `
                       -FilePath "msiexec.exe" `
-                      -Arguments @("/i", "`"$msi`"", "/quiet", "/norestart") `
+                      -Arguments @(
+                        "/i",
+                        "`"$msi`"",
+                        "/qn",
+                        "/norestart",
+                        "/L*v",
+                        "`"$rewriteLog`""
+                      ) `
                       -TimeoutSeconds 300 `
-                      -SuccessCodes @(0, 3010)
+                      -SuccessCodes @(0, 3010) `
+                      -LogPath $rewriteLog
 
                     if ($code -eq 3010) {
                       Write-Host "STMS_REBOOT_REQUIRED"
@@ -829,8 +867,11 @@ stages:
                     [string]$FilePath,
                     [string[]]$Arguments,
                     [int]$TimeoutSeconds,
-                    [int[]]$SuccessCodes = @(0)
+                    [int[]]$SuccessCodes = @(0),
+                    [string]$LogPath
                   )
+
+                  Write-Host "Starting installer: $FilePath"
 
                   $p = Start-Process `
                     -FilePath $FilePath `
@@ -838,16 +879,34 @@ stages:
                     -PassThru `
                     -NoNewWindow
 
-                  if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
+                  $completed = $p.WaitForExit($TimeoutSeconds * 1000)
+
+                  if (-not $completed) {
                     & taskkill.exe /PID $p.Id /T /F | Out-Null
                     throw "Installer timed out after $TimeoutSeconds seconds: $FilePath"
                   }
 
-                  if ($SuccessCodes -notcontains $p.ExitCode) {
-                    throw "Installer failed with exit code $($p.ExitCode): $FilePath"
+                  # Ensure the native process handle is finalized before reading ExitCode.
+                  $p.WaitForExit()
+                  $p.Refresh()
+                  $exitCode = [int]$p.ExitCode
+
+                  Write-Host "Installer exit code: $exitCode ($FilePath)"
+
+                  if ($SuccessCodes -notcontains $exitCode) {
+                    $logDetails = ""
+
+                    if ($LogPath -and (Test-Path -LiteralPath $LogPath)) {
+                      $tail = Get-Content -LiteralPath $LogPath -Tail 80 -ErrorAction SilentlyContinue
+                      if ($tail) {
+                        $logDetails = "`n--- Installer log tail: $LogPath ---`n$($tail -join [Environment]::NewLine)"
+                      }
+                    }
+
+                    throw "Installer failed with exit code $exitCode: $FilePath$logDetails"
                   }
 
-                  return $p.ExitCode
+                  return $exitCode
                 }
 
                 try {
