@@ -2,7 +2,7 @@
 
 A full-stack project and task management application built with ASP.NET Core 10 and Angular 21. It includes role-based access control, project membership, task assignments and boards, dashboard summaries, and AI-assisted task description refinement through Groq.
 
-The application has been successfully deployed to Azure. This repository includes Bicep infrastructure, parallel backend/frontend builds, automated deployment to an Ubuntu VM with Nginx, and a separate development cleanup workflow.
+The application has been successfully deployed to Azure. This repository includes Bicep infrastructure, parallel backend/frontend builds, an Ubuntu/Nginx development deployment driven by GitHub Actions, and a separate Windows Server/IIS production deployment driven by Azure DevOps.
 
 ## Contents
 
@@ -10,6 +10,7 @@ The application has been successfully deployed to Azure. This repository include
 - [Run locally](#run-locally)
 - [API routes](#api-routes)
 - [Azure infrastructure](#azure-infrastructure)
+- [Production CI/CD in Azure DevOps](#production-cicd-in-azure-devops)
 - [GitHub Actions pipeline](#github-actions-pipeline)
 - [Configuration on the VM](#configuration-on-the-vm)
 - [Cleanup and operations](#cleanup-and-operations)
@@ -122,7 +123,7 @@ npm run start:https
 npm run build:prod
 ```
 
-The [production environment](Frontend/Angular/src/environments/environment.prod.ts) uses the relative path `/api`, served through Nginx in Azure. The browser output is `Frontend/Angular/dist/smart-task-management-system/browser`.
+The [production environment](Frontend/Angular/src/environments/environment.prod.ts) is validated by the Azure DevOps production pipeline to use the relative API path `/services/api`. The browser output is `Frontend/Angular/dist/smart-task-management-system/browser`.
 
 ### Configuration and tests
 
@@ -170,7 +171,7 @@ Development is configured for **Southeast Asia (`southeastasia`)**. Names and lo
 | [storage.bicep](Azure/infra/storage.bicep) | Standard LRS account `stmsdevartifacts`, private `deployments` container, HTTPS-only access, and minimum TLS 1.2. |
 | [vm.bicep](Azure/infra/vm.bicep) | Ubuntu 24.04 VM `stms-dev-vm` (currently `Standard_D2s_v3`), managed OS disk, VNet/subnet, NIC, NSG allowing inbound TCP 80/443, and Standard static public IP. A Custom Script extension installs Nginx/.NET 10 runtime and creates `stms-api.service`. |
 
-The VM hosts both applications. Nginx redirects HTTP to HTTPS, serves Angular, preserves `/api/` when proxying to `http://127.0.0.1:5000`, and proxies `/health` to the API. Angular routes fall back to `index.html`.
+The development VM hosts both applications behind Nginx. The separate production Azure DevOps path is documented below.
 
 ```mermaid
 flowchart LR
@@ -185,6 +186,39 @@ flowchart LR
 ```
 
 The SQL free-offer flags do not make the VM, disk, public IP, or blob storage free. Region/subscription eligibility still needs verification. This is an IP-based development deployment with a self-signed certificate, not a zero-downtime or fully hardened production hosting design.
+
+## Production CI/CD in Azure DevOps
+
+Production uses a separate Azure DevOps pipeline from [`Azure/infra/prod/azure-pipelines-prod.yml`](Azure/infra/prod/azure-pipelines-prod.yml). It targets `master`, runs backend tests and an Angular production build, creates a self-contained Windows API package plus an EF Core migration bundle, provisions production Azure resources with Bicep, uploads deployment packages to private Blob Storage, and configures the VM through phased Azure VM Run Command steps.
+
+At a high level, production is:
+
+```text
+GitHub master
+    -> Azure DevOps
+    -> .NET 10 + Angular build/test/package
+    -> Bicep infrastructure
+    -> Windows Server 2022 / Standard_D2_v3
+    -> IIS
+       -> Angular at /
+       -> ASP.NET Core API at /services
+    -> SQL Server 2022 Express on the VM
+    -> EF Core migration bundle
+    -> HTTPS public-IP smoke test
+```
+
+The pipeline uses `stms-prod-rg` in `southeastasia`, a private deployment storage container, a static public IP, IIS URL Rewrite, the .NET 10 Hosting Bundle, local `SQLEXPRESS`, and a self-signed IP-SAN certificate for the current HTTPS binding. Pull requests to `master` run validation without production deployment; pushes/manual runs can deploy production. A second manual-only cleanup pipeline deletes the entire production resource group after explicit confirmation.
+
+**Detailed production manual:** [Azure/infra/prod/README.md](Azure/infra/prod/README.md)
+
+That guide includes:
+
+- GitHub repository connection to Azure DevOps.
+- Creation of the main production and cleanup pipelines from their existing YAML files.
+- `Production` Azure DevOps environment setup.
+- `STMS-Azure-Service-Connection` setup using Azure Resource Manager + Workload Identity Federation.
+- Required production secret variables (`VM_ADMIN_PASSWORD`, `SQL_SA_PASSWORD`, `JWT_KEY`, `GROQ_API_KEY`).
+- Production resources, VM quota notes, runtime configuration, IIS/SQL behavior, HTTPS certificate handling, troubleshooting, and cleanup/recreation instructions.
 
 ## GitHub Actions pipeline
 
@@ -325,6 +359,8 @@ These screenshots supplied from successful deployments show the running applicat
 
 ## Further documentation
 
+- [Production Azure DevOps CI/CD manual](Azure/infra/prod/README.md)
+- [Production Azure DevOps pipeline](Azure/infra/prod/azure-pipelines-prod.yml) and [production cleanup pipeline](Azure/infra/prod/azure-pipelines-prod-cleanup.yml)
 - [Azure CI/CD workflow](.github/workflows/dev-cicd.yml) and [development cleanup](.github/workflows/dev-cleanup.yml)
 - [Bicep infrastructure](Azure/infra)
 - [Manual Nginx deployment guide](DeploymentToNginx.md): domain/local-server walkthrough; the Azure workflow instead uses Azure SQL and an IP SAN certificate.
