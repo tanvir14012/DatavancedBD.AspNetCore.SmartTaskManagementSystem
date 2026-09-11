@@ -105,6 +105,61 @@ stages:
           if ($LASTEXITCODE -ne 0) {
               throw "API publish failed."
           }
+          
+    - task: PowerShell@2
+      displayName: Create EF Migration Bundle
+      inputs:
+        pwsh: true
+        targetType: inline
+        script: |
+          $ErrorActionPreference = 'Stop'
+
+          Set-Location "$(Build.SourcesDirectory)"
+
+          $toolPath = "$(Agent.TempDirectory)\ef-tools"
+          $bundlePath = "$(Build.ArtifactStagingDirectory)\api\stms-migrate.exe"
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$(Build.ArtifactStagingDirectory)\api" |
+            Out-Null
+
+          dotnet tool install `
+            --tool-path $toolPath `
+            dotnet-ef `
+            --version 10.0.11
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "dotnet-ef installation failed."
+          }
+
+          # Explicit production environment for design-time EF execution.
+          $env:ASPNETCORE_ENVIRONMENT = "Production"
+          $env:DOTNET_ENVIRONMENT = "Production"
+
+          & "$toolPath\dotnet-ef.exe" migrations bundle `
+            --project "$(Build.SourcesDirectory)\Infrastructure\Infrastructure.csproj" `
+            --startup-project "$(Build.SourcesDirectory)\Api\Api.csproj" `
+            --configuration Release `
+            --target-runtime win-x64 `
+            --self-contained `
+            --output $bundlePath `
+            --force `
+            --verbose
+
+          $exitCode = $LASTEXITCODE
+
+          if ($exitCode -ne 0) {
+              throw "Migration bundle creation failed with exit code $exitCode."
+          }
+
+          if (-not (Test-Path $bundlePath)) {
+              throw "Migration bundle command succeeded but stms-migrate.exe was not created."
+          }
+
+          Write-Host "EF migration bundle created:"
+          Write-Host $bundlePath
 
     - task: PowerShell@2
       displayName: Create EF Migration Bundle
