@@ -440,17 +440,38 @@ stages:
               inlineScript: |
                 $ErrorActionPreference = 'Stop'
 
+                $templateFile = "$(Build.SourcesDirectory)\Azure\infra\prod\vm-windows.bicep"
+                $parametersFile = "$(Build.SourcesDirectory)\Azure\infra\prod\parameters\vm-windows-prod.json"
+
+                if (-not (Test-Path $templateFile)) {
+                    throw "VM Bicep template not found: $templateFile"
+                }
+
+                if (-not (Test-Path $parametersFile)) {
+                    throw "VM parameter file not found: $parametersFile"
+                }
+
+                Write-Host "Deploying production Windows VM..."
+                Write-Host "Template: $templateFile"
+                Write-Host "Parameters: $parametersFile"
+
+                $parameterFileArgument = "@$parametersFile"
+
                 az deployment group create `
                   --name "stms-prod-vm-deployment" `
                   --resource-group "$(resourceGroup)" `
-                  --template-file "$(Build.SourcesDirectory)\Azure\infra\prod\vm-windows.bicep" `
-                  --parameters `
-                    @"$(Build.SourcesDirectory)\Azure\infra\prod\parameters\vm-windows-prod.json" `
-                    adminPassword="$env:VM_ADMIN_PASSWORD" `
+                  --template-file $templateFile `
+                  --parameters $parameterFileArgument `
+                  --parameters adminPassword="$env:VM_ADMIN_PASSWORD" `
                   --only-show-errors `
                   --output none
 
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Production Windows VM deployment failed with exit code $LASTEXITCODE."
+                }
 
+                Write-Host "Production Windows VM infrastructure deployed successfully."
+                
           # ====================================================
           # GET VM IP
           # ====================================================
