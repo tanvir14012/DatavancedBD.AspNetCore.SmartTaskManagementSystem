@@ -1,13 +1,5 @@
 namespace Application.Tenancy;
 
-public enum TenantIsolation { Database, Schema, Row }
-
-// TODO(SAAS-01): Validate identifiers, lifecycle, region, and placement version at the catalog boundary.
-// TenantId identifies an organization, never a department or physical database.
-public sealed record TenantPlacement(
-    Guid TenantId, TenantIsolation Isolation, string TargetId,
-    string? Schema, string Region, long Version);
-
 public sealed record TenantRequest(string? Host, string? TenantSelector);
 public sealed record TenantAccess(Guid TenantId, string SubjectId);
 public sealed record TenantContext(TenantPlacement Placement, string SubjectId);

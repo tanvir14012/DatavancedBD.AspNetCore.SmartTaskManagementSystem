@@ -6,6 +6,7 @@ This branch prepares the existing .NET 10 / Angular 21 application for organizat
 
 - Existing application features remain in place; legacy persistence/authentication are still active.
 - New SaaS contracts and adapters are not registered. Unimplemented adapters throw explicitly.
+- Completed SAAS-01a: immutable tenant placement validation with focused unit tests. Azure/Redis catalog providers remain placeholders.
 - Web startup migration/seeding registration has been removed. Existing databases must already be initialized.
 - Admin and Worker entry points exit with code 1 until implemented; they perform no operations.
 - All GitHub Actions and Azure DevOps deployment/cleanup pipelines are manual-only placeholders. They neither build nor deploy nor delete resources.

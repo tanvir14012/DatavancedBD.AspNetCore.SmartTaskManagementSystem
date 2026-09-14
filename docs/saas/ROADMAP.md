@@ -23,6 +23,24 @@
 
 ## Existing code still awaiting integration
 
+### Completed increment: SAAS-01a — placement value object
+
+TenantPlacement is now an immutable, constructor-validated catalog snapshot with organization identity,
+explicit isolation/lifecycle, target reference, optional schema override, region and positive revision.
+Logical target/region handles start with an ASCII letter/digit and permit ASCII letters/digits plus
+dot, underscore and hyphen (maximum 128 characters). Schema identifiers start with a letter/underscore
+and permit ASCII letters/digits/underscore (maximum 128). Values are not normalized.
+These are catalog naming conventions, not a list of Azure regions or a substitute for SQL quoting.
+
+Schema overrides are required only for schema isolation; database/row placements use the schema in
+the target definition. Provisioning, Active, Moving and Suspended snapshots are representable; the
+model does not activate tenants, authorize access, enforce transitions or establish revision freshness.
+Catalog adapters must still validate required serialized fields, target existence, compatibility and
+concurrent version updates. TenantPlacementTests covers structural invariants without external services.
+The catalog/cache acceptance placeholder remains skipped because provider behavior is not implemented.
+
+Next bounded unit: define and test catalog lookup/cache orchestration before adding Azure/Redis transports.
+
 ServiceDbContext, AppDbContextFactory, entity mappings, Identity stores, AuthService, all cache key builders and invalidators, Angular auth interceptor and observability/bootstrap still need tenant-aware implementation. The old migration hosted service remains as legacy source but is no longer registered by web bootstrap.
 
 Do not rewrite deployed migration history blindly. Plan a reviewed baseline/upgrade path for the fixed stms schema, hardcoded partition SQL and ownership backfill. A dedicated database and a schema do not automatically isolate CPU or enforce organization ownership.
