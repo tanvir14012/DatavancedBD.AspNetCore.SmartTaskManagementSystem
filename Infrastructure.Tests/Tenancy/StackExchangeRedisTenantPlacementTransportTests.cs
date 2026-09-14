@@ -1,3 +1,4 @@
+using Application.Tenancy;
 using Infrastructure.Tenancy.Caching;
 using Moq;
 using StackExchange.Redis;
@@ -74,12 +75,12 @@ public sealed class StackExchangeRedisTenantPlacementTransportTests
 
         Assert.True(await sut.SetIfNewerAsync("placement-key", entry, expiresAt, CancellationToken.None));
 
-        Assert.Equal("placement-key", (string)keys![0]);
+        Assert.Equal("placement-key", (string?)keys![0]);
         Assert.Equal("9", values![0].ToString());
-        Assert.Equal(entry.Payload, (byte[])values[1]);
-        Assert.Equal("32", values[2].ToString());
+        Assert.Equal(entry.Payload, (byte[]?)values[1]);
+        Assert.Equal(expiresAt.ToUnixTimeMilliseconds(), (long)values[2]);
         db.Verify(database => database.ScriptEvaluateAsync(
-            It.Is<string>(script => script.Contains("currentVersion", StringComparison.Ordinal)),
+            It.IsAny<string>(),
             It.IsAny<RedisKey[]>(), It.IsAny<RedisValue[]>(), CommandFlags.DemandMaster), Times.Once);
     }
 
@@ -122,6 +123,177 @@ public sealed class StackExchangeRedisTenantPlacementTransportTests
 
         db.Verify(database => database.KeyDeleteAsync("placement-key", CommandFlags.DemandMaster), Times.Once);
     }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("+1")]
+    [InlineData("01")]
+    [InlineData(" 1")]
+    [InlineData("1 ")]
+    [InlineData("1.0")]
+    [InlineData("9223372036854775808")]
+    public async Task GetRejectsNoncanonicalOrOutOfRangeRevisions(string revision)
+    {
+        var db = new Mock<IDatabase>(MockBehavior.Strict);
+        db.Setup(database => database.HashGetAsync(
+                It.IsAny<RedisKey>(), It.IsAny<RedisValue[]>(), CommandFlags.DemandMaster))
+            .ReturnsAsync(new RedisValue[] { revision, new byte[] { 1 } });
+        var sut = new StackExchangeRedisTenantPlacementTransport(CreateMultiplexer(db).Object, TimeProvider.System);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => sut.GetAsync("key", CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(9007199254740993L)]
+    [InlineData(long.MaxValue)]
+    public async Task GetPreservesLargeRevisionsExactly(long revision)
+    {
+        var db = new Mock<IDatabase>(MockBehavior.Strict);
+        db.Setup(database => database.HashGetAsync(
+                It.IsAny<RedisKey>(), It.IsAny<RedisValue[]>(), CommandFlags.DemandMaster))
+            .ReturnsAsync(new RedisValue[] { revision, new byte[] { 1 } });
+        var sut = new StackExchangeRedisTenantPlacementTransport(CreateMultiplexer(db).Object, TimeProvider.System);
+
+        var entry = await sut.GetAsync("key", CancellationToken.None);
+
+        Assert.Equal(revision, entry!.Version);
+    }
+
+    [Fact]
+    public async Task GetRejectsEmptyPayload()
+    {
+        var db = new Mock<IDatabase>(MockBehavior.Strict);
+        db.Setup(database => database.HashGetAsync(
+                It.IsAny<RedisKey>(), It.IsAny<RedisValue[]>(), CommandFlags.DemandMaster))
+            .ReturnsAsync(new RedisValue[] { "1", Array.Empty<byte>() });
+        var sut = new StackExchangeRedisTenantPlacementTransport(CreateMultiplexer(db).Object, TimeProvider.System);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => sut.GetAsync("key", CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(-2)]
+    [InlineData(42)]
+    public async Task SetRejectsCorruptionConflictsAndUnexpectedResults(int result)
+    {
+        var db = new Mock<IDatabase>(MockBehavior.Strict);
+        db.Setup(database => database.ScriptEvaluateAsync(
+                It.IsAny<string>(), It.IsAny<RedisKey[]>(), It.IsAny<RedisValue[]>(), CommandFlags.DemandMaster))
+            .ReturnsAsync(RedisResult.Create((RedisValue)result));
+        var sut = new StackExchangeRedisTenantPlacementTransport(CreateMultiplexer(db).Object, TimeProvider.System);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => sut.SetIfNewerAsync(
+            "key", new(1, [1]), DateTimeOffset.UtcNow.AddMinutes(1), CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData("get")]
+    [InlineData("set")]
+    [InlineData("remove")]
+    public async Task CommandsStopWaitingWhenCallerCancels(string operation)
+    {
+        var db = CreateNeverCompletingDatabase();
+        var sut = new StackExchangeRedisTenantPlacementTransport(CreateMultiplexer(db).Object, TimeProvider.System);
+        using var cancellation = new CancellationTokenSource();
+        var pending = RunOperation(sut, operation, cancellation.Token);
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Theory]
+    [InlineData("get")]
+    [InlineData("set")]
+    [InlineData("remove")]
+    public async Task CommandsHaveABoundedWaitEvenWithoutCallerCancellation(string operation)
+    {
+        var db = CreateNeverCompletingDatabase();
+        var sut = new StackExchangeRedisTenantPlacementTransport(CreateMultiplexer(db).Object, TimeProvider.System,
+            commandTimeout: TimeSpan.FromMilliseconds(10));
+
+        var error = await Assert.ThrowsAsync<TenantPlacementCacheUnavailableException>(() => RunOperation(sut, operation, CancellationToken.None))
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.IsType<TimeoutException>(error.InnerException);
+    }
+
+    [Fact]
+    public async Task DoesNotReclassifyADependencyTimeoutAsItsOwnWaitBudget()
+    {
+        var db = new Mock<IDatabase>(MockBehavior.Strict);
+        var expected = new TimeoutException("Unrelated dependency failure");
+        db.Setup(database => database.HashGetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue[]>(), CommandFlags.DemandMaster))
+            .ThrowsAsync(expected);
+        var sut = new StackExchangeRedisTenantPlacementTransport(CreateMultiplexer(db).Object, TimeProvider.System);
+
+        var actual = await Assert.ThrowsAsync<TimeoutException>(() => sut.GetAsync("key", CancellationToken.None));
+
+        Assert.Same(expected, actual);
+    }
+
+    [Theory]
+    [InlineData("get")]
+    [InlineData("set")]
+    [InlineData("remove")]
+    public async Task PreCancelledCommandsDoNotContactRedis(string operation)
+    {
+        var db = new Mock<IDatabase>(MockBehavior.Strict);
+        var sut = new StackExchangeRedisTenantPlacementTransport(CreateMultiplexer(db).Object, TimeProvider.System);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => RunOperation(sut, operation, new CancellationToken(true)));
+
+        db.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(60001)]
+    public void RejectsInvalidCommandTimeoutBeforeCreatingDatabase(int milliseconds)
+    {
+        var multiplexer = new Mock<IConnectionMultiplexer>(MockBehavior.Strict);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new StackExchangeRedisTenantPlacementTransport(
+            multiplexer.Object, TimeProvider.System, commandTimeout: TimeSpan.FromMilliseconds(milliseconds)));
+
+        multiplexer.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task RejectsExpiryThatRoundsDownToCurrentMillisecond()
+    {
+        var db = new Mock<IDatabase>(MockBehavior.Strict);
+        var clock = new FixedTimeProvider(DateTimeOffset.FromUnixTimeMilliseconds(1900000000000));
+        var sut = new StackExchangeRedisTenantPlacementTransport(CreateMultiplexer(db).Object, clock);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => sut.SetIfNewerAsync(
+            "key", new(1, [1]), clock.GetUtcNow().AddTicks(1), CancellationToken.None));
+
+        db.VerifyNoOtherCalls();
+    }
+
+    private static Mock<IDatabase> CreateNeverCompletingDatabase()
+    {
+        var db = new Mock<IDatabase>(MockBehavior.Strict);
+        db.Setup(database => database.HashGetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue[]>(), CommandFlags.DemandMaster))
+            .Returns(new TaskCompletionSource<RedisValue[]>(TaskCreationOptions.RunContinuationsAsynchronously).Task);
+        db.Setup(database => database.ScriptEvaluateAsync(It.IsAny<string>(), It.IsAny<RedisKey[]>(), It.IsAny<RedisValue[]>(), CommandFlags.DemandMaster))
+            .Returns(new TaskCompletionSource<RedisResult>(TaskCreationOptions.RunContinuationsAsynchronously).Task);
+        db.Setup(database => database.KeyDeleteAsync(It.IsAny<RedisKey>(), CommandFlags.DemandMaster))
+            .Returns(new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously).Task);
+        return db;
+    }
+
+    private static Task RunOperation(StackExchangeRedisTenantPlacementTransport sut, string operation, CancellationToken cancellationToken) => operation switch
+    {
+        "get" => sut.GetAsync("key", cancellationToken),
+        "set" => sut.SetIfNewerAsync("key", new(1, [1]), DateTimeOffset.UtcNow.AddMinutes(1), cancellationToken),
+        "remove" => sut.RemoveAsync("key", cancellationToken),
+        _ => throw new ArgumentOutOfRangeException(nameof(operation))
+    };
 
     private static Mock<IConnectionMultiplexer> CreateMultiplexer(Mock<IDatabase> database)
     {

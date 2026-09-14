@@ -95,8 +95,6 @@ acceptance suite before runtime wiring.
 Next bounded unit: durable Azure SQL catalog schema/reader, then explicit DI composition of the two
 providers after their integration tests pass.
 
-## Existing code still awaiting integration
-
 ### SAAS-01c follow-up — strict placement payload format
 
 JsonTenantPlacementSerializer replaces the general application cache serializer for placements. Its
@@ -113,6 +111,25 @@ Cancellation is checked inside catch bodies, never exception filters, so a cance
 a simultaneous cache transport failure. Authentication, protocol, disposed-client and integrity errors
 propagate as faults instead of being hidden behind durable-catalog fallback. Regression tests cover all
 three cache operations and both raw and provider-neutral failure paths.
+
+### SAAS-01c follow-up — Redis publication boundaries
+
+The atomic script compares canonical decimal revisions by length and lexical order, preserving every
+positive Int64 value even above Lua's exact numeric range. Equal revisions require identical binary
+payloads and never refresh expiry. Malformed existing records are rejected on publication. PEXPIREAT
+sets an absolute millisecond deadline; Redis server time rejects delayed writes whose deadline passed.
+The configurable command wait budget defaults to two seconds and translates only its own timeout to
+cache unavailability, while caller cancellation takes priority. It does not cancel queued Redis work.
+
+Mock-based tests cover transport arguments, response validation, cancellation and timeout boundaries.
+Opt-in tests execute real Lua, concurrent publishers, long revisions, conflict rejection and expiry;
+set SAAS_TEST_REDIS_CONNECTION to an isolated Redis 7+ test service. They use unique keys and no FLUSH.
+These tests are skipped when the binding is absent; no live Redis execution has been verified locally.
+Deletion or eviction removes the stored revision, so a delayed older publisher can repopulate it.
+Relocation and immediate suspension need authoritative checks and fencing in later routing units;
+this cache alone cannot provide either guarantee.
+
+## Existing code still awaiting integration
 
 ServiceDbContext, AppDbContextFactory, entity mappings, Identity stores, AuthService, all cache key builders and invalidators, Angular auth interceptor and observability/bootstrap still need tenant-aware implementation. The old migration hosted service remains as legacy source but is no longer registered by web bootstrap.
 
