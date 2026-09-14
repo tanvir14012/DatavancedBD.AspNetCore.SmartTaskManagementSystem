@@ -3,6 +3,8 @@ namespace Infrastructure.Tenancy.Catalog;
 /// <summary>Finite lookup budgets supplied by external deployment configuration.</summary>
 public sealed class TenantCatalogReadOptions
 {
+    /// <summary>External configuration section for finite catalog I/O budgets.</summary>
+    public const string SectionName = "Saas:TenantCatalog:Read";
     /// <summary>Provider command timeout, including command execution and network reads.</summary>
     public int CommandTimeoutSeconds { get; init; } = 15;
 

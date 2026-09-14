@@ -3,6 +3,8 @@ namespace Infrastructure.Tenancy.Catalog;
 /// <summary>Catalog backing-service settings bound externally; tenant targets are separate resources.</summary>
 public sealed class SqlTenantCatalogConnectionOptions
 {
+    /// <summary>External configuration section; values may be supplied by environment/App Configuration.</summary>
+    public const string SectionName = "Saas:TenantCatalog:Sql";
     /// <summary>SQL Client connection settings, preferably using workload identity. Never log this value.</summary>
     public string ConnectionString { get; init; } = string.Empty;
 

@@ -4,6 +4,8 @@ namespace Infrastructure.Tenancy.Caching;
 /// <remarks>These values are operational configuration; tenant placement data is never stored here.</remarks>
 public sealed class TenantPlacementCacheOptions
 {
+    /// <summary>External configuration section for cache key and payload policy.</summary>
+    public const string SectionName = "Saas:TenantCatalog:Cache";
     /// <summary>Key prefix isolating this service from other Redis consumers.</summary>
     public string KeyPrefix { get; init; } = "stms";
 

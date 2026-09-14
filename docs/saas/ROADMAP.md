@@ -37,12 +37,13 @@ the target definition. Provisioning, Active, Moving and Suspended snapshots are 
 model does not activate tenants, authorize access, enforce transitions or establish revision freshness.
 Catalog adapters must still validate required serialized fields, target existence, compatibility and
 concurrent version updates. TenantPlacementTests covers structural invariants without external services.
-The catalog/cache acceptance placeholder remains skipped because provider behavior is not implemented.
+The provider behavior is completed by the later catalog and cache increments; the remaining skipped
+scenario is an opt-in deployment acceptance test that requires real Azure SQL and Redis services.
 
 ### Completed increment: SAAS-01b — catalog lookup orchestration
 
 CachedTenantCatalog wraps a durable ITenantCatalog and ITenantPlacementCache with constructor-injected
-dependencies. It is not registered in the web application. A cache hit is returned only when the
+dependencies. It is registered only through the explicit tenant catalog composition root. A cache hit is returned only when the
 snapshot belongs to the requested organization. A miss reads the durable catalog once and publishes
 positive results. Null results are not cached, allowing subsequent onboarding to become visible.
 
@@ -83,17 +84,39 @@ routes during a move. It uses WaitAsync for caller cancellation, validates store
 revision, and maps only Redis connection/timeout/socket failures at the cache boundary to
 TenantPlacementCacheUnavailableException. Server errors and data corruption propagate. TTL and payload
 limits are operational options intended to be bound from external deployment configuration; no tenant
-metadata or credential is hardcoded. The transport is not registered yet, so web processes do not gain
-partial runtime behavior.
+metadata or credential is hardcoded. The transport is registered only through the explicit tenant catalog
+composition root; the web process gains no catalog behavior until that root is composed.
 
 RedisTenantPlacementCacheTests cover round-trips, expiry, stale revisions, isolation, corruption,
 limits, outage classification and noncooperative cancellation. StackExchangeRedisTenantPlacementTransportTests
 cover primary command flags, hash parsing, atomic script arguments, stale results, expiry rejection and
 targeted deletion using a mocked database. A live Redis integration test remains part of the deployment
-acceptance suite before runtime wiring.
+acceptance suite before production rollout.
 
-Next bounded unit: durable Azure SQL catalog schema/reader, then explicit DI composition of the two
-providers after their integration tests pass.
+The durable Azure SQL catalog reader now uses a fixed, parameterized query with explicit columns,
+duplicate-row detection, bounded command/lookup deadlines, and sanitized malformed-data failures.
+Its baseline schema is a reviewed out-of-band artifact; no web process executes it.
+
+### Completed increment: SAAS-01d — durable placement writes and external composition
+
+AzureSqlTenantCatalogWriter persists placements through a serializable SQL compare-and-set. Initial
+creation requires expected version zero; updates require the exact current version and a strictly newer
+revision. Stale updates and duplicate initial creates return false. The command uses fixed identifiers,
+bounded connection pools, parameterized values, finite cancellation deadlines and owned async disposal.
+CachedTenantCatalogWriter publishes to Redis only after the SQL transaction commits. A classified Redis
+transport outage leaves the durable write successful; cache integrity errors and caller cancellation
+remain visible. Redis never becomes an authority.
+
+AddTenantCatalog binds SQL, read-budget, cache-policy and Redis options from the external
+Saas:TenantCatalog:* sections and registers one durable authority, one cache-first decorator, one
+bounded multiplexer and one writer graph. Registration itself does not open SQL or Redis connections,
+and missing provider bindings fail explicitly when the provider is resolved. The API composition root
+registers this graph without enabling tenant endpoints or startup migrations.
+
+Writer, decorator and service-registration tests cover revision races, parameterization, resource
+disposal, cancellation, cache outage behavior, idempotent registration and absence of hardcoded
+provider values. The cache invalidation delete operation still does not provide a relocation fence;
+later move/provisioning work must add an authoritative tombstone or cutover barrier.
 
 ### SAAS-01c follow-up — strict placement payload format
 

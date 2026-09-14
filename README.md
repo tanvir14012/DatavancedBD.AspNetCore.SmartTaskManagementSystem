@@ -5,10 +5,11 @@ This branch prepares the existing .NET 10 / Angular 21 application for organizat
 ## Current state
 
 - Existing application features remain in place; legacy persistence/authentication are still active.
-- New SaaS contracts and adapters are not registered. Unimplemented adapters throw explicitly.
-- Completed SAAS-01a: immutable tenant placement validation with focused unit tests. Azure/Redis catalog providers remain placeholders.
-- Completed SAAS-01b: cache-first catalog orchestration with classified outage fallback, identity checks, cancellation and safe diagnostic events. It remains unwired until provider adapters are implemented.
-- Completed SAAS-01c: Redis placement payloads with bounded expiry, size limits, primary-only reads, atomic newer-revision publication, targeted deletion, and classified transport failures. The durable Azure SQL catalog remains a placeholder.
+- Tenant catalog provider composition is registered lazily; tenant authorization and storage adapters remain opt-in until their persistence units are complete.
+- Completed SAAS-01a: immutable tenant placement validation with focused unit tests.
+- Completed SAAS-01b: cache-first catalog orchestration with classified outage fallback, identity checks, cancellation and safe diagnostic events.
+- Completed SAAS-01c: Redis placement payloads with bounded expiry, size limits, primary-only reads, atomic newer-revision publication, targeted deletion, and classified transport failures.
+- Completed SAAS-01d: durable SQL compare-and-set writes, post-commit cache publication, and external configuration/DI composition. Registration performs no network I/O; SQL and Redis bindings are supplied by deployment configuration.
 - Placement serialization now uses an explicit, strict format version and bounded uncompressed JSON; cancellation and Redis failure classification have dedicated regression coverage.
 - Redis publication preserves the full Int64 revision range, rejects same-revision payload conflicts, and uses absolute millisecond expiry and bounded waits. Real Redis tests are opt-in; deletion/expiry does not fence stale writers.
 - Completed SAAS-02a: immutable active tenant context and atomic single initialization per request/job scope. Authentication, membership checks and HTTP composition remain separate pending units.
@@ -34,7 +35,7 @@ TenantId always identifies the purchasing organization. Departments are business
 | --- | --- |
 | Application/Tenancy | Provider-independent catalog, resolution, context, migration and provisioning contracts |
 | Api/Tenancy | HTTP composition placeholder; authenticate and authorize before tenant persistence |
-| Infrastructure/Tenancy/Catalog | Tested cache-first catalog decorator and durable Azure SQL adapter placeholder |
+| Infrastructure/Tenancy/Catalog | Tested cache-first catalog decorator, durable Azure SQL adapter and external DI composition |
 | Infrastructure/Tenancy/Caching | Tested Redis placement adapter/transport; never authoritative |
 | Infrastructure/Tenancy/Persistence | Database, schema and discriminator strategies |
 | Infrastructure/Tenancy/Migrations | Out-of-band migration orchestration |

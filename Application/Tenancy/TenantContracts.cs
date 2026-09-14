@@ -45,6 +45,14 @@ public interface IAuthoritativeTenantCatalog : ITenantCatalog
 {
 }
 
+/// <summary>Persists a placement only when its expected durable revision still matches.</summary>
+/// <remarks>Implementations must advance revisions monotonically and must not publish cache state before commit.</remarks>
+public interface ITenantCatalogWriter
+{
+    /// <summary>Returns false when the expected revision is stale or an initial insert already exists.</summary>
+    Task<bool> TrySaveAsync(TenantPlacement placement, long expectedVersion, CancellationToken cancellationToken);
+}
+
 /// <summary>Used by the request/job boundary after authentication and access validation.</summary>
 public interface ITenantContextInitializer
 {

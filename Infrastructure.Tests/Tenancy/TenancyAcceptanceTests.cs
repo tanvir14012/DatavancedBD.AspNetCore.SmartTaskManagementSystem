@@ -3,7 +3,7 @@ namespace Infrastructure.Tests.Tenancy;
 // These are explicitly skipped acceptance placeholders, not passing security coverage.
 public sealed class TenancyAcceptanceTests
 {
-    [Fact(Skip = "TODO(SAAS-01): Reject stale placement and recover from Redis eviction without losing catalog data.")]
+    [Fact(Skip = "SAAS-01 deployment acceptance: requires isolated Azure SQL and Redis services.")]
     public void Catalog() => throw new NotImplementedException();
 
     [Fact(Skip = "TODO(SAAS-02): Reject host/header/JWT mismatch and unauthorized organization membership.")]
