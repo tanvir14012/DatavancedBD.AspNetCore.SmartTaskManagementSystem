@@ -8,6 +8,7 @@ This branch prepares the existing .NET 10 / Angular 21 application for organizat
 - New SaaS contracts and adapters are not registered. Unimplemented adapters throw explicitly.
 - Completed SAAS-01a: immutable tenant placement validation with focused unit tests. Azure/Redis catalog providers remain placeholders.
 - Completed SAAS-01b: cache-first catalog orchestration with classified outage fallback, identity checks, cancellation and safe diagnostic events. It remains unwired until provider adapters are implemented.
+- Completed SAAS-01c: Redis placement payloads with bounded expiry, size limits, primary-only reads, atomic newer-revision publication, safe invalidation, and classified transport failures. The durable Azure SQL catalog remains a placeholder.
 - Web startup migration/seeding registration has been removed. Existing databases must already be initialized.
 - Admin and Worker entry points exit with code 1 until implemented; they perform no operations.
 - All GitHub Actions and Azure DevOps deployment/cleanup pipelines are manual-only placeholders. They neither build nor deploy nor delete resources.
@@ -30,7 +31,7 @@ TenantId always identifies the purchasing organization. Departments are business
 | Application/Tenancy | Provider-independent catalog, resolution, context, migration and provisioning contracts |
 | Api/Tenancy | HTTP composition placeholder; authenticate and authorize before tenant persistence |
 | Infrastructure/Tenancy/Catalog | Tested cache-first catalog decorator and durable Azure SQL adapter placeholder |
-| Infrastructure/Tenancy/Caching | Redis placement cache; never authoritative |
+| Infrastructure/Tenancy/Caching | Tested Redis placement adapter/transport; never authoritative |
 | Infrastructure/Tenancy/Persistence | Database, schema and discriminator strategies |
 | Infrastructure/Tenancy/Migrations | Out-of-band migration orchestration |
 | Infrastructure/Tenancy/Provisioning | Allocate, migrate, validate and activate organizations |

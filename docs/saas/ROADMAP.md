@@ -63,8 +63,37 @@ work. Bounded transport deadlines and catalog capacity limits are responsibiliti
 implementations; no timeout or distributed capacity claim is made by this decorator. Compose it
 explicitly around the durable adapter to avoid resolving ITenantCatalog recursively through DI.
 
-Next bounded unit: Redis placement payload/expiry and version-aware publication, with real Redis tests
-for atomic operations before wiring the cache into runtime resolution.
+### Completed increment: SAAS-01c — Redis placement cache adapter
+
+RedisTenantPlacementCache now accepts an injected transport, serializer, validated operational options,
+and TimeProvider. It derives an environment/key-prefix-isolated key from the organization identifier;
+never accepts a connection string, schema or credential from a placement value; enforces a bounded
+serialized payload; and propagates caller cancellation before and after every transport operation.
+
+Placement records are stored as a revision plus opaque serialized payload. Get rejects empty, oversized,
+malformed, cross-organization or revision-mismatched entries as InvalidDataException; these are not
+classified as cache outages. Set publishes a positive revision with an absolute expiry. The transport
+performs the revision comparison, payload write and expiry atomically; an older revision is a harmless
+no-op. Invalidate deletes only the derived organization key. There is no local cache, retry loop,
+negative cache or background refresh.
+
+StackExchangeRedisTenantPlacementTransport implements the production transport with a Redis hash and
+Lua compare-and-set script. Reads and writes demand the primary to avoid replica-lagged placement
+routes during a move. It uses WaitAsync for caller cancellation, validates stored hash shape and
+revision, and maps only Redis connection/timeout/socket failures at the cache boundary to
+TenantPlacementCacheUnavailableException. Server errors and data corruption propagate. TTL and payload
+limits are operational options intended to be bound from external deployment configuration; no tenant
+metadata or credential is hardcoded. The transport is not registered yet, so web processes do not gain
+partial runtime behavior.
+
+RedisTenantPlacementCacheTests cover round-trips, expiry, stale revisions, isolation, corruption,
+limits, outage classification and noncooperative cancellation. StackExchangeRedisTenantPlacementTransportTests
+cover primary command flags, hash parsing, atomic script arguments, stale results, expiry rejection and
+targeted deletion using a mocked database. A live Redis integration test remains part of the deployment
+acceptance suite before runtime wiring.
+
+Next bounded unit: durable Azure SQL catalog schema/reader, then explicit DI composition of the two
+providers after their integration tests pass.
 
 ## Existing code still awaiting integration
 
