@@ -273,6 +273,51 @@ public sealed class RedisTenantPlacementCacheTests
     private static ICacheSerializer CreateSerializer()
         => new SystemTextJsonCacheSerializer(Options.Create(new CachingOptions { EnableCompression = false }));
 
+    [Theory]
+    [InlineData("get", false)]
+    [InlineData("set", false)]
+    [InlineData("remove", false)]
+    [InlineData("get", true)]
+    [InlineData("set", true)]
+    [InlineData("remove", true)]
+    public async Task CallerCancellationWinsWhenPendingTransportFails(string operation, bool classified)
+    {
+        using var fixture = new Fixture();
+        var read = new TaskCompletionSource<RedisTenantPlacementEntry?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var mutation = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Transport.GetResult = read.Task;
+        fixture.Transport.SetResult = mutation.Task;
+        fixture.Transport.RemoveResult = mutation.Task;
+        Task pending = operation switch
+        {
+            "get" => fixture.Subject.GetAsync(TenantId, fixture.Token),
+            "set" => fixture.Subject.SetAsync(Placement(), fixture.Token),
+            _ => fixture.Subject.InvalidateAsync(TenantId, fixture.Token)
+        };
+        fixture.Cancellation.Cancel();
+        Exception failure = classified ? new TenantPlacementCacheUnavailableException()
+            : new RedisConnectionException(ConnectionFailureType.UnableToConnect, "offline");
+        if (operation == "get") read.SetException(failure);
+        else mutation.SetException(failure);
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+        Assert.Equal(fixture.Token, error.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData(ConnectionFailureType.AuthenticationFailure)]
+    [InlineData(ConnectionFailureType.ProtocolFailure)]
+    [InlineData(ConnectionFailureType.InternalFailure)]
+    [InlineData(ConnectionFailureType.ConnectionDisposed)]
+    [InlineData(ConnectionFailureType.ResponseIntegrityFailure)]
+    public async Task ConfigurationAndIntegrityFailuresDoNotTriggerCatalogFallback(ConnectionFailureType type)
+    {
+        using var fixture = new Fixture();
+        var failure = new RedisConnectionException(type, "invalid configuration or response");
+        fixture.Transport.Failure = failure;
+        Assert.Same(failure, await Assert.ThrowsAsync<RedisConnectionException>(
+            () => fixture.Subject.GetAsync(TenantId, fixture.Token)));
+    }
+
     private static TenantPlacement Placement(
         Guid? tenantId = null, long version = 7, TenantLifecycle lifecycle = TenantLifecycle.Active)
         => new(tenantId ?? TenantId, TenantIsolation.Database, "sql-group-01", null, "southeastasia", version, lifecycle);

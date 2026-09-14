@@ -97,6 +97,13 @@ providers after their integration tests pass.
 
 ## Existing code still awaiting integration
 
+### SAAS-01c follow-up — cancellation and failure classification
+
+Cancellation is checked inside catch bodies, never exception filters, so a canceled caller wins over
+a simultaneous cache transport failure. Authentication, protocol, disposed-client and integrity errors
+propagate as faults instead of being hidden behind durable-catalog fallback. Regression tests cover all
+three cache operations and both raw and provider-neutral failure paths.
+
 ServiceDbContext, AppDbContextFactory, entity mappings, Identity stores, AuthService, all cache key builders and invalidators, Angular auth interceptor and observability/bootstrap still need tenant-aware implementation. The old migration hosted service remains as legacy source but is no longer registered by web bootstrap.
 
 Do not rewrite deployed migration history blindly. Plan a reviewed baseline/upgrade path for the fixed stms schema, hardcoded partition SQL and ownership backfill. A dedicated database and a schema do not automatically isolate CPU or enforce organization ownership.

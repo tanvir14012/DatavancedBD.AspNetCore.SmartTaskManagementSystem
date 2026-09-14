@@ -51,9 +51,11 @@ public sealed class RedisTenantPlacementCache : ITenantPlacementCache
         {
             entry = await _transport.GetAsync(BuildKey(tenantId), cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (TryClassifyUnavailable(exception, cancellationToken, out var unavailable))
+        catch (Exception exception) when (IsUnavailable(exception))
         {
-            throw unavailable;
+            cancellationToken.ThrowIfCancellationRequested();
+            throw exception as TenantPlacementCacheUnavailableException
+                ?? new TenantPlacementCacheUnavailableException(exception);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -81,9 +83,11 @@ public sealed class RedisTenantPlacementCache : ITenantPlacementCache
             _ = await _transport.SetIfNewerAsync(
                 BuildKey(placement.TenantId), entry, expiresAtUtc, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (TryClassifyUnavailable(exception, cancellationToken, out var unavailable))
+        catch (Exception exception) when (IsUnavailable(exception))
         {
-            throw unavailable;
+            cancellationToken.ThrowIfCancellationRequested();
+            throw exception as TenantPlacementCacheUnavailableException
+                ?? new TenantPlacementCacheUnavailableException(exception);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -99,9 +103,11 @@ public sealed class RedisTenantPlacementCache : ITenantPlacementCache
         {
             await _transport.RemoveAsync(BuildKey(tenantId), cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (TryClassifyUnavailable(exception, cancellationToken, out var unavailable))
+        catch (Exception exception) when (IsUnavailable(exception))
         {
-            throw unavailable;
+            cancellationToken.ThrowIfCancellationRequested();
+            throw exception as TenantPlacementCacheUnavailableException
+                ?? new TenantPlacementCacheUnavailableException(exception);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -167,26 +173,14 @@ public sealed class RedisTenantPlacementCache : ITenantPlacementCache
             throw new ArgumentException("Organization identity must not be empty.", nameof(tenantId));
     }
 
-    private static bool TryClassifyUnavailable(
-        Exception exception,
-        CancellationToken cancellationToken,
-        out TenantPlacementCacheUnavailableException unavailable)
-    {
-        if (exception is TenantPlacementCacheUnavailableException typed)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            unavailable = typed;
-            return true;
-        }
-
-        if (exception is RedisConnectionException or RedisTimeoutException or SocketException)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            unavailable = new TenantPlacementCacheUnavailableException(exception);
-            return true;
-        }
-
-        unavailable = null!;
-        return false;
-    }
+    // Exception filters must not throw: CLR discards exceptions raised while evaluating a filter.
+    private static bool IsUnavailable(Exception exception)
+        => exception is TenantPlacementCacheUnavailableException or RedisTimeoutException or SocketException
+            || exception is RedisConnectionException
+            {
+                FailureType: ConnectionFailureType.UnableToConnect
+                    or ConnectionFailureType.UnableToResolvePhysicalConnection
+                    or ConnectionFailureType.SocketFailure or ConnectionFailureType.SocketClosed
+                    or ConnectionFailureType.Loading
+            };
 }
