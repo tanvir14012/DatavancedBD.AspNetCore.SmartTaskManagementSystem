@@ -3,9 +3,9 @@ using System.Globalization;
 namespace Application.Tenancy.Resolution;
 
 /// <summary>Strict, non-network normalization shared by requests and deployment configuration.</summary>
-internal static class TenantAuthority
+public static class TenantAuthority
 {
-    internal static bool TryNormalize(string? value, out string canonicalAuthority)
+    public static bool TryNormalize(string? value, out string canonicalAuthority)
     {
         canonicalAuthority = string.Empty;
         // DNS text is at most 253 characters; the optional colon and port add at most six.

@@ -74,6 +74,9 @@ public static class BootstrapExtensions
             })
             .AddJwtBearer(options =>
             {
+                // Tenant authorization consumes the original organization-bound claim names.
+                // Mapping them to legacy ClaimTypes aliases would permit ambiguous identity joins.
+                options.MapInboundClaims = false;
                 var issuer = builder.Configuration["Jwt:Issuer"] ?? "https://localhost:7108";
                 var audience = builder.Configuration["Jwt:Audience"] ?? "https://localhost:4200";
                 var key = builder.Configuration["Jwt:Key"] ?? "ThisIsADevelopmentJwtSigningKey_ReplaceInProduction!";

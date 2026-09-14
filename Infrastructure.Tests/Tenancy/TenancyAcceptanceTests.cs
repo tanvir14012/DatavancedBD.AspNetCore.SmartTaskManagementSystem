@@ -6,7 +6,7 @@ public sealed class TenancyAcceptanceTests
     [Fact(Skip = "SAAS-01 deployment acceptance: requires isolated Azure SQL and Redis services.")]
     public void Catalog() => throw new NotImplementedException();
 
-    [Fact(Skip = "TODO(SAAS-02): Reject host/header/JWT mismatch and unauthorized organization membership.")]
+    [Fact(Skip = "SAAS-02 deployment acceptance: requires an isolated control-plane SQL service.")]
     public void Resolution() => throw new NotImplementedException();
 
     [Fact(Skip = "TODO(SAAS-03): Verify two organizations cannot read or write each other's records.")]

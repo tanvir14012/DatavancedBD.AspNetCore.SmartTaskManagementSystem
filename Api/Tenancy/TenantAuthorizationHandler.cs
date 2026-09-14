@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Application.Tenancy;
 using Application.Tenancy.Authorization;
 using Application.Tenancy.Resolution;
@@ -36,7 +35,7 @@ public sealed class TenantAuthorizationHandler : AuthorizationHandler<TenantAcce
 
         http.RequestAborted.ThrowIfCancellationRequested();
         http.Response.Headers.CacheControl = "no-store";
-        if (!TryReadAuthenticatedAccess(context.User, out var access))
+        if (!TenantPrincipalAccess.TryRead(context.User, out var access))
         {
             context.Fail();
             return;
@@ -76,37 +75,4 @@ public sealed class TenantAuthorizationHandler : AuthorizationHandler<TenantAcce
         }
     }
 
-    private static bool TryReadAuthenticatedAccess(ClaimsPrincipal principal, out TenantAccess? access)
-    {
-        access = null;
-        var identities = principal.Identities.ToArray();
-        // Never combine a subject from one identity with an organization or issuer from another.
-        if (identities.Length != 1 || !identities[0].IsAuthenticated)
-            return false;
-        var identity = identities[0];
-        var subject = SingleValue(identity, "sub");
-        var issuer = SingleValue(identity, "iss");
-        var organization = SingleValue(identity, "tenant_id");
-        if (subject is null || issuer is null || organization?.Length != 36 ||
-            !Guid.TryParseExact(organization, "D", out var tenantId) || tenantId == Guid.Empty)
-            return false;
-        // The legacy issuer also emits this alias. It may agree but must never override sub.
-        if (identity.FindAll(ClaimTypes.NameIdentifier).Any(claim => !string.Equals(claim.Value, subject, StringComparison.Ordinal)))
-            return false;
-        try
-        {
-            access = new TenantAccess(tenantId, subject, issuer);
-            return true;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-    }
-
-    private static string? SingleValue(ClaimsIdentity identity, string claimType)
-    {
-        var values = identity.Claims.Where(claim => string.Equals(claim.Type, claimType, StringComparison.Ordinal)).Take(2).ToArray();
-        return values.Length == 1 ? values[0].Value : null;
-    }
 }

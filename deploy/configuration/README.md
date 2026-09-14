@@ -8,11 +8,19 @@ inventory, connection string or credential is committed to source, an image, a p
 - `Saas__TenantCatalog__Read__CommandTimeoutSeconds` and `LookupTimeoutSeconds` bound catalog reads/writes.
 - `Saas__TenantCatalog__Cache__KeyPrefix`, `AbsoluteExpiration`, and `MaxPayloadBytes` control disposable placement entries.
 - `Saas__TenantCatalog__Redis__ConnectionString`, `Database`, and `CommandTimeoutMilliseconds` configure the placement Redis pool.
+- `Saas__Tenancy__SharedApiAuthorities__0` (and subsequent indexed values) lists shared API
+  authorities that require an explicit `X-Tenant-ID`; tenant-specific authorities are resolved from
+  the durable SQL authority directory.
 
 `AddTenantCatalog` binds these settings without contacting either provider. Resolution of a provider
 validates required values and then creates one bounded singleton pool. The SQL catalog remains the
 authority; Redis is a versioned cache and post-commit publication target. Placement writes require an
 expected revision. Cache deletion is not a relocation fence and must be paired with later cutover work.
+
+`AddTenantAuthorization` composes the SQL authority directory, tenant resolver, durable membership
+validator and `SaasTenant` policy. It reads no tenant inventory during startup. Endpoints should opt
+into `RequireTenantContext` only after their tenant-aware persistence path is deployed; legacy
+endpoints remain outside this policy until SAAS-03 is complete.
 
 AKS should supply secret references through workload identity/Key Vault and rotate them by restarting
 disposable processes. Never log connection strings, tenant target identifiers from untrusted requests,

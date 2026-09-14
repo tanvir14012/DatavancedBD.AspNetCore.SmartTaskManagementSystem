@@ -152,7 +152,7 @@ Deletion or eviction removes the stored revision, so a delayed older publisher c
 Relocation and immediate suspension need authoritative checks and fencing in later routing units;
 this cache alone cannot provide either guarantee.
 
-### Completed increment: SAAS-02a — immutable scoped context
+### Completed increment: SAAS-02 — tenant resolution and authorization boundary
 
 TenantContext requires an active placement and a nonblank authenticated subject identifier, preserving
 the identity exactly. TenantContextScope publishes it atomically once; access before initialization
@@ -161,8 +161,23 @@ There is no static tenant state, AsyncLocal, reset method or singleton. Both con
 resolve the same scoped instance when DI composition is added; each worker job requires a fresh scope.
 Tests cover concurrent initializers, independent asynchronous scopes, lifecycle checks and invalid input.
 
-This is context storage, not an authorization service: the future boundary must authenticate, validate
-organization access, confirm catalog identity and freshness, and then initialize. It remains unwired.
+The SQL authority directory now resolves approved tenant-specific authorities from durable control-plane
+metadata, while shared API authorities require an explicit canonical `X-Tenant-ID` selector. The
+resolver never falls back from an unknown host and rejects conflicting selectors. TenantPrincipalAccess
+requires exactly one authenticated identity with `sub`, `iss` and `tenant_id`; it refuses duplicates,
+cross-identity joins and conflicting legacy NameIdentifier aliases. JwtBearer disables inbound claim
+mapping so those protocol names remain stable.
+
+TenantAccessValidator checks active membership on every authorization decision, and
+TenantContextAuthorizer requires both membership and an active authoritative placement before the
+immutable scoped context is published. TenantPipeline and AddTenantAuthorization compose the scoped
+context, resolver, SQL membership reader and `SaasTenant` policy without provider I/O during service
+registration. Endpoints opt into RequireTenantContext only when their tenant-aware persistence path is
+ready; legacy endpoints are not silently given a context they cannot enforce.
+
+The authority and authorization adapters have focused tests for canonical mapping, duplicate/corrupt
+rows, cancellation, provider failure, claim ambiguity, membership revocation and inactive placements.
+Live SQL acceptance remains part of the deployment suite.
 
 ### Completed increment: SAAS-04a — browser organization context
 

@@ -32,6 +32,7 @@ public static class TenantCatalogServiceCollectionExtensions
             .Bind(configuration.GetSection(TenantPlacementRedisOptions.SectionName));
 
         services.TryAddSingleton<ITenantCatalogConnectionFactory, SqlTenantCatalogConnectionFactory>();
+        services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IAuthoritativeTenantCatalog, AzureSqlTenantCatalog>();
         services.TryAddSingleton<AzureSqlTenantCatalogWriter>();
         services.TryAddSingleton<ITenantCatalogWriter>(provider => new CachedTenantCatalogWriter(

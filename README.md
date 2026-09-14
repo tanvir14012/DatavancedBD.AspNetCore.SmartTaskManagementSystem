@@ -12,7 +12,7 @@ This branch prepares the existing .NET 10 / Angular 21 application for organizat
 - Completed SAAS-01d: durable SQL compare-and-set writes, post-commit cache publication, and external configuration/DI composition. Registration performs no network I/O; SQL and Redis bindings are supplied by deployment configuration.
 - Placement serialization now uses an explicit, strict format version and bounded uncompressed JSON; cancellation and Redis failure classification have dedicated regression coverage.
 - Redis publication preserves the full Int64 revision range, rejects same-revision payload conflicts, and uses absolute millisecond expiry and bounded waits. Real Redis tests are opt-in; deletion/expiry does not fence stale writers.
-- Completed SAAS-02a: immutable active tenant context and atomic single initialization per request/job scope. Authentication, membership checks and HTTP composition remain separate pending units.
+- Completed SAAS-02: canonical host/selector resolution, organization-bound claim validation, durable membership checks, active-placement authorization, and an opt-in HTTP policy composition. Tenant-aware persistence endpoints remain gated until SAAS-03.
 - Completed SAAS-04a: browser organization context is an in-memory, validated, generation-stamped store. It contains no placement, credential or local-storage state; API interception remains a separate composition unit.
 - Web startup migration/seeding registration has been removed. Existing databases must already be initialized.
 - Admin and Worker entry points exit with code 1 until implemented; they perform no operations.
@@ -34,8 +34,9 @@ TenantId always identifies the purchasing organization. Departments are business
 | Path | Boundary |
 | --- | --- |
 | Application/Tenancy | Provider-independent catalog, resolution, context, migration and provisioning contracts |
-| Api/Tenancy | HTTP composition placeholder; authenticate and authorize before tenant persistence |
+| Api/Tenancy | Opt-in HTTP policy composition; authenticate and authorize before tenant persistence |
 | Infrastructure/Tenancy/Catalog | Tested cache-first catalog decorator, durable Azure SQL adapter and external DI composition |
+| Infrastructure/Tenancy/Authorization | Durable authority and membership readers with bounded, fail-closed access checks |
 | Infrastructure/Tenancy/Caching | Tested Redis placement adapter/transport; never authoritative |
 | Infrastructure/Tenancy/Persistence | Database, schema and discriminator strategies |
 | Infrastructure/Tenancy/Migrations | Out-of-band migration orchestration |
@@ -51,7 +52,9 @@ TenantId always identifies the purchasing organization. Departments are business
 
 Environment variables provide deployment bootstrap bindings. Azure App Configuration holds application policies; Azure SQL holds durable tenant placements; Redis caches versioned placements; Key Vault holds secrets where workload identity cannot replace them.
 
-No tenant inventory or credentials belongs in source, images, pipeline YAML or Helm values. Existing legacy appsettings configuration has not yet been converted. See [configuration placeholders](deploy/configuration/README.md).
+No tenant inventory or credentials belongs in source, images, pipeline YAML or Helm values. Tenant
+authority mappings and memberships live in the control plane; deployment supplies only shared-authority
+allowlists and provider references. See [configuration boundary](deploy/configuration/README.md).
 
 ## Local verification
 

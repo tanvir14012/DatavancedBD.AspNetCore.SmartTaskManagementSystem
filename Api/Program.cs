@@ -6,6 +6,7 @@ using Infrastructure.Data.EfCore.Persistence;
 using Application;
 using Infrastructure.Services;
 using Infrastructure.Tenancy.Catalog;
+using Api.Tenancy;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +26,7 @@ builder.Services.AddHttpClient<GroqModelsAiService>();
 builder.Services.AddEndpoints(typeof(Program).Assembly);
 builder.Services.AddObservability(builder.Configuration, Shared.Constants.ServiceName);
 builder.Services.AddTenantCatalog(builder.Configuration);
+builder.Services.AddTenantAuthorization(builder.Configuration);
 
 builder.Services.AddApplication();
 builder.Services.AddAutoMapper(cfg => { }, typeof(ICurrentUser).Assembly);
