@@ -129,6 +129,18 @@ Deletion or eviction removes the stored revision, so a delayed older publisher c
 Relocation and immediate suspension need authoritative checks and fencing in later routing units;
 this cache alone cannot provide either guarantee.
 
+### Completed increment: SAAS-02a — immutable scoped context
+
+TenantContext requires an active placement and a nonblank authenticated subject identifier, preserving
+the identity exactly. TenantContextScope publishes it atomically once; access before initialization
+and every second initialization fail. Concurrent continuations observe the same immutable snapshot.
+There is no static tenant state, AsyncLocal, reset method or singleton. Both context interfaces must
+resolve the same scoped instance when DI composition is added; each worker job requires a fresh scope.
+Tests cover concurrent initializers, independent asynchronous scopes, lifecycle checks and invalid input.
+
+This is context storage, not an authorization service: the future boundary must authenticate, validate
+organization access, confirm catalog identity and freshness, and then initialize. It remains unwired.
+
 ## Existing code still awaiting integration
 
 ServiceDbContext, AppDbContextFactory, entity mappings, Identity stores, AuthService, all cache key builders and invalidators, Angular auth interceptor and observability/bootstrap still need tenant-aware implementation. The old migration hosted service remains as legacy source but is no longer registered by web bootstrap.

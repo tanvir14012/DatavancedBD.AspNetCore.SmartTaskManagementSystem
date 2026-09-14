@@ -11,6 +11,7 @@ This branch prepares the existing .NET 10 / Angular 21 application for organizat
 - Completed SAAS-01c: Redis placement payloads with bounded expiry, size limits, primary-only reads, atomic newer-revision publication, targeted deletion, and classified transport failures. The durable Azure SQL catalog remains a placeholder.
 - Placement serialization now uses an explicit, strict format version and bounded uncompressed JSON; cancellation and Redis failure classification have dedicated regression coverage.
 - Redis publication preserves the full Int64 revision range, rejects same-revision payload conflicts, and uses absolute millisecond expiry and bounded waits. Real Redis tests are opt-in; deletion/expiry does not fence stale writers.
+- Completed SAAS-02a: immutable active tenant context and atomic single initialization per request/job scope. Authentication, membership checks and HTTP composition remain separate pending units.
 - Web startup migration/seeding registration has been removed. Existing databases must already be initialized.
 - Admin and Worker entry points exit with code 1 until implemented; they perform no operations.
 - All GitHub Actions and Azure DevOps deployment/cleanup pipelines are manual-only placeholders. They neither build nor deploy nor delete resources.

@@ -2,7 +2,6 @@ namespace Application.Tenancy;
 
 public sealed record TenantRequest(string? Host, string? TenantSelector);
 public sealed record TenantAccess(Guid TenantId, string SubjectId);
-public sealed record TenantContext(TenantPlacement Placement, string SubjectId);
 
 /// <summary>Looks up organization placement; null means absent, never a dependency failure.</summary>
 /// <remarks>Lookup does not authorize access or guarantee that a cached revision is current.</remarks>
@@ -34,8 +33,16 @@ public interface ITenantAccessValidator
     Task ValidateAsync(TenantAccess access, CancellationToken cancellationToken);
 }
 
-// TODO(SAAS-02): Supply exactly one immutable context per authorized request/job scope.
+/// <summary>Reads the immutable tenant context established for this request or job scope.</summary>
 public interface ITenantContextAccessor
 {
+    /// <summary>Throws if the authenticated, authorized context has not been established.</summary>
     TenantContext Current { get; }
+}
+
+/// <summary>Used by the request/job boundary after authentication and access validation.</summary>
+public interface ITenantContextInitializer
+{
+    /// <summary>Establishes context once; repeated initialization is always rejected.</summary>
+    void Initialize(TenantContext context);
 }
