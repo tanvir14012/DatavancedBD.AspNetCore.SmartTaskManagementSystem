@@ -21,7 +21,7 @@
 | SAAS-07 | Pool budgets, quotas, workers, regional routing and backpressure. Test cancellation, duplicate jobs, fairness, target outage and stale writer rejection. |
 | SAAS-08 | Docker/AKS, workload identities, release pipeline, probes and observability. Test fast startup without DDL, graceful disposal, rollout compatibility and all-tier smoke tests. |
 
-## Existing code still awaiting integration
+## Completed increments
 
 ### Completed increment: SAAS-01a — placement value object
 
@@ -39,7 +39,34 @@ Catalog adapters must still validate required serialized fields, target existenc
 concurrent version updates. TenantPlacementTests covers structural invariants without external services.
 The catalog/cache acceptance placeholder remains skipped because provider behavior is not implemented.
 
-Next bounded unit: define and test catalog lookup/cache orchestration before adding Azure/Redis transports.
+### Completed increment: SAAS-01b — catalog lookup orchestration
+
+CachedTenantCatalog wraps a durable ITenantCatalog and ITenantPlacementCache with constructor-injected
+dependencies. It is not registered in the web application. A cache hit is returned only when the
+snapshot belongs to the requested organization. A miss reads the durable catalog once and publishes
+positive results. Null results are not cached, allowing subsequent onboarding to become visible.
+
+Only TenantPlacementCacheUnavailableException permits graceful cache fallback. Adapters must classify
+transport outages/timeouts into this exception; corruption, programming errors and cancellation must
+not be classified as outages. Read outages skip cache population on that lookup. Write outages return
+the authoritative result. Durable lookup failures always propagate and never masquerade as absence.
+Wrong-organization snapshots from either dependency fail closed without invalidation or publication.
+
+Cancellation is forwarded and rechecked after each await, including dependencies that complete after
+cancellation. There are no local tenant locks, retries, negative caching or background refresh tasks.
+Warning events 6101/6102 identify cache read/write unavailability without logging provider exceptions,
+connection details or schema names. Routine hits and misses stay quiet.
+
+This unit does not guarantee a cached snapshot is current or authorize its lifecycle. Redis TTL,
+atomic version-aware writes, invalidation races and writer fencing still require adapter/integration
+work. Bounded transport deadlines and catalog capacity limits are responsibilities of those dependency
+implementations; no timeout or distributed capacity claim is made by this decorator. Compose it
+explicitly around the durable adapter to avoid resolving ITenantCatalog recursively through DI.
+
+Next bounded unit: Redis placement payload/expiry and version-aware publication, with real Redis tests
+for atomic operations before wiring the cache into runtime resolution.
+
+## Existing code still awaiting integration
 
 ServiceDbContext, AppDbContextFactory, entity mappings, Identity stores, AuthService, all cache key builders and invalidators, Angular auth interceptor and observability/bootstrap still need tenant-aware implementation. The old migration hosted service remains as legacy source but is no longer registered by web bootstrap.
 
