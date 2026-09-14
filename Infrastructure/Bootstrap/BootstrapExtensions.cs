@@ -42,7 +42,8 @@ public static class BootstrapExtensions
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Database connection string is required.");
         builder.Services.AddServiceDbContext<AppDbContext>(connectionString, Shared.Constants.ServicePrefix);
-        builder.Services.AddAutoMigrations<AppDbContext>();
+        // TODO(SAAS-05): Migrations and provisioning belong exclusively to the Admin release process.
+        // Web startup must not migrate or seed tenant databases.
         builder.Services.AddCustomIdentity();
 
         builder.Services.AddCors(options =>

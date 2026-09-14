@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="Admin/Admin.csproj" />
+  <Project Path="Worker/Worker.csproj" />
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
     <File Path=".gitignore" />
