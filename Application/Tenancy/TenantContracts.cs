@@ -1,7 +1,6 @@
 namespace Application.Tenancy;
 
 public sealed record TenantRequest(string? Host, string? TenantSelector);
-public sealed record TenantAccess(Guid TenantId, string SubjectId);
 
 /// <summary>Looks up organization placement; null means absent, never a dependency failure.</summary>
 /// <remarks>Lookup does not authorize access or guarantee that a cached revision is current.</remarks>
@@ -38,6 +37,12 @@ public interface ITenantContextAccessor
 {
     /// <summary>Throws if the authenticated, authorized context has not been established.</summary>
     TenantContext Current { get; }
+}
+
+/// <summary>Reads the durable authority for access decisions; a placement cache cannot implement this contract.</summary>
+/// <remarks>A read does not fence an already running operation against a later placement change.</remarks>
+public interface IAuthoritativeTenantCatalog : ITenantCatalog
+{
 }
 
 /// <summary>Used by the request/job boundary after authentication and access validation.</summary>

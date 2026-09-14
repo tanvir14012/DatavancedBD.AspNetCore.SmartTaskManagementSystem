@@ -92,24 +92,24 @@ public sealed class TenantContextScopeTests
     [InlineData(TenantLifecycle.Moving)]
     [InlineData(TenantLifecycle.Suspended)]
     public void NonactivePlacementCannotBecomeRequestContext(TenantLifecycle lifecycle)
-        => Assert.Throws<ArgumentException>(() => new TenantContext(Placement(lifecycle), "subject"));
+        => Assert.Throws<ArgumentException>(() => new TenantContext(Placement(lifecycle), "subject", "https://issuer.test"));
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData(" \t")]
     public void MissingSubjectCannotBecomeRequestContext(string? subject)
-        => Assert.ThrowsAny<ArgumentException>(() => new TenantContext(Placement(), subject!));
+        => Assert.ThrowsAny<ArgumentException>(() => new TenantContext(Placement(), subject!, "https://issuer.test"));
 
     [Fact]
     public void MissingPlacementIsRejected()
-        => Assert.Throws<ArgumentNullException>(() => new TenantContext(null!, "subject"));
+        => Assert.Throws<ArgumentNullException>(() => new TenantContext(null!, "subject", "https://issuer.test"));
 
     [Fact]
     public void SubjectIdentityIsPreservedExactly()
-        => Assert.Equal("Provider|Case-Sensitive", new TenantContext(Placement(), "Provider|Case-Sensitive").SubjectId);
+        => Assert.Equal("Provider|Case-Sensitive", new TenantContext(Placement(), "Provider|Case-Sensitive", "https://issuer.test").SubjectId);
 
-    private static TenantContext Context() => new(Placement(), Guid.NewGuid().ToString("N"));
+    private static TenantContext Context() => new(Placement(), Guid.NewGuid().ToString("N"), "https://issuer.test");
 
     private static TenantPlacement Placement(TenantLifecycle lifecycle = TenantLifecycle.Active)
         => new(Guid.NewGuid(), TenantIsolation.Row, "sql-01", null, "southeastasia", 1, lifecycle);

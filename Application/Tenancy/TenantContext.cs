@@ -8,15 +8,17 @@ namespace Application.Tenancy;
 public sealed record TenantContext
 {
     /// <summary>Creates a structurally valid context without I/O.</summary>
-    public TenantContext(TenantPlacement placement, string subjectId)
+    public TenantContext(TenantPlacement placement, string subjectId, string issuer)
     {
         ArgumentNullException.ThrowIfNull(placement);
-        ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
+        TenantAccess.ValidateIdentityPart(subjectId, nameof(subjectId));
+        TenantAccess.ValidateIdentityPart(issuer, nameof(issuer));
         if (placement.Lifecycle != TenantLifecycle.Active)
             throw new ArgumentException("Tenant context requires an active placement.", nameof(placement));
 
         Placement = placement;
         SubjectId = subjectId;
+        Issuer = issuer;
     }
 
     /// <summary>The active placement snapshot selected for this scope.</summary>
@@ -24,4 +26,7 @@ public sealed record TenantContext
 
     /// <summary>The authenticated subject identifier, preserved without normalization.</summary>
     public string SubjectId { get; }
+
+    /// <summary>The validated issuer qualifying this subject identifier.</summary>
+    public string Issuer { get; }
 }

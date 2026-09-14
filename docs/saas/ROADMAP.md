@@ -141,6 +141,21 @@ Tests cover concurrent initializers, independent asynchronous scopes, lifecycle 
 This is context storage, not an authorization service: the future boundary must authenticate, validate
 organization access, confirm catalog identity and freshness, and then initialize. It remains unwired.
 
+### Completed increment: SAAS-04a — browser organization context
+
+The Angular TenantContextStore keeps only a validated organization UUID and display label in memory.
+It copies and freezes both values, rejects controls and empty/zero identifiers, and never persists
+tenant or placement metadata in browser storage. A replayable snapshot carries a generation number;
+switching A to B and back to A still invalidates work captured for the first A. A display-name refresh
+for the same organization keeps the generation, while clear advances it. The observable is read-only,
+and each application instance owns its own state. No default organization is inferred.
+
+The store is intentionally injectable without a root provider so composition must choose its lifetime.
+Register it once per browser application, authenticate and authorize organization selection through the
+API, and use the snapshot generation to cancel or ignore late responses. The interceptor and runtime
+API allowlist are implemented and tested in the next frontend increment; this store alone authorizes
+nothing.
+
 ## Existing code still awaiting integration
 
 ServiceDbContext, AppDbContextFactory, entity mappings, Identity stores, AuthService, all cache key builders and invalidators, Angular auth interceptor and observability/bootstrap still need tenant-aware implementation. The old migration hosted service remains as legacy source but is no longer registered by web bootstrap.

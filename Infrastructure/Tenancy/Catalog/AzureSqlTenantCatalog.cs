@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Infrastructure.Tenancy.Catalog;
 
 /// <summary>Reads authoritative placements independently of tenant database resolution.</summary>
-public sealed class AzureSqlTenantCatalog : ITenantCatalog
+public sealed class AzureSqlTenantCatalog : IAuthoritativeTenantCatalog
 {
     private const string FindPlacementSql = """
         SELECT TOP (2) [TenantId], [Isolation], [TargetId], [SchemaName], [Region], [Version], [Lifecycle]
