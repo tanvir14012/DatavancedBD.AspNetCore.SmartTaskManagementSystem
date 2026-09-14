@@ -1,7 +1,6 @@
 using System.Net.Sockets;
 using System.Text.Json;
 using Application.Tenancy;
-using Infrastructure.Caching.Serialization;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -17,14 +16,14 @@ public sealed class RedisTenantPlacementCache : ITenantPlacementCache
 {
     private const string KeyNamespace = "tenant-placement";
     private readonly IRedisTenantPlacementTransport _transport;
-    private readonly ICacheSerializer _serializer;
+    private readonly ITenantPlacementSerializer _serializer;
     private readonly TenantPlacementCacheOptions _options;
     private readonly TimeProvider _timeProvider;
 
     /// <summary>Creates an adapter without performing any Redis or clock I/O.</summary>
     public RedisTenantPlacementCache(
         IRedisTenantPlacementTransport transport,
-        ICacheSerializer serializer,
+        ITenantPlacementSerializer serializer,
         IOptions<TenantPlacementCacheOptions> options,
         TimeProvider timeProvider)
     {
@@ -123,7 +122,7 @@ public sealed class RedisTenantPlacementCache : ITenantPlacementCache
         TenantPlacement? placement;
         try
         {
-            placement = _serializer.Deserialize<TenantPlacement>(entry.Payload);
+            placement = _serializer.Deserialize(entry.Payload);
         }
         catch (JsonException exception)
         {

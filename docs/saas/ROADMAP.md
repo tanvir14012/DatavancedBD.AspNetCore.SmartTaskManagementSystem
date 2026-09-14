@@ -97,6 +97,16 @@ providers after their integration tests pass.
 
 ## Existing code still awaiting integration
 
+### SAAS-01c follow-up — strict placement payload format
+
+JsonTenantPlacementSerializer replaces the general application cache serializer for placements. Its
+format version 1 requires every field, rejects duplicates/unknown fields, preserves Int64 revisions,
+and accepts only bounded uncompressed JSON. Missing isolation/lifecycle values never become defaults.
+The Redis adapter still verifies requested tenant identity and hash/payload revision agreement.
+Old unversioned development cache values are intentionally rejected; use a new deployment key prefix
+when adopting this format. No durable data conversion is needed. Serializer tests exercise all tiers,
+missing fields, malformed values, oversize documents and rejection of compressed input.
+
 ### SAAS-01c follow-up — cancellation and failure classification
 
 Cancellation is checked inside catch bodies, never exception filters, so a canceled caller wins over

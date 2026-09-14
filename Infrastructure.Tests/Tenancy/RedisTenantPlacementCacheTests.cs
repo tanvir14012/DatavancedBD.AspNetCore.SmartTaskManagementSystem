@@ -1,6 +1,4 @@
 using Application.Tenancy;
-using Infrastructure.Caching.Options;
-using Infrastructure.Caching.Serialization;
 using Infrastructure.Tenancy.Caching;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -270,8 +268,8 @@ public sealed class RedisTenantPlacementCacheTests
         Assert.Equal(fixture.Token, error.CancellationToken);
     }
 
-    private static ICacheSerializer CreateSerializer()
-        => new SystemTextJsonCacheSerializer(Options.Create(new CachingOptions { EnableCompression = false }));
+    private static ITenantPlacementSerializer CreateSerializer()
+        => new JsonTenantPlacementSerializer(Options.Create(new TenantPlacementCacheOptions()));
 
     [Theory]
     [InlineData("get", false)]
@@ -324,7 +322,7 @@ public sealed class RedisTenantPlacementCacheTests
 
     private static RedisTenantPlacementCache Create(
         IRedisTenantPlacementTransport transport,
-        ICacheSerializer serializer,
+        ITenantPlacementSerializer serializer,
         IOptions<TenantPlacementCacheOptions> options,
         TimeProvider? timeProvider = null)
         => new(transport, serializer, options, timeProvider ?? TimeProvider.System);
@@ -351,11 +349,11 @@ public sealed class RedisTenantPlacementCacheTests
         public void Dispose() => Cancellation.Dispose();
     }
 
-    private sealed class RecordingSerializer(ICacheSerializer inner) : ICacheSerializer
+    private sealed class RecordingSerializer(ITenantPlacementSerializer inner) : ITenantPlacementSerializer
     {
         public Func<object, byte[]>? SerializeOverride { get; set; }
-        public byte[] Serialize<T>(T value) => SerializeOverride?.Invoke(value!) ?? inner.Serialize(value);
-        public T? Deserialize<T>(byte[] bytes) => inner.Deserialize<T>(bytes);
+        public byte[] Serialize(TenantPlacement value) => SerializeOverride?.Invoke(value) ?? inner.Serialize(value);
+        public TenantPlacement Deserialize(byte[] bytes) => inner.Deserialize(bytes);
     }
 
     private sealed class FakeTransport(TestTimeProvider clock) : IRedisTenantPlacementTransport
