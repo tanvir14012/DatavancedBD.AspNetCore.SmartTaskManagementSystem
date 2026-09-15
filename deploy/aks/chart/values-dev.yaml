@@ -1,0 +1,22 @@
+environment: dev
+
+ingress:
+  host: stms-dev.example.com
+  tlsSecretName: stms-dev-tls
+
+api:
+  replicas: 1
+  autoscaling:
+    minReplicas: 1
+    maxReplicas: 3
+  corsOrigins:
+    - https://stms-dev.example.com
+
+frontend:
+  replicas: 1
+  autoscaling:
+    minReplicas: 1
+    maxReplicas: 3
+
+admin:
+  migrationEnabled: true

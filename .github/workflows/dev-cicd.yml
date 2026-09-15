@@ -1,13 +1,161 @@
-name: SaaS placeholder
+name: STMS Dev CD
+
 on:
+  push:
+    branches: [saas, main, master]
   workflow_dispatch:
+
 permissions:
   contents: read
+  id-token: write
+
+concurrency:
+  group: stms-dev
+  cancel-in-progress: false
+
+env:
+  ACME_SERVER: https://acme-staging-v02.api.letsencrypt.org/directory
+  CERT_ISSUER_NAME: letsencrypt-staging
+
 jobs:
-  placeholder:
+  build:
+    name: Build and publish dev images
     runs-on: ubuntu-latest
+    environment: stms-dev
+    env:
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      CI_PRINCIPAL_OBJECT_ID: ${{ vars.CI_PRINCIPAL_OBJECT_ID }}
+      SHARED_RESOURCE_GROUP: ${{ vars.SHARED_RESOURCE_GROUP }}
+      RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+      KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+      NAMESPACE: ${{ vars.NAMESPACE }}
+      INGRESS_HOST: ${{ vars.INGRESS_HOST }}
+      ACME_EMAIL: ${{ vars.ACME_EMAIL }}
     steps:
-      # TODO(SAAS-08): Build/test immutable artifacts, run Admin migration Job, deploy AKS and verify.
-      # TODO(SAAS-06): Tenant provisioning must be a separate workflow; no cleanup is implemented.
-      - name: Report placeholder
-        run: echo "SaaS pipeline placeholder - no build, deployment or cleanup performed."
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Provision or update dev Azure infrastructure
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: bash deploy/aks/deploy-infrastructure.sh dev
+      - name: Login to ACR
+        run: az acr login --name "$ACR_NAME"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and publish immutable images
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: bash deploy/aks/build-images.sh
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign published image digests
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          registry="$(az acr show --name "$ACR_NAME" --query loginServer --output tsv)"
+          for image in api admin worker frontend; do
+            digest="$(az acr manifest show --registry "$ACR_NAME" --name "stms-${image}:${IMAGE_TAG}" --query digest --output tsv)"
+            [[ "$digest" == sha256:* ]] || { echo "Could not resolve digest for stms-${image}." >&2; exit 1; }
+            cosign sign --yes "$registry/stms-${image}@${digest}"
+          done
+      - name: Record image tag
+        id: release
+        run: echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+    outputs:
+      image_tag: ${{ steps.release.outputs.image_tag }}
+
+  scan:
+    name: Scan ${{ matrix.name }} image
+    needs: build
+    runs-on: ubuntu-latest
+    environment: stms-dev
+    env:
+      ACR_NAME: ${{ vars.ACR_NAME }}
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [api, admin, worker, frontend]
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - run: az acr login --name "${{ vars.ACR_NAME }}"
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: '${{ vars.ACR_NAME }}.azurecr.io/stms-${{ matrix.name }}:${{ needs.build.outputs.image_tag }}'
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+
+  deploy:
+    name: Deploy dev
+    needs: [build, scan]
+    runs-on: ubuntu-latest
+    environment: stms-dev
+    env:
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      CI_PRINCIPAL_OBJECT_ID: ${{ vars.CI_PRINCIPAL_OBJECT_ID }}
+      SHARED_RESOURCE_GROUP: ${{ vars.SHARED_RESOURCE_GROUP }}
+      RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+      KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+      NAMESPACE: ${{ vars.NAMESPACE }}
+      INGRESS_HOST: ${{ vars.INGRESS_HOST }}
+      ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/setup-helm@v4
+      - uses: azure/setup-kubectl@v4
+      - uses: azure/use-kubelogin@v1
+      - name: Refresh infrastructure outputs
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          bash deploy/aks/deploy-infrastructure.sh dev
+          echo "RUNTIME_CLIENT_ID=$(az deployment group show --resource-group "$RESOURCE_GROUP" --name stms-aks-dev --query properties.outputs.runtimeClientId.value --output tsv)" >> "$GITHUB_ENV"
+          echo "ADMIN_CLIENT_ID=$(az deployment group show --resource-group "$RESOURCE_GROUP" --name stms-aks-dev --query properties.outputs.adminClientId.value --output tsv)" >> "$GITHUB_ENV"
+      - name: Update Key Vault secrets
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          DEFAULT_CONNECTION_STRING: ${{ secrets.DEFAULT_CONNECTION_STRING }}
+          STORAGE_TARGET_CONNECTION_STRING: ${{ secrets.STORAGE_TARGET_CONNECTION_STRING }}
+          JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
+          JWT_AUDIENCE: ${{ secrets.JWT_AUDIENCE }}
+          JWT_KEY: ${{ secrets.JWT_KEY }}
+          REDIS_CONNECTION_STRING: ${{ secrets.REDIS_CONNECTION_STRING }}
+          TENANT_CATALOG_SQL_CONNECTION_STRING: ${{ secrets.TENANT_CATALOG_SQL_CONNECTION_STRING }}
+          TENANT_CATALOG_REDIS_CONNECTION_STRING: ${{ secrets.TENANT_CATALOG_REDIS_CONNECTION_STRING }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: bash deploy/aks/sync-keyvault-secrets.sh
+      - name: Deploy immutable release
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+          AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          NAMESPACE: ${{ vars.NAMESPACE }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          ENVIRONMENT: dev
+          INGRESS_HOST: ${{ vars.INGRESS_HOST }}
+          ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+          ACME_SERVER: https://acme-staging-v02.api.letsencrypt.org/directory
+          CERT_ISSUER_NAME: letsencrypt-staging
+        run: bash deploy/aks/deploy-release.sh

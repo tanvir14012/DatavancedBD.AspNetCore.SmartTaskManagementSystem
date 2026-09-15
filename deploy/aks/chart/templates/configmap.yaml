@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "stms.fullname" . }}-config
+  labels:
+    {{- include "stms.labels" . | nindent 4 }}
+data:
+  ASPNETCORE_ENVIRONMENT: {{ ternary "Production" "Development" (eq .Values.environment "prod") | quote }}
+  Caching__Provider: Redis
+  Caching__Redis__InstanceName: {{ printf "%s:" .Values.tenantCatalog.cacheKeyPrefix | quote }}
+  Caching__Redis__ConnectRetry: "3"
+  Caching__Redis__ConnectTimeoutMilliseconds: "5000"
+  Caching__Redis__SyncTimeoutMilliseconds: "5000"
+  Saas__TenantCatalog__Cache__KeyPrefix: {{ .Values.tenantCatalog.cacheKeyPrefix | quote }}
+  Saas__TenantCatalog__Read__CommandTimeoutSeconds: {{ .Values.tenantCatalog.readCommandTimeoutSeconds | quote }}
+  Saas__TenantCatalog__Read__DeadlineSeconds: {{ .Values.tenantCatalog.readDeadlineSeconds | quote }}
+  Saas__TenantCatalog__Redis__Database: {{ .Values.tenantCatalog.redisDatabase | quote }}
+  Saas__Storage__Targets__{{ .Values.tenantStorage.targetId }}__Isolation: {{ .Values.tenantStorage.isolation | quote }}
+  Saas__Storage__Targets__{{ .Values.tenantStorage.targetId }}__Region: {{ .Values.tenantStorage.region | quote }}
+  Saas__Storage__Targets__{{ .Values.tenantStorage.targetId }}__Schema: {{ .Values.tenantStorage.schema | quote }}
+  Saas__Storage__Targets__{{ .Values.tenantStorage.targetId }}__MaxPoolSize: {{ .Values.tenantStorage.maxPoolSize | quote }}
+  Saas__Storage__Targets__{{ .Values.tenantStorage.targetId }}__CommandTimeoutSeconds: {{ .Values.tenantStorage.commandTimeoutSeconds | quote }}
+  Ai__Enabled: {{ .Values.ai.enabled | quote }}
+  Ai__GroqEndpoint: {{ .Values.ai.endpoint | quote }}
+  Ai__Model: {{ .Values.ai.model | quote }}
+  Cors__AllowedOrigins__0: {{ printf "https://%s" .Values.ingress.host | quote }}
+  Saas__Tenancy__SharedApiAuthorities__0: {{ printf "https://%s" .Values.ingress.host | quote }}

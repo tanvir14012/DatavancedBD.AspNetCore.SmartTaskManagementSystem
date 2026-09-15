@@ -61,11 +61,11 @@ public sealed class MigrationHostedService<TDbContext>(
                 retries--;
             }
 
-            // 3. Call Seed Extensions directly
-            logger.LogInformation("Starting database seeding for {DbContext}...", typeof(TDbContext).Name);
-            await scope.ServiceProvider.SeedRolesAndAdminAsync();
-            await scope.ServiceProvider.SeedProjectsAndTasksAsync();
-            logger.LogInformation("Database seeding completed successfully.");
+            // Create only the stable role catalog. User accounts and demo data are never
+            // provisioned implicitly with known credentials in a production deployment.
+            logger.LogInformation("Starting role seeding for {DbContext}...", typeof(TDbContext).Name);
+            await scope.ServiceProvider.SeedRolesAsync();
+            logger.LogInformation("Role seeding completed successfully.");
         }
         catch (Exception ex)
         {
@@ -76,4 +76,3 @@ public sealed class MigrationHostedService<TDbContext>(
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }
-

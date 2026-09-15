@@ -53,7 +53,7 @@ source ~/.bashrc
 Test it:
 
 ```bash
-sqlcmd -S localhost -U sa -P 'P00ntang1!' -C -Q "SELECT @@VERSION"
+sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -Q "SELECT @@VERSION"
 ```
 
 The `-C` flag is important for local/self-signed SQL Server certificates.
@@ -100,7 +100,7 @@ On Linux, the app should normally be configured through environment variables in
 
 ```ini
 Environment=ASPNETCORE_ENVIRONMENT=Production
-Environment="ConnectionStrings__DefaultConnection=Server=localhost,1433;Database=SmartTaskManagementSystem;User Id=sa;Password=P00ntang1!;Encrypt=True;TrustServerCertificate=True;"
+EnvironmentFile=-/etc/stms/stms.env
 ```
 
 In practice, pass all runtime config values as environment variables, not just the connection string. Example pattern:
@@ -239,7 +239,7 @@ Restart=always
 RestartSec=5
 
 Environment=ASPNETCORE_ENVIRONMENT=Production
-Environment="ConnectionStrings__DefaultConnection=Server=localhost,1433;Database=SmartTaskManagementSystem;User Id=sa;Password=P00ntang1!;Encrypt=True;TrustServerCertificate=True;"
+EnvironmentFile=-/etc/stms/stms.env
 
 User=tanvir
 Group=tanvir

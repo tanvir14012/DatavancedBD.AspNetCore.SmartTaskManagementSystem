@@ -1,0 +1,101 @@
+name: STMS CI
+
+on:
+  pull_request:
+    branches: [saas, main, master]
+  push:
+    branches: [saas, main, master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stms-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend build and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore DatavancedBD.AspNetCore.SmartTaskManagementSystem.slnx
+      - name: Build
+        run: dotnet build DatavancedBD.AspNetCore.SmartTaskManagementSystem.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test Infrastructure.Tests/Infrastructure.Tests.csproj --configuration Release --no-restore --no-build --logger trx --results-directory TestResults
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: TestResults
+
+  frontend:
+    name: Frontend build and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Frontend/Angular
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: Frontend/Angular/package-lock.json
+      - run: npm ci
+      - run: npm test -- --watch=false
+      - run: npm run build:prod
+
+  container-build:
+    name: Validate ${{ matrix.name }} image
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            dockerfile: Dockerfile.api
+          - name: admin
+            dockerfile: Dockerfile.admin
+          - name: worker
+            dockerfile: Dockerfile.worker
+          - name: frontend
+            dockerfile: Frontend/Angular/Dockerfile
+            context: Frontend/Angular
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image without publishing
+        run: |
+          docker buildx build \
+            --file "${{ matrix.dockerfile }}" \
+            --tag "stms-ci-${{ matrix.name }}:${{ github.sha }}" \
+            --load "${{ matrix.context || '.' }}"
+
+  chart-lint:
+    name: Helm chart lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Build Bicep templates
+        run: |
+          az bicep build --file Azure/infra/shared.bicep --stdout > /dev/null
+          az bicep build --file Azure/infra/aks.bicep --stdout > /dev/null
+      - name: Lint dev and prod values
+        run: |
+          for environment in dev prod; do
+            helm lint deploy/aks/chart \
+              --values "deploy/aks/chart/values-${environment}.yaml" \
+              --set-string keyVault.name=lint-kv \
+              --set-string workloadIdentity.tenantId=00000000-0000-0000-0000-000000000000 \
+              --set-string workloadIdentity.runtimeClientId=00000000-0000-0000-0000-000000000001 \
+              --set-string workloadIdentity.adminClientId=00000000-0000-0000-0000-000000000002
+          done

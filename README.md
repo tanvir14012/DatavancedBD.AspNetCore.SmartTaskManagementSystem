@@ -1,6 +1,6 @@
 # Smart Task Management System — SaaS scaffold
 
-This branch prepares the existing .NET 10 / Angular 21 application for organization-level multi-tenancy. It is a scaffold, **not a production-ready multi-tenant application**.
+This branch prepares the existing .NET 10 / Angular 21 application for organization-level multi-tenancy. The deployable AKS and CI/CD path is production-oriented, while the explicitly documented live SQL/Redis acceptance and application-specific Worker handler remain release prerequisites.
 
 ## Current state
 
@@ -17,7 +17,7 @@ This branch prepares the existing .NET 10 / Angular 21 application for organizat
 - Completed SAAS-04a: browser organization context is an in-memory, validated, generation-stamped store. It contains no placement, credential or local-storage state; API interception remains a separate composition unit.
 - Web startup migration/seeding registration has been removed. Existing databases must already be initialized.
 - Admin now exposes explicit `migrate` and `provision` commands with cancellation, durable target locks and nonzero failure reporting; Worker now has bounded, tenant-fenced job processing and requires an explicit queue handler adapter.
-- Container build files, a health-gated local Compose environment, and manual release contracts are supplied. Production deployment still supplies registry, AKS and secret bindings externally.
+- Container build files, a health-gated local Compose environment, a reusable AKS Helm chart, environment-specific Azure infrastructure, Key Vault CSI workload identity, cert-manager/ingress add-ons, and GitHub Actions CI/CD for dev/prod are supplied.
 - Existing Azure VM/IIS/Nginx assets and guides are historical; they are not the SaaS deployment path.
 
 ## Organization isolation
@@ -46,7 +46,7 @@ TenantId always identifies the purchasing organization. Departments are business
 | Worker | Separate tenant-scoped background process |
 | Infrastructure.Tests/Tenancy | Focused unit tests plus explicitly skipped live-provider acceptance scenarios |
 | Frontend/Angular/src/app/core/tenancy | Browser context, API allowlist and generation-fenced interceptor |
-| deploy | Container, AKS, configuration and telemetry release contracts |
+| deploy | Container images, production AKS Helm release, add-ons, smoke checks and deployment scripts |
 | docs/saas | Implementation sequence and testability requirements |
 
 ## Configuration ownership
@@ -77,7 +77,7 @@ To run the legacy API, supply ConnectionStrings__DefaultConnection, Jwt__Key, Jw
 
 ## Delivery rules
 
-Build immutable artifacts once and promote identical digests. Run reviewed migrations as an AKS release Job with separate administrative identity; deploy compatible API/worker versions afterward. Onboard tenants through an independent admin workflow.
+Build immutable artifacts once and promote the identical ACR image tag/digests from dev to prod. CI runs backend/frontend tests and all container builds. Dev CD provisions Azure resources, scans images, updates Key Vault, runs the reviewed Admin migration Job and performs a smoke check. Prod CD is manual and approval-gated through the `stms-prod` GitHub Environment. Onboard tenants through an independent admin workflow.
 
 No automatic migrations, target enumeration or sample seeding in web startup. No sticky sessions or durable pod-local state. Apply expand-and-contract schema changes; rolling back an image does not undo a tenant move.
 

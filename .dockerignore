@@ -1,0 +1,14 @@
+.git
+.github
+.vs
+.agents
+.codex
+**/bin/
+**/obj/
+**/node_modules/
+Frontend/Angular/dist/
+Frontend/Angular/certs/
+Api/Logs/
+*.user
+*.suo
+TestResults/

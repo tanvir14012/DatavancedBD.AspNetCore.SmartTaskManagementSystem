@@ -121,12 +121,16 @@ export class UsersPage {
       return;
     }
 
+    if (this.editingUserId() === null && !currentForm.password.trim()) {
+      return;
+    }
+
     const payload = {
       firstName: currentForm.firstName.trim(),
       lastName: currentForm.lastName.trim(),
       email: currentForm.email.trim(),
       role: currentForm.role,
-      ...(this.editingUserId() === null ? { password: currentForm.password || 'Datavanced@123' } : {}),
+      ...(this.editingUserId() === null ? { password: currentForm.password.trim() } : {}),
     };
 
     const editingId = this.editingUserId();

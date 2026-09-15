@@ -1,0 +1,9 @@
+STMS {{ .Values.environment }} has been released.
+
+Verify rollout:
+  kubectl -n {{ .Release.Namespace }} get deploy,svc,ingress
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "stms.fullname" . }}-api --timeout=10m
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "stms.fullname" . }}-frontend --timeout=10m
+
+The Admin migration ran as a Helm pre-install/pre-upgrade release Job. Inspect it with:
+  kubectl -n {{ .Release.Namespace }} get jobs

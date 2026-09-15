@@ -1,0 +1,112 @@
+name: STMS Production CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Immutable image tag promoted from dev (normally a commit SHA)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: stms-prod
+  cancel-in-progress: false
+
+env:
+  ACME_SERVER: https://acme-v02.api.letsencrypt.org/directory
+  CERT_ISSUER_NAME: letsencrypt-prod
+
+jobs:
+  deploy:
+    name: Promote and deploy production
+    runs-on: ubuntu-latest
+    environment: stms-prod
+    env:
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      CI_PRINCIPAL_OBJECT_ID: ${{ vars.CI_PRINCIPAL_OBJECT_ID }}
+      SHARED_RESOURCE_GROUP: ${{ vars.SHARED_RESOURCE_GROUP }}
+      RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+      KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+      NAMESPACE: ${{ vars.NAMESPACE }}
+      INGRESS_HOST: ${{ vars.INGRESS_HOST }}
+      ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/setup-helm@v4
+      - uses: azure/setup-kubectl@v4
+      - uses: azure/use-kubelogin@v1
+      - uses: sigstore/cosign-installer@v3
+      - name: Login to ACR
+        run: az acr login --name "$ACR_NAME"
+      - name: Validate promoted images exist
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          case "$IMAGE_TAG" in *[!A-Za-z0-9._-]*) echo "Invalid image tag" >&2; exit 2 ;; esac
+          for image in api admin worker frontend; do
+            az acr manifest show --registry "$ACR_NAME" --name "stms-${image}:${IMAGE_TAG}" --query digest --output tsv >/dev/null
+          done
+      - name: Verify dev image signatures
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          COSIGN_CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/dev-cicd.yml@refs/heads/(saas|main|master)
+          COSIGN_CERTIFICATE_OIDC_ISSUER: https://token.actions.githubusercontent.com
+        run: |
+          registry="$(az acr show --name "$ACR_NAME" --query loginServer --output tsv)"
+          for image in api admin worker frontend; do
+            digest="$(az acr manifest show --registry "$ACR_NAME" --name "stms-${image}:${IMAGE_TAG}" --query digest --output tsv)"
+            [[ "$digest" == sha256:* ]] || { echo "Could not resolve digest for stms-${image}." >&2; exit 1; }
+            cosign verify \
+              --certificate-identity-regexp "$COSIGN_CERTIFICATE_IDENTITY" \
+              --certificate-oidc-issuer "$COSIGN_CERTIFICATE_OIDC_ISSUER" \
+              "$registry/stms-${image}@${digest}" >/dev/null
+          done
+      - name: Provision or update production Azure infrastructure
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          bash deploy/aks/deploy-infrastructure.sh prod
+          echo "RUNTIME_CLIENT_ID=$(az deployment group show --resource-group "$RESOURCE_GROUP" --name stms-aks-prod --query properties.outputs.runtimeClientId.value --output tsv)" >> "$GITHUB_ENV"
+          echo "ADMIN_CLIENT_ID=$(az deployment group show --resource-group "$RESOURCE_GROUP" --name stms-aks-prod --query properties.outputs.adminClientId.value --output tsv)" >> "$GITHUB_ENV"
+      - name: Update production Key Vault secrets
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          DEFAULT_CONNECTION_STRING: ${{ secrets.DEFAULT_CONNECTION_STRING }}
+          STORAGE_TARGET_CONNECTION_STRING: ${{ secrets.STORAGE_TARGET_CONNECTION_STRING }}
+          JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
+          JWT_AUDIENCE: ${{ secrets.JWT_AUDIENCE }}
+          JWT_KEY: ${{ secrets.JWT_KEY }}
+          REDIS_CONNECTION_STRING: ${{ secrets.REDIS_CONNECTION_STRING }}
+          TENANT_CATALOG_SQL_CONNECTION_STRING: ${{ secrets.TENANT_CATALOG_SQL_CONNECTION_STRING }}
+          TENANT_CATALOG_REDIS_CONNECTION_STRING: ${{ secrets.TENANT_CATALOG_REDIS_CONNECTION_STRING }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: bash deploy/aks/sync-keyvault-secrets.sh
+      - name: Deploy promoted immutable release
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+          AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          NAMESPACE: ${{ vars.NAMESPACE }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          ENVIRONMENT: prod
+          INGRESS_HOST: ${{ vars.INGRESS_HOST }}
+          ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+          ACME_SERVER: https://acme-v02.api.letsencrypt.org/directory
+          CERT_ISSUER_NAME: letsencrypt-prod
+        run: bash deploy/aks/deploy-release.sh

@@ -1,0 +1,141 @@
+environment: dev
+
+images:
+  api:
+    repository: stmsplatformacr.azurecr.io/stms-api
+    tag: latest
+    digest: ""
+  admin:
+    repository: stmsplatformacr.azurecr.io/stms-admin
+    tag: latest
+    digest: ""
+  worker:
+    repository: stmsplatformacr.azurecr.io/stms-worker
+    tag: latest
+    digest: ""
+  frontend:
+    repository: stmsplatformacr.azurecr.io/stms-frontend
+    tag: latest
+    digest: ""
+
+imagePullPolicy: IfNotPresent
+revisionHistoryLimit: 5
+
+workloadIdentity:
+  tenantId: ""
+  runtimeClientId: ""
+  adminClientId: ""
+
+keyVault:
+  name: ""
+  mountPath: /mnt/secrets
+
+tenantStorage:
+  targetId: shared
+  isolation: Row
+  region: southeastasia
+  schema: dbo
+  maxPoolSize: 100
+  commandTimeoutSeconds: 30
+
+tenantCatalog:
+  cacheKeyPrefix: stms-dev
+  readCommandTimeoutSeconds: 15
+  readDeadlineSeconds: 20
+  redisDatabase: -1
+
+ai:
+  enabled: true
+  endpoint: https://api.groq.com/openai/v1
+  model: openai/gpt-oss-120b
+
+
+ingress:
+  enabled: true
+  className: webapprouting.kubernetes.azure.com
+  host: stms.example.com
+  tlsSecretName: stms-tls
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 10m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+
+api:
+  replicas: 2
+  service:
+    port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCpuUtilization: 70
+    targetMemoryUtilization: 80
+  podDisruptionBudget:
+    minAvailable: 1
+  corsOrigins:
+    - https://stms.example.com
+  extraEnv: []
+
+frontend:
+  replicas: 2
+  service:
+    port: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCpuUtilization: 70
+  podDisruptionBudget:
+    minAvailable: 1
+
+worker:
+  # The application currently requires a real ITenantWorkHandler registration. Keep this
+  # fail-closed until a durable queue and business handler are supplied by the application.
+  enabled: false
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  maxInFlightJobs: 32
+
+admin:
+  migrationEnabled: true
+  activeDeadlineSeconds: 1800
+  backoffLimit: 1
+
+networkPolicy:
+  enabled: true
+  ingressNamespace: app-routing-system
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+tolerations: []
+nodeSelector: {}

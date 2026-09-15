@@ -24,12 +24,12 @@ export class LoginPage {
   readonly generalError = signal('');
 
   readonly form = this.formBuilder.nonNullable.group({
-    email: ['admin@datavanced.com', [
+    email: ['', [
       Validators.required,
       Validators.email,
       CustomValidators.emailFormat()
     ]],
-    password: ['Datavanced@123', [
+    password: ['', [
       Validators.required,
       Validators.minLength(CustomValidators.MIN_PASSWORD_LENGTH)
     ]],

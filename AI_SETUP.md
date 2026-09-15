@@ -19,13 +19,14 @@ The Smart Task Management System uses Groq's OpenAI-compatible API to improve ta
 4. Store it in a secure environment variable or secret store
 
 ### 2. Configure the AI section in appsettings.json
-Update `Api/appsettings.json`:
+For local development, set the value through user-secrets or an environment variable rather
+than editing a tracked settings file:
 
 ```json
 {
   "Ai": {
     "Enabled": true,
-    "GroqApiKey": "gsk_YOUR_GROQ_API_KEY_HERE",
+    "GroqApiKey": "",
     "GroqEndpoint": "https://api.groq.com/openai/v1",
     "Model": "mixtral-8x7b-32768"
   }
@@ -52,10 +53,10 @@ For local development or deployment secrets, prefer environment variables instea
 
 #### PowerShell
 ```powershell
-$env:AI_GROQ_API_KEY = "gsk_YOUR_GROQ_API_KEY_HERE"
-$env:AI_GROQ_ENDPOINT = "https://api.groq.com/openai/v1"
-$env:AI_GROQ_MODEL = "mixtral-8x7b-32768"
-$env:AI_GROQ_ENABLED = "true"
+$env:Ai__GroqApiKey = "replace-with-a-secret-value"
+$env:Ai__GroqEndpoint = "https://api.groq.com/openai/v1"
+$env:Ai__Model = "mixtral-8x7b-32768"
+$env:Ai__Enabled = "true"
 ```
 
 Then mirror those values into `Ai` config as needed in your environment-specific configuration.

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environment": { "value": "dev" },
+    "location": { "value": "southeastasia" },
+    "clusterName": { "value": "stms-dev-aks" },
+    "acrName": { "value": "stmsplatformacr" },
+    "acrResourceGroupName": { "value": "stms-shared-rg" },
+    "keyVaultName": { "value": "stms-dev-kv" },
+    "logAnalyticsName": { "value": "stms-dev-law" },
+    "namespace": { "value": "stms-dev" },
+    "releaseName": { "value": "stms" },
+    "systemNodeMinCount": { "value": 1 },
+    "systemNodeMaxCount": { "value": 3 },
+    "userNodeMinCount": { "value": 1 },
+    "userNodeMaxCount": { "value": 4 },
+    "enablePurgeProtection": { "value": false },
+    "logRetentionDays": { "value": 30 }
+  }
+}
