@@ -1,8 +1,10 @@
 ﻿import { HttpClient, HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { HttpContextToken } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { catchError, switchMap, throwError } from 'rxjs';
+import { Observable, catchError, finalize, map, shareReplay, switchMap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { TenantContextStore } from '../tenancy/tenant-context';
 
 interface RefreshResponse {
   accessToken: string;
@@ -10,10 +12,12 @@ interface RefreshResponse {
 }
 
 const authEndpointPattern = /\/auth\/(login|register|refresh|logout)(?:$|\?)/i;
-let refreshRequestInFlight = false;
+const authRetried = new HttpContextToken<boolean>(() => false);
+let refreshRequestInFlight: Observable<string> | null = null;
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const http = inject(HttpClient);
+  const tenantStore = inject(TenantContextStore);
   const token = localStorage.getItem('stms.token');
   const clonedRequest = req.clone({
     withCredentials: true,
@@ -28,42 +32,44 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(clonedRequest).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status !== 401 || authEndpointPattern.test(req.url) || req.url.includes('/auth/logout')) {
+      if (
+        error.status !== 401 ||
+        authEndpointPattern.test(req.url) ||
+        req.context.get(authRetried)
+      ) {
         return throwError(() => error);
       }
 
-      if (refreshRequestInFlight) {
-        return throwError(() => error);
-      }
-
-      refreshRequestInFlight = true;
-
-      return http.post<RefreshResponse>(`${environment.apiBaseUrl}/auth/refresh`, {}, { withCredentials: true })
+      const refresh$ = refreshRequestInFlight ??= http
+        .post<RefreshResponse>(`${environment.apiBaseUrl}/auth/refresh`, {}, { withCredentials: true })
         .pipe(
-          switchMap((response) => {
-            refreshRequestInFlight = false;
+          map((response) => {
             const expiresAt = Date.now() + response.expiresIn * 1000;
             localStorage.setItem('stms.token', response.accessToken);
             localStorage.setItem('stms.expiresAt', String(expiresAt));
-
-            const retriedRequest = req.clone({
-              withCredentials: true,
-              setHeaders: {
-                Authorization: `Bearer ${response.accessToken}`,
-              },
-            });
-
-            return next(retriedRequest);
+            return response.accessToken;
           }),
           catchError((refreshError) => {
-            refreshRequestInFlight = false;
             inject(Router).navigateByUrl('/login');
+            tenantStore.clear();
             localStorage.removeItem('stms.token');
             localStorage.removeItem('stms.user');
             localStorage.removeItem('stms.expiresAt');
             return throwError(() => refreshError);
           }),
+          finalize(() => {
+            refreshRequestInFlight = null;
+          }),
+          shareReplay({ bufferSize: 1, refCount: false }),
         );
+
+      return refresh$.pipe(
+        switchMap((accessToken) => next(req.clone({
+          context: req.context.set(authRetried, true),
+          withCredentials: true,
+          setHeaders: { Authorization: `Bearer ${accessToken}` },
+        }))),
+      );
     }),
   );
 };

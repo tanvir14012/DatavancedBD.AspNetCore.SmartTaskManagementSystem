@@ -1,18 +1,21 @@
 using Application.Interfaces;
 using Application.Models;
+using Application.Tenancy;
 using Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.MenuItem.List;
 
-public sealed class Handler(IAppDbContext dbContext, ICacheService cacheService, ICurrentUser currentUser)
+public sealed class Handler(IAppDbContext dbContext, ICacheService cacheService, ICurrentUser currentUser,
+    ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Query, Response>
 {
     public async Task<Response> Handle(Query request, CancellationToken cancellationToken)
     {
         var cacheKey = $"menu-items:tree:{GetRoleScope(currentUser)}";
 
+        cacheKey = tenantKeys?.Build(cacheKey) ?? cacheKey;
         var cached = await cacheService.GetAsync<Response>(cacheKey, cancellationToken);
         if (cached is not null)
         {

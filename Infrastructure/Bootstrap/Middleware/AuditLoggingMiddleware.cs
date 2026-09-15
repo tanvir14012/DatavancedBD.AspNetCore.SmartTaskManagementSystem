@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Security.Claims;
+using Application.Tenancy;
 using Infrastructure.Data.EfCore.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -7,9 +8,11 @@ using Microsoft.Extensions.Logging;
 namespace Infrastructure.Bootstrap.Middleware;
 
 public sealed class AuditLoggingMiddleware(
-    ILogger<AuditLoggingMiddleware> logger) : IMiddleware
+    ILogger<AuditLoggingMiddleware> logger,
+    ITenantContextAccessor? tenantContext = null) : IMiddleware
 {
     private readonly ILogger<AuditLoggingMiddleware> _logger = logger;
+    private readonly ITenantContextAccessor? _tenantContext = tenantContext;
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
@@ -27,13 +30,15 @@ public sealed class AuditLoggingMiddleware(
         stopwatch.Stop();
 
         var traceId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+        var tenantId = TryTenantId();
 
         _logger.LogInformation(
-            "AUDIT method={Method} path={Path} status={StatusCode} actor={ActorId} trace={TraceId} elapsedMs={ElapsedMs}",
+            "AUDIT method={Method} path={Path} status={StatusCode} actor={ActorId} tenant={TenantId} trace={TraceId} elapsedMs={ElapsedMs}",
             context.Request.Method,
             context.Request.Path.Value ?? "/",
             context.Response.StatusCode,
             userId,
+            tenantId,
             traceId,
             stopwatch.ElapsedMilliseconds);
     }
@@ -59,5 +64,11 @@ public sealed class AuditLoggingMiddleware(
                   ?? principal.FindFirstValue("sub");
 
         return int.TryParse(raw, out var userId) ? userId : null;
+    }
+
+    private string? TryTenantId()
+    {
+        try { return _tenantContext?.Current.Placement.TenantId.ToString("D"); }
+        catch (InvalidOperationException) { return null; }
     }
 }

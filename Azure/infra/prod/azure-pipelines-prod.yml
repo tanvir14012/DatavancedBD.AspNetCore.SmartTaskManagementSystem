@@ -1,10 +1,30 @@
-# TODO(SAAS-08): Replace with tested AKS release stages and workload identity.
-# TODO(SAAS-06): Keep tenant provisioning separate from application releases.
 trigger: none
 pr: none
-pool:
-  vmImage: ubuntu-latest
-steps:
-  - checkout: none
-  - script: echo "SaaS pipeline placeholder - no build, deployment or cleanup performed."
-    displayName: Placeholder only
+parameters:
+  - name: imageTag
+    type: string
+    default: $(Build.SourceVersion)
+
+stages:
+  - stage: Build
+    jobs:
+      - job: ValidateAndBuild
+        pool: { vmImage: ubuntu-latest }
+        steps:
+          - checkout: self
+          - script: dotnet build DatavancedBD.AspNetCore.SmartTaskManagementSystem.slnx
+            displayName: Build backend
+          - script: npm ci && npm run build:prod
+            workingDirectory: Frontend/Angular
+            displayName: Build frontend
+  - stage: Release
+    dependsOn: Build
+    jobs:
+      - deployment: DeployImmutableDigests
+        environment: stms-production
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - script: echo "Publish the reviewed image digests and run the separate Admin release Job for tag ${{ parameters.imageTag }}."
+                  displayName: Release contract

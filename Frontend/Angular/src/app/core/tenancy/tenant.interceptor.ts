@@ -8,6 +8,7 @@ import { TenantContextSnapshot, TenantContextStore } from './tenant-context';
 export const SKIP_TENANT_CONTEXT = new HttpContextToken<boolean>(() => false);
 const REQUEST_TENANT_SNAPSHOT = new HttpContextToken<TenantContextSnapshot | null>(() => null);
 const tenantHeader = 'X-Tenant-ID';
+const tenantFreeAuthEndpoint = /\/auth\/(login|register|refresh|logout)(?:$|[/?])/i;
 
 /** Callers may distinguish a canceled organization operation from a transport failure. */
 export class TenantRequestContextError extends Error {
@@ -24,7 +25,11 @@ export class TenantRequestContextError extends Error {
 export const tenantInterceptor: HttpInterceptorFn = (request, next) => {
   const policy = inject(TENANT_API_POLICY);
   const store = inject(TenantContextStore);
-  if (!policy.includes(request.url) || request.context.get(SKIP_TENANT_CONTEXT)) {
+  if (
+    !policy.includes(request.url) ||
+    request.context.get(SKIP_TENANT_CONTEXT) ||
+    tenantFreeAuthEndpoint.test(request.url)
+  ) {
     return next(request.clone({ headers: request.headers.delete(tenantHeader) }));
   }
 

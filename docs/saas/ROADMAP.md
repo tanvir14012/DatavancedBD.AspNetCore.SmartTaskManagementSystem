@@ -179,6 +179,27 @@ The authority and authorization adapters have focused tests for canonical mappin
 rows, cancellation, provider failure, claim ambiguity, membership revocation and inactive placements.
 Live SQL acceptance remains part of the deployment suite.
 
+### Completed increment: SAAS-03 — tenant storage strategies and isolation guards
+
+TenantStorageTarget validates deployment-supplied logical target definitions, bounded SQL connection
+pools and command budgets. ConfigurationTenantStorageTargetProvider resolves targets from the external
+`Saas:Storage:Targets:{targetId}` section on demand; no tenant credentials or inventory are embedded in
+source or images. TenantStorageContextFactory creates fresh contexts for database, schema and row
+placements, validates target and region identity, uses schema-aware migrations history and includes the
+tenant in the EF model cache key.
+
+TenantModelConfiguration adds tenant-prefixed keys, foreign keys, indexes and query filters for shared
+models while preserving generated integer IDs. SaveChanges guards reject forged, detached or cross-tenant
+writes before SQL. TenantSqlSessionInterceptor sets immutable `SESSION_CONTEXT` on every pool checkout and
+fails closed when the expected SQL row-security policy is missing or incomplete. TenantRowSecurityScript
+generates the transactional policy/function DDL for the out-of-band Admin release process; web startup
+does not execute it. Tenant Identity store adapters use tenant-prefixed Identity keys when the tenant
+authentication cutover is composed.
+
+Focused model, schema, query-filter, write-guard, routing and RLS-generation tests pass. Live SQL Server
+validation of pooled checkout, RLS enforcement and raw SQL remains part of the SAAS-05/08 deployment
+acceptance suite.
+
 ### Completed increment: SAAS-04a — browser organization context
 
 The Angular TenantContextStore keeps only a validated organization UUID and display label in memory.
@@ -191,15 +212,61 @@ and each application instance owns its own state. No default organization is inf
 The store is intentionally injectable without a root provider so composition must choose its lifetime.
 Register it once per browser application, authenticate and authorize organization selection through the
 API, and use the snapshot generation to cancel or ignore late responses. The interceptor and runtime
-API allowlist are implemented and tested in the next frontend increment; this store alone authorizes
-nothing.
+API allowlist are composed in SAAS-04b; this store alone authorizes nothing.
 
-## Existing code still awaiting integration
+### Completed increment: SAAS-04b — cache propagation and switching
 
-ServiceDbContext, AppDbContextFactory, entity mappings, Identity stores, AuthService, all cache key builders and invalidators, Angular auth interceptor and observability/bootstrap still need tenant-aware implementation. The old migration hosted service remains as legacy source but is no longer registered by web bootstrap.
+Application, EF, HTTP response and invalidation keys now carry the immutable organization identity
+when a tenant context is present. Legacy endpoints use a disjoint namespace until their persistence
+cutover, so they cannot collide with tenant-scoped entries. Angular registers the in-memory context,
+runtime origin allowlist, Fetch backend and tenant interceptor; auth endpoints are explicitly tenant
+free, while tenant API requests reject missing/conflicting selectors and stop on generation changes.
+The auth interceptor shares one refresh request, retries a request once, and clears organization state
+on refresh failure. Browser storage still contains only the existing auth session, never placement data.
+
+### Completed increment: SAAS-05 — reviewed migration runner and Admin process
+
+The Admin process exposes explicit `migrate` and `provision` commands. `TenantMigrationRunner` reads
+deployment-supplied targets, validates and deduplicates target identities, bounds concurrency, acquires
+SQL application locks, checks a durable SQL ledger, and records completion only after execution. A
+failed target produces a bounded error code; cancellation propagates and never becomes success.
+Migrations use the schema-aware EF history table and install row-security objects only in the reviewed
+Admin path. The web process performs no migration, target enumeration or DDL.
+
+### Completed increment: SAAS-06 — activation-safe provisioning
+
+`TenantProvisioner` serializes one organization at a time, allocates only trusted configuration
+templates, writes a Provisioning snapshot, executes and validates the target, then advances the
+catalog by compare-and-set to Active. Failed validation never activates a placement. Cache publication
+is post-commit and a classified cache outage leaves the durable Active placement authoritative.
+Relocation remains a separately reviewed workflow; the placement revision is the cutover fence.
+
+### Completed increment: SAAS-07 — bounded tenant work
+
+`TenantAdmissionPolicy` budgets global, target and organization concurrency with disposable leases;
+it creates no per-tenant thread pools. `TenantWorker` bounds in-flight jobs, creates a fresh DI scope,
+revalidates the authoritative placement and version, suppresses duplicate delivery, and abandons
+retryable failures. The channel queue and in-memory deduplicator are local/test adapters; production
+queue, quota and breaker implementations are explicit deployment bindings.
+
+### Completed increment: SAAS-08 — startup, release and artifact boundaries
+
+The API exposes separate liveness (`/alive`) and readiness (`/ready`) probes and includes validated
+trace/tenant fields in structured observability scopes without unbounded tenant metric labels. API,
+Admin, Worker and Angular multi-stage container files plus a health-gated SQL Server/Redis Compose
+environment are supplied. Release YAML keeps build, reviewed Admin migration and application rollout
+as separate stages and does not perform destructive cleanup implicitly. AKS/runtime credentials,
+registries and live telemetry sinks remain deployment-supplied.
+
+## Remaining release acceptance
+
+The legacy Identity/database endpoints are intentionally not silently switched to tenant persistence;
+their cutover must compose the tenant context factory and organization-bound Identity stores together.
+Live SQL Server/Redis acceptance must verify pooled checkout, RLS, raw SQL, colliding local IDs,
+interrupted migrations, relocation fencing, queue fairness and all-tier startup before production.
 
 Do not rewrite deployed migration history blindly. Plan a reviewed baseline/upgrade path for the fixed stms schema, hardcoded partition SQL and ownership backfill. A dedicated database and a schema do not automatically isolate CPU or enforce organization ownership.
 
 ## Release acceptance
 
-Every module must pass its unit tests plus relevant infrastructure scenarios before wiring it into production. Existing passing cache tests do not prove SaaS isolation. Track skipped tests explicitly. Pipelines remain placeholders until SAAS-08.
+Every module must pass its unit tests plus relevant infrastructure scenarios before wiring it into production. Focused tests do not prove SQL Server, Redis or AKS isolation; the explicitly skipped acceptance checks require isolated deployment services.

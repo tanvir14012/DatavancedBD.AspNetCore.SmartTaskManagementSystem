@@ -1,4 +1,5 @@
 using Application.Interfaces;
+using Application.Tenancy;
 using Application.Models;
 using Domain.Enums;
 using MediatR;
@@ -6,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Project.Update;
 
-public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService)
+public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService,
+    ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Command, Response>
 {
     public async Task<Response> Handle(Command request, CancellationToken cancellationToken)
@@ -42,8 +44,9 @@ public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, I
         project.UpdatedById = currentUser.UserId;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await cacheService.RemoveByPatternAsync("projects:list:*", cancellationToken);
-        await cacheService.RemoveAsync($"ef:{nameof(Domain.Project)}:{request.Id}", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("projects:list:*") ?? "projects:list:*", cancellationToken);
+        await cacheService.RemoveAsync(tenantKeys?.Build($"ef:{nameof(Domain.Project)}:{request.Id}")
+            ?? $"ef:{nameof(Domain.Project)}:{request.Id}", cancellationToken);
 
         var members = await dbContext.UserProjects
             .AsNoTracking()

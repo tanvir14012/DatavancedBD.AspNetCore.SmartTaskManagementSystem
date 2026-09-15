@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY Directory.Build.props Directory.Packages.props DatavancedBD.AspNetCore.SmartTaskManagementSystem.slnx ./
+COPY Api/Api.csproj Api/
+COPY Application/Application.csproj Application/
+COPY Domain/Domain.csproj Domain/
+COPY Infrastructure/Infrastructure.csproj Infrastructure/
+COPY Shared/Shared.csproj Shared/
+RUN dotnet restore Api/Api.csproj
+COPY . .
+RUN dotnet publish Api/Api.csproj --configuration Release --no-restore --output /out --no-self-contained
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+ENV ASPNETCORE_URLS=http://+:8080 DOTNET_EnableDiagnostics=0
+EXPOSE 8080
+COPY --from=build /out .
+USER $APP_UID
+ENTRYPOINT ["dotnet", "Api.dll"]

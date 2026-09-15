@@ -1,11 +1,13 @@
 using Application.Interfaces;
+using Application.Tenancy;
 using Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Task.Update;
 
-public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService)
+public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService,
+    ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Command, Response>
 {
     public async Task<Response> Handle(Command request, CancellationToken cancellationToken)
@@ -84,10 +86,11 @@ public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, I
         task.UpdatedById = currentUser.UserId;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync("dashboard:summary:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync($"tasks:task:{request.Id}:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:list:*") ?? "tasks:list:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:board:*") ?? "tasks:board:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("dashboard:summary:*") ?? "dashboard:summary:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern($"tasks:task:{request.Id}:*")
+            ?? $"tasks:task:{request.Id}:*", cancellationToken);
 
         return new Response(
             task.Id,

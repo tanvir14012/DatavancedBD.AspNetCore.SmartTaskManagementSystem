@@ -3,8 +3,9 @@ using Infrastructure.Data.EfCore.Persistence;
 
 namespace Infrastructure.Tenancy.Persistence;
 
-// TODO(SAAS-03): Resolve credentials through an injected target provider; never accept client SQL identifiers.
-// Keep EF-specific contracts in Infrastructure. Use a fresh scoped context, not a singleton context.
+// Credentials and physical target details are resolved through the injected provider. Client requests
+// provide only an authorized catalog placement; callers cannot supply SQL identifiers or connection strings.
+// Keep EF-specific contracts in Infrastructure and create a fresh scoped context for each operation.
 public interface ITenantStorageStrategy
 {
     TenantIsolation Isolation { get; }

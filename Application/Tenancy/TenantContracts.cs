@@ -59,3 +59,14 @@ public interface ITenantContextInitializer
     /// <summary>Establishes context once; repeated initialization is always rejected.</summary>
     void Initialize(TenantContext context);
 }
+
+/// <summary>Builds application cache keys inside the current organization boundary.</summary>
+/// <remarks>
+/// The legacy scope is retained for endpoints that have not yet opted into tenant authorization.
+/// Tenant-aware endpoints must establish <see cref="TenantContext"/> before using this service.
+/// </remarks>
+public interface ITenantCacheKeyBuilder
+{
+    string Build(string key);
+    string BuildPattern(string pattern);
+}

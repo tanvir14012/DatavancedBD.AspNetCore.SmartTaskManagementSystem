@@ -29,9 +29,11 @@ public static class HttpResponseCachingServiceCollectionExtensions
                 .ToArray();
         });
 
-        services.TryAddSingleton<HttpResponseCachingMiddleware>();
-        services.TryAddSingleton<IHttpResponseCacheKeyBuilder, HttpResponseCacheKeyBuilder>();
-        services.TryAddSingleton<IHttpResponseCacheInvalidator, HttpResponseCacheInvalidator>();
+        // Both key builders observe the request-scoped tenant context. The underlying cache
+        // provider remains shared; only the logical key namespace is scoped.
+        services.TryAddScoped<HttpResponseCachingMiddleware>();
+        services.TryAddScoped<IHttpResponseCacheKeyBuilder, HttpResponseCacheKeyBuilder>();
+        services.TryAddScoped<IHttpResponseCacheInvalidator, HttpResponseCacheInvalidator>();
         return services;
     }
 }

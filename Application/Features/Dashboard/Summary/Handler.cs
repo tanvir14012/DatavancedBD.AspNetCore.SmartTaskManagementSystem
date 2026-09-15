@@ -1,13 +1,15 @@
 using Application.Features.Dashboard;
 using Application.Interfaces;
 using Application.Models;
+using Application.Tenancy;
 using Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Dashboard.Summary;
 
-public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService)
+public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService,
+    ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Query, DashboardSummary>
 {
     public async Task<DashboardSummary> Handle(Query request, CancellationToken cancellationToken)
@@ -20,6 +22,7 @@ public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, I
         var userId = currentUser.UserId.Value;
         var cacheKey = $"dashboard:summary:{userId}:{request.ProjectId ?? 0}:{string.Join('|', currentUser.Roles.OrderBy(role => role))}";
 
+        cacheKey = tenantKeys?.Build(cacheKey) ?? cacheKey;
         var cachedSummary = await cacheService.GetAsync<DashboardSummary>(cacheKey, cancellationToken);
         if (cachedSummary is not null)
         {

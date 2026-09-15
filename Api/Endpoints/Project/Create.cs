@@ -1,5 +1,6 @@
 using Application.Features.Project.Create;
 using Application.Interfaces;
+using Application.Tenancy;
 using FluentValidation;
 using Infrastructure.Bootstrap;
 using Infrastructure.Caching.Abstractions;
@@ -30,6 +31,7 @@ public sealed class Create : IEndpoint
         [FromServices] ISender sender,
         ICurrentUser currentUser,
         ICacheService cacheService,
+        ITenantCacheKeyBuilder? tenantKeys,
         IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
@@ -46,8 +48,8 @@ public sealed class Create : IEndpoint
         try
         {
             var result = await sender.Send(command, cancellationToken);
-            await cacheService.RemoveByPatternAsync("projects:list:*", cancellationToken);
-            await cacheService.RemoveByPatternAsync("dashboard:summary:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("projects:list:*") ?? "projects:list:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("dashboard:summary:*") ?? "dashboard:summary:*", cancellationToken);
             await httpCacheInvalidator.InvalidateByRouteAsync("/api/projects", currentUser.UserId?.ToString(), cancellationToken);
             await httpCacheInvalidator.InvalidateByRouteAsync("/api/dashboard/summary", currentUser.UserId?.ToString(), cancellationToken);
 

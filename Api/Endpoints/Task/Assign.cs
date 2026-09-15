@@ -1,5 +1,6 @@
 using Application.Features.Task.Assign;
 using Application.Interfaces;
+using Application.Tenancy;
 using FluentValidation;
 using Infrastructure.Bootstrap;
 using Infrastructure.Caching.Abstractions;
@@ -33,6 +34,7 @@ public sealed class Assign : IEndpoint
         [FromServices] ISender sender,
         ICurrentUser currentUser,
         ICacheService cacheService,
+        ITenantCacheKeyBuilder? tenantKeys,
         IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
@@ -45,9 +47,9 @@ public sealed class Assign : IEndpoint
         {
             var command = new Command(id, request.UserId, request.Email);
             var result = await sender.Send(command, cancellationToken);
-            await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
-            await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
-            await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:list:*") ?? "tasks:list:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:board:*") ?? "tasks:board:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern($"tasks:task:{id}:*") ?? $"tasks:task:{id}:*", cancellationToken);
             await httpCacheInvalidator.InvalidateByRouteAsync("/api/tasks", currentUser.UserId?.ToString(), cancellationToken);
             return Results.Ok(result);
         }
@@ -75,6 +77,7 @@ public sealed class Assign : IEndpoint
         [FromServices] ISender sender,
         ICurrentUser currentUser,
         ICacheService cacheService,
+        ITenantCacheKeyBuilder? tenantKeys,
         IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
@@ -86,9 +89,9 @@ public sealed class Assign : IEndpoint
         try
         {
             var result = await sender.Send(new UnassignCommand(id, userId), cancellationToken);
-            await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
-            await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
-            await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:list:*") ?? "tasks:list:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:board:*") ?? "tasks:board:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern($"tasks:task:{id}:*") ?? $"tasks:task:{id}:*", cancellationToken);
             await httpCacheInvalidator.InvalidateByRouteAsync("/api/tasks", currentUser.UserId?.ToString(), cancellationToken);
             return Results.Ok(result);
         }

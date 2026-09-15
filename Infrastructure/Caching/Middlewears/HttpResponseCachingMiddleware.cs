@@ -37,6 +37,15 @@ public sealed class HttpResponseCachingMiddleware(
             return;
         }
 
+        // Anonymous cache entries are safe to share only when the endpoint has no authenticated
+        // identity. Per-user caching is an explicit opt-in and remains tenant-prefixed.
+        if (context.User.Identity?.IsAuthenticated == true && !_options.CacheAuthenticatedUser &&
+            metadata.VaryByAuthenticatedUser is not true)
+        {
+            await next(context).ConfigureAwait(false);
+            return;
+        }
+
         var key = BuildCacheKey(context, metadata);
         var cachedResponse = await _cacheService.GetAsync<HttpCachedResponse>(key, context.RequestAborted).ConfigureAwait(false);
         if (cachedResponse is not null)

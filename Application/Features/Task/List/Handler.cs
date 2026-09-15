@@ -1,4 +1,5 @@
 using Application.Interfaces;
+using Application.Tenancy;
 using Application.Models;
 using Domain.Enums;
 using MediatR;
@@ -6,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Task.List;
 
-public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService)
+public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService,
+    ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Query, Response>
 {
     public async Task<Response> Handle(Query request, CancellationToken cancellationToken)
@@ -25,6 +27,7 @@ public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, I
 
         var cacheKey = $"tasks:list:{roleScope}:{request.ProjectId ?? 0}:{request.Status ?? "all"}:{request.Priority ?? "all"}:{request.AssigneeId ?? "all"}:{request.Search ?? string.Empty}:{request.Start}:{request.Length}:{request.SortColumn ?? "CreatedAt"}:{request.SortDirection ?? "desc"}";
 
+        cacheKey = tenantKeys?.Build(cacheKey) ?? cacheKey;
         var cachedResponse = await cacheService.GetAsync<Response>(cacheKey, cancellationToken);
         if (cachedResponse is not null)
         {

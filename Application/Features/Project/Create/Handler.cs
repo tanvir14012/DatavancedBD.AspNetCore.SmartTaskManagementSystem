@@ -1,4 +1,5 @@
 using Application.Interfaces;
+using Application.Tenancy;
 using AutoMapper;
 using MediatR;
 
@@ -8,7 +9,8 @@ public sealed class Handler(
     IAppDbContext db,
     ICurrentUser currentUser,
     IMapper mapper,
-    ICacheService cache)
+    ICacheService cache,
+    ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Command, Response>
 {
     public async Task<Response> Handle(
@@ -38,7 +40,8 @@ public sealed class Handler(
         var response = mapper.Map<Response>(project);
 
         await cache.SetAsync(
-           $"ef:{nameof(Domain.Project)}:{project.Id}",
+           tenantKeys?.Build($"ef:{nameof(Domain.Project)}:{project.Id}")
+               ?? $"ef:{nameof(Domain.Project)}:{project.Id}",
            response,
            cancellationToken: cancellationToken);
 

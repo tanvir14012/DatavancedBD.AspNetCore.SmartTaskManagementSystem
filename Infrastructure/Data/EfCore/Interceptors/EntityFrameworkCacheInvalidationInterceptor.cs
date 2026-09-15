@@ -1,4 +1,5 @@
 using Application.Interfaces;
+using Application.Tenancy;
 using Infrastructure.Data.EfCore.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -10,11 +11,13 @@ namespace Infrastructure.Data.EfCore.Interceptors;
 public sealed class EntityFrameworkCacheInvalidationInterceptor(
     ICacheService cacheService,
     IOptions<EntityFrameworkCachingOptions> options,
-    ILogger<EntityFrameworkCacheInvalidationInterceptor> logger) : SaveChangesInterceptor
+    ILogger<EntityFrameworkCacheInvalidationInterceptor> logger,
+    ITenantCacheKeyBuilder? tenantKeys = null) : SaveChangesInterceptor
 {
     private readonly ICacheService _cacheService = cacheService;
     private readonly EntityFrameworkCachingOptions _options = options.Value;
     private readonly ILogger<EntityFrameworkCacheInvalidationInterceptor> _logger = logger;
+    private readonly ITenantCacheKeyBuilder? _tenantKeys = tenantKeys;
     private readonly Dictionary<Guid, HashSet<string>> _pendingInvalidations = new();
     private readonly Lock _lock = new();
 
@@ -106,7 +109,8 @@ public sealed class EntityFrameworkCacheInvalidationInterceptor(
             try
             {
                 await _cacheService.RemoveByPatternAsync(
-                    $"{_options.KeyNamespace}:{entityName}:*",
+                    _tenantKeys?.BuildPattern($"{_options.KeyNamespace}:{entityName}:*")
+                        ?? $"{_options.KeyNamespace}:{entityName}:*",
                     cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)

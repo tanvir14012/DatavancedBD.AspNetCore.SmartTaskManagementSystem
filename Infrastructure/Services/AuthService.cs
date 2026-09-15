@@ -3,6 +3,8 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Application.Interfaces;
+using Application.Tenancy;
+using Application.Tenancy.Authorization;
 using Domain;
 using Infrastructure.AssemblyScan;
 using Infrastructure.Bootstrap.Options;
@@ -19,7 +21,8 @@ public sealed class AuthService(
     AppDbContext dbContext,
     UserManager<AppUser> userManager,
     IConfiguration configuration,
-    IOptions<AuthenticationOptions> authOptions)
+    IOptions<AuthenticationOptions> authOptions,
+    ITenantContextAccessor? tenantContext = null)
     : IAuthService, IScopedService
 {
     public async Task<TokenPair> CreateTokenPairAsync(AppUser user, CancellationToken cancellationToken = default)
@@ -102,6 +105,19 @@ public sealed class AuthService(
             new(ClaimTypes.Email, user.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString())
         };
+
+        try
+        {
+            // Tenant-aware authentication composition supplies the immutable context before token
+            // issuance. Legacy authentication has no context and therefore emits no selector.
+            claims.Add(new Claim(TenantPrincipalAccess.TenantIdClaimType,
+                tenantContext?.Current.Placement.TenantId.ToString("D")
+                ?? throw new InvalidOperationException()));
+        }
+        catch (InvalidOperationException)
+        {
+            // The legacy endpoints are intentionally still usable during the cutover.
+        }
 
         foreach (var role in roles)
         {

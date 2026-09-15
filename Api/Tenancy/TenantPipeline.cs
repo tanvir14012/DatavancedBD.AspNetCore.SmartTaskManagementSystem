@@ -1,5 +1,6 @@
 using Application.Tenancy;
 using Application.Tenancy.Authorization;
+using Infrastructure.Caching.Keys;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -27,6 +28,7 @@ public static class TenantPipeline
         services.TryAddScoped<ITenantContextAccessor>(provider => provider.GetRequiredService<TenantContextScope>());
         services.TryAddScoped<ITenantContextInitializer>(provider => provider.GetRequiredService<TenantContextScope>());
         services.TryAddScoped<ITenantAccessValidator, TenantAccessValidator>();
+        services.TryAddScoped<ITenantCacheKeyBuilder, TenantCacheKeyBuilder>();
         services.TryAddScoped<TenantContextAuthorizer>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAuthorizationHandler, TenantAuthorizationHandler>());
         services.AddAuthorization(options => options.AddPolicy(PolicyName, policy => policy

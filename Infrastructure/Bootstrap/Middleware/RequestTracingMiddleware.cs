@@ -1,22 +1,30 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Application.Tenancy;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 namespace Infrastructure.Bootstrap.Middleware;
 
 public sealed class RequestTracingMiddleware(
-    ILogger<RequestTracingMiddleware> logger) : IMiddleware
+    ILogger<RequestTracingMiddleware> logger,
+    ITenantContextAccessor? tenantContext = null) : IMiddleware
 {
     public const string TraceIdHeaderName = "X-Trace-Id";
     public const string TraceIdPropertyName = "traceId";
 
     private readonly ILogger<RequestTracingMiddleware> _logger = logger;
+    private readonly ITenantContextAccessor? _tenantContext = tenantContext;
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
         var traceId = ResolveTraceId(context);
         context.Response.Headers[TraceIdHeaderName] = traceId;
+        using var scope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            [TraceIdPropertyName] = traceId,
+            ["tenantId"] = TryTenantId()
+        });
 
         var originalBodyStream = context.Response.Body;
         await using var responseBuffer = new MemoryStream();
@@ -88,10 +96,17 @@ public sealed class RequestTracingMiddleware(
     private static string ResolveTraceId(HttpContext context)
     {
         var inboundTraceId = context.Request.Headers[TraceIdHeaderName].ToString();
-        if (!string.IsNullOrWhiteSpace(inboundTraceId))
+        if (inboundTraceId.Length is > 0 and <= 64 &&
+            inboundTraceId.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_'))
             return inboundTraceId;
 
         return Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+    }
+
+    private string? TryTenantId()
+    {
+        try { return _tenantContext?.Current.Placement.TenantId.ToString("D"); }
+        catch (InvalidOperationException) { return null; }
     }
 
     private static void WriteTracedPayload(Utf8JsonWriter writer, JsonElement root, string traceId, int statusCode)

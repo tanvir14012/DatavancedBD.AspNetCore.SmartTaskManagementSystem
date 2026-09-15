@@ -1,5 +1,6 @@
 using Application.Features.Task.Update;
 using Application.Interfaces;
+using Application.Tenancy;
 using FluentValidation;
 using Infrastructure.Bootstrap;
 using Infrastructure.Caching.Abstractions;
@@ -28,6 +29,7 @@ public sealed class Update : IEndpoint
         [FromServices] ISender sender,
         ICurrentUser currentUser,
         ICacheService cacheService,
+        ITenantCacheKeyBuilder? tenantKeys,
         IHttpResponseCacheInvalidator httpCacheInvalidator,
         CancellationToken cancellationToken)
     {
@@ -40,10 +42,10 @@ public sealed class Update : IEndpoint
         {
             var command = request with { Id = id };
             var result = await sender.Send(command, cancellationToken);
-            await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
-            await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
-            await cacheService.RemoveByPatternAsync("dashboard:summary:*", cancellationToken);
-            await cacheService.RemoveByPatternAsync($"tasks:task:{id}:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:list:*") ?? "tasks:list:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:board:*") ?? "tasks:board:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("dashboard:summary:*") ?? "dashboard:summary:*", cancellationToken);
+            await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern($"tasks:task:{id}:*") ?? $"tasks:task:{id}:*", cancellationToken);
             await httpCacheInvalidator.InvalidateByRouteAsync("/api/tasks", currentUser.UserId?.ToString(), cancellationToken);
             await httpCacheInvalidator.InvalidateByRouteAsync("/api/tasks/board", currentUser.UserId?.ToString(), cancellationToken);
             await httpCacheInvalidator.InvalidateByRouteAsync("/api/dashboard/summary", currentUser.UserId?.ToString(), cancellationToken);

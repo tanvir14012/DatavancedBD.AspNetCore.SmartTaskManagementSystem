@@ -1,4 +1,5 @@
 using Application.Interfaces;
+using Application.Tenancy;
 using Application.Models;
 using Infrastructure.Data.EfCore.Options;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ public static class EntityFrameworkQueryCachingExtensions
         var cacheService = serviceProvider.GetRequiredService<ICacheService>();
         var options = serviceProvider.GetService<IOptions<EntityFrameworkCachingOptions>>()?.Value
             ?? new EntityFrameworkCachingOptions();
+        var tenantKeys = serviceProvider.GetService<ITenantCacheKeyBuilder>();
 
         var entryOptions = expiration is not null
             ? new CacheEntryOptions { AbsoluteExpirationRelativeToNow = expiration }
@@ -32,6 +34,7 @@ public static class EntityFrameworkQueryCachingExtensions
             cacheKey,
             entryOptions,
             options.KeyNamespace,
+            tenantKeys,
             cancellationToken);
     }
 
@@ -41,10 +44,13 @@ public static class EntityFrameworkQueryCachingExtensions
         string cacheKey,
         CacheEntryOptions? options = null,
         string keyNamespace = "ef",
+        ITenantCacheKeyBuilder? tenantKeys = null,
         CancellationToken cancellationToken = default)
         where TEntity : class
     {
         var key = BuildEntityCacheKey<TEntity>(cacheKey, keyNamespace);
+        if (tenantKeys is not null)
+            key = tenantKeys.Build(key);
         return cacheService.GetOrCreateAsync(
             key,
             async token => (IReadOnlyList<TEntity>)await query.AsNoTracking().ToListAsync(token).ConfigureAwait(false),

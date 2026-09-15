@@ -17,6 +17,7 @@ namespace Infrastructure.Data.EfCore.Extensions;
 public abstract class ServiceDbContext(DbContextOptions options, string schema) : IdentityDbContext<AppUser, AppRole, int>(options)
 {
     protected readonly string Schema = schema;
+    protected virtual bool IncludeModelSeeds => true;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -26,14 +27,34 @@ public abstract class ServiceDbContext(DbContextOptions options, string schema) 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        // This application uses the original Identity schema and has no passkey feature.
+        // .NET 10 exposes UserPasskeys as a DbSet even when schema v1 is selected.
+        if (modelBuilder.Model.FindEntityType(typeof(IdentityUserPasskey<int>))?.FindPrimaryKey() == null)
+        {
+            modelBuilder.Ignore<IdentityUserPasskey<int>>();
+            modelBuilder.Ignore<IdentityPasskeyData>();
+        }
         modelBuilder.HasDefaultSchema(Schema);
-        modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly,
+            type => type != typeof(Infrastructure.Data.EfCore.Persistence.EntityTypeConfigurations.MenuItemConfig));
+        modelBuilder.ApplyConfiguration(new Infrastructure.Data.EfCore.Persistence.EntityTypeConfigurations.MenuItemConfig(IncludeModelSeeds));
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        => SaveChangesAsync(true, cancellationToken);
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         StampAuditFields();
-        return await base.SaveChangesAsync(cancellationToken);
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    public override int SaveChanges() => SaveChanges(true);
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        StampAuditFields();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     private void StampAuditFields()

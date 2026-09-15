@@ -5,7 +5,7 @@ This branch prepares the existing .NET 10 / Angular 21 application for organizat
 ## Current state
 
 - Existing application features remain in place; legacy persistence/authentication are still active.
-- Tenant catalog provider composition is registered lazily; tenant authorization and storage adapters remain opt-in until their persistence units are complete.
+- Tenant catalog, authorization and storage provider composition is registered lazily; tenant-aware endpoints opt in only after their persistence cutover is reviewed.
 - Completed SAAS-01a: immutable tenant placement validation with focused unit tests.
 - Completed SAAS-01b: cache-first catalog orchestration with classified outage fallback, identity checks, cancellation and safe diagnostic events.
 - Completed SAAS-01c: Redis placement payloads with bounded expiry, size limits, primary-only reads, atomic newer-revision publication, targeted deletion, and classified transport failures.
@@ -13,10 +13,11 @@ This branch prepares the existing .NET 10 / Angular 21 application for organizat
 - Placement serialization now uses an explicit, strict format version and bounded uncompressed JSON; cancellation and Redis failure classification have dedicated regression coverage.
 - Redis publication preserves the full Int64 revision range, rejects same-revision payload conflicts, and uses absolute millisecond expiry and bounded waits. Real Redis tests are opt-in; deletion/expiry does not fence stale writers.
 - Completed SAAS-02: canonical host/selector resolution, organization-bound claim validation, durable membership checks, active-placement authorization, and an opt-in HTTP policy composition. Tenant-aware persistence endpoints remain gated until SAAS-03.
+- Completed SAAS-03: database/schema/row storage factories, dynamic backing-target validation, composite tenant keys and filters, tenant-safe writes, pooled-session SQL row-security checks, and release-runner RLS script generation. Web startup performs no target enumeration or DDL.
 - Completed SAAS-04a: browser organization context is an in-memory, validated, generation-stamped store. It contains no placement, credential or local-storage state; API interception remains a separate composition unit.
 - Web startup migration/seeding registration has been removed. Existing databases must already be initialized.
-- Admin and Worker entry points exit with code 1 until implemented; they perform no operations.
-- All GitHub Actions and Azure DevOps deployment/cleanup pipelines are manual-only placeholders. They neither build nor deploy nor delete resources.
+- Admin now exposes explicit `migrate` and `provision` commands with cancellation, durable target locks and nonzero failure reporting; Worker now has bounded, tenant-fenced job processing and requires an explicit queue handler adapter.
+- Container build files, a health-gated local Compose environment, and manual release contracts are supplied. Production deployment still supplies registry, AKS and secret bindings externally.
 - Existing Azure VM/IIS/Nginx assets and guides are historical; they are not the SaaS deployment path.
 
 ## Organization isolation
@@ -38,14 +39,14 @@ TenantId always identifies the purchasing organization. Departments are business
 | Infrastructure/Tenancy/Catalog | Tested cache-first catalog decorator, durable Azure SQL adapter and external DI composition |
 | Infrastructure/Tenancy/Authorization | Durable authority and membership readers with bounded, fail-closed access checks |
 | Infrastructure/Tenancy/Caching | Tested Redis placement adapter/transport; never authoritative |
-| Infrastructure/Tenancy/Persistence | Database, schema and discriminator strategies |
+| Infrastructure/Tenancy/Persistence | Dynamic target routing, database/schema/row strategies, composite model isolation, write guards and RLS session/script boundaries |
 | Infrastructure/Tenancy/Migrations | Out-of-band migration orchestration |
 | Infrastructure/Tenancy/Provisioning | Allocate, migrate, validate and activate organizations |
 | Admin | Separate migration/provisioning process |
 | Worker | Separate tenant-scoped background process |
-| Infrastructure.Tests/Tenancy | Explicitly skipped backend acceptance scenarios |
-| Frontend/Angular/src/app/core/tenancy | Browser context and interceptor placeholders plus pending tests |
-| deploy | Container, AKS, configuration and telemetry TODO specifications |
+| Infrastructure.Tests/Tenancy | Focused unit tests plus explicitly skipped live-provider acceptance scenarios |
+| Frontend/Angular/src/app/core/tenancy | Browser context, API allowlist and generation-fenced interceptor |
+| deploy | Container, AKS, configuration and telemetry release contracts |
 | docs/saas | Implementation sequence and testability requirements |
 
 ## Configuration ownership
@@ -63,8 +64,8 @@ From the root:
 - dotnet restore
 - dotnet build --no-restore
 - dotnet test Infrastructure.Tests/Infrastructure.Tests.csproj --no-build
-- dotnet run --project Admin (currently exits 1 intentionally)
-- dotnet run --project Worker (currently exits 1 intentionally)
+- dotnet run --project Admin -- migrate
+- dotnet run --project Worker -- run (requires a configured durable queue and work handler)
 
 Frontend, from Frontend/Angular:
 
@@ -72,7 +73,7 @@ Frontend, from Frontend/Angular:
 - npm run build:prod
 - npm test -- --watch=false
 
-To run the legacy API, supply ConnectionStrings__DefaultConnection, Jwt__Key, Jwt__Issuer, Jwt__Audience and appropriate CORS settings through your environment. Use an existing initialized development database; web startup no longer creates or seeds it. Explicit legacy EF migrations are only appropriate for a disposable single-target development database after reviewing the existing SQL. The SaaS Admin runner is not ready.
+To run the legacy API, supply ConnectionStrings__DefaultConnection, Jwt__Key, Jwt__Issuer, Jwt__Audience and appropriate CORS settings through your environment. Use an existing initialized development database; web startup no longer creates or seeds it. Explicit legacy EF migrations are only appropriate for a disposable single-target development database after reviewing the existing SQL. The SaaS Admin runner owns reviewed target migrations.
 
 ## Delivery rules
 
@@ -82,4 +83,4 @@ No automatic migrations, target enumeration or sample seeding in web startup. No
 
 ## Next modules
 
-Follow [the implementation and acceptance roadmap](docs/saas/ROADMAP.md). Each TODO identifier represents a bounded follow-up. Pending tests are not evidence of completed behavior.
+Follow [the implementation and acceptance roadmap](docs/saas/ROADMAP.md). Live SQL/Redis/AKS acceptance remains an environment-gated release check; focused unit tests are not evidence of production isolation by themselves.

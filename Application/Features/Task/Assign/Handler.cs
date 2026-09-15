@@ -1,4 +1,5 @@
 using Application.Interfaces;
+using Application.Tenancy;
 using Domain;
 using Domain.Enums;
 using FluentValidation;
@@ -13,7 +14,8 @@ public sealed class Handler(
     IAppDbContext dbContext,
     UserManager<AppUser> userManager,
     ICurrentUser currentUser,
-    ICacheService cacheService)
+    ICacheService cacheService,
+    ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Command, Response>
 {
     public async Task<Response> Handle(Command request, CancellationToken cancellationToken)
@@ -84,9 +86,10 @@ public sealed class Handler(
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync($"tasks:task:{request.TaskId}:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:list:*") ?? "tasks:list:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:board:*") ?? "tasks:board:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern($"tasks:task:{request.TaskId}:*")
+            ?? $"tasks:task:{request.TaskId}:*", cancellationToken);
 
         return new Response("User assigned to task successfully.", targetUser.Id, request.TaskId);
     }
@@ -95,7 +98,8 @@ public sealed class Handler(
 public sealed class UnassignHandler(
     IAppDbContext dbContext,
     ICurrentUser currentUser,
-    ICacheService cacheService)
+    ICacheService cacheService,
+    ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<UnassignCommand, Response>
 {
     public async Task<Response> Handle(UnassignCommand request, CancellationToken cancellationToken)
@@ -145,9 +149,10 @@ public sealed class UnassignHandler(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:list:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync("tasks:board:*", cancellationToken);
-        await cacheService.RemoveByPatternAsync($"tasks:task:{request.TaskId}:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:list:*") ?? "tasks:list:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern("tasks:board:*") ?? "tasks:board:*", cancellationToken);
+        await cacheService.RemoveByPatternAsync(tenantKeys?.BuildPattern($"tasks:task:{request.TaskId}:*")
+            ?? $"tasks:task:{request.TaskId}:*", cancellationToken);
 
         return new Response("User unassigned from task successfully.", int.Parse(request.UserId), request.TaskId);
     }

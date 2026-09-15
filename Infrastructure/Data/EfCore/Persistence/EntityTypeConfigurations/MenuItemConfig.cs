@@ -7,6 +7,9 @@ namespace Infrastructure.Data.EfCore.Persistence.EntityTypeConfigurations;
 
 public class MenuItemConfig : IEntityTypeConfiguration<MenuItem>
 {
+    private readonly bool _includeSeeds;
+    public MenuItemConfig() : this(true) { }
+    public MenuItemConfig(bool includeSeeds) => _includeSeeds = includeSeeds;
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
         builder.Property(m => m.Name)
@@ -26,7 +29,7 @@ public class MenuItemConfig : IEntityTypeConfiguration<MenuItem>
                .HasForeignKey(m => m.ParentId)
                .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasData(GetSeedMenuItems());
+        if (_includeSeeds) builder.HasData(GetSeedMenuItems());
     }
 
     private static List<MenuItem> GetSeedMenuItems()
