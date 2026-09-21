@@ -26,6 +26,14 @@ public static class ObservabilityExtensions
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddConsoleExporter();
+
+                var tracesEndpoint = configuration["Observability:Otlp:TracesEndpoint"];
+                if (!string.IsNullOrWhiteSpace(tracesEndpoint))
+                    tracing.AddOtlpExporter(options =>
+                    {
+                        options.Endpoint = new Uri(tracesEndpoint);
+                        options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+                    });
             })
             .WithMetrics(metrics =>
             {
@@ -34,6 +42,14 @@ public static class ObservabilityExtensions
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
                     .AddConsoleExporter();
+
+                var metricsEndpoint = configuration["Observability:Otlp:MetricsEndpoint"];
+                if (!string.IsNullOrWhiteSpace(metricsEndpoint))
+                    metrics.AddOtlpExporter(options =>
+                    {
+                        options.Endpoint = new Uri(metricsEndpoint);
+                        options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+                    });
             });
 
         return services;

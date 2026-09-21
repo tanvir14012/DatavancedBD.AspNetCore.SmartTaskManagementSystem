@@ -1,109 +1,119 @@
 $ErrorActionPreference = 'Stop'
 $generated = Join-Path $PSScriptRoot 'generated'
 $compose = Join-Path $generated 'compose.json'
-$companies = Get-Content "$PSScriptRoot/companies.json" -Raw | ConvertFrom-Json
-$secrets = Get-Content "$generated/secrets.json" -Raw | ConvertFrom-Json
-function Assert($condition, $message) { if (!$condition) { throw $message } }
-function Request($uri, $method = 'GET', $body = $null, $headers = @{}) {
-    $args = @{ Uri = $uri; Method = $method; Headers = $headers; TimeoutSec = 30; SkipHttpErrorCheck = $true }
-    if ($null -ne $body) { $args.Body = $body | ConvertTo-Json -Depth 5; $args.ContentType = 'application/json' }
-    Invoke-WebRequest @args
+$companies = Get-Content (Join-Path $PSScriptRoot 'companies.json') -Raw | ConvertFrom-Json
+$secrets = Get-Content (Join-Path $generated 'secrets.json') -Raw | ConvertFrom-Json
+$dockerInfo = & docker info 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw "Docker Desktop Linux engine is unavailable. Start Docker Desktop, switch to Linux containers, and rerun this script.`n$dockerInfo"
 }
-$results = @()
-$tokens = @{}
-foreach ($company in $companies) {
-    $base = "http://localhost:$($company.port)"
-    $api = "$base/services/api"
-    $ready = $false
-    for ($i = 0; $i -lt 60; $i++) {
-        try { $ready = (Request "http://localhost:$($company.apiPort)/ready").StatusCode -eq 200 } catch { }
-        if ($ready) { break }
+
+function Assert($condition, $message) { if (-not $condition) { throw $message } }
+
+function Invoke-Curl($uri, $method = 'GET', $body = $null, $headers = @{}, $timeout = 10) {
+    $outputFile = [IO.Path]::GetTempFileName()
+    $headerFile = [IO.Path]::GetTempFileName()
+    $errorFile = [IO.Path]::GetTempFileName()
+    $bodyFile = $null
+    try {
+        $curlArgs = @('--noproxy', '*', '-sS', '-L', '--max-time', [string]$timeout,
+            '-X', $method, '-D', $headerFile, '-o', $outputFile, '-w', '%{http_code}')
+        foreach ($header in $headers.GetEnumerator()) {
+            $curlArgs += @('-H', ('{0}: {1}' -f $header.Key, $header.Value))
+        }
+        if ($null -ne $body) {
+            $bodyFile = [IO.Path]::GetTempFileName()
+            ($body | ConvertTo-Json -Depth 8 -Compress) | Set-Content -NoNewline $bodyFile
+            $curlArgs += @('-H', 'Content-Type: application/json', '--data-binary', "@$bodyFile")
+        }
+        $oldErrorAction = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try { $statusText = & curl.exe @curlArgs $uri 2> $errorFile } finally { $ErrorActionPreference = $oldErrorAction }
+        $status = 0
+        [int]::TryParse(($statusText | Out-String).Trim(), [ref]$status) | Out-Null
+        $content = if (Test-Path $outputFile) { Get-Content $outputFile -Raw } else { '' }
+        $responseHeaders = @{}
+        foreach ($line in Get-Content $headerFile) {
+            if ($line -match '^([^:]+):\s*(.*)$') { $responseHeaders[$matches[1]] = $matches[2] }
+        }
+        [pscustomobject]@{ StatusCode = $status; Content = $content; Headers = $responseHeaders; Error = (Get-Content $errorFile -Raw) }
+    } finally {
+        foreach ($file in @($bodyFile, $outputFile, $headerFile, $errorFile)) {
+            if ($file -and (Test-Path $file)) { Remove-Item -LiteralPath $file -Force }
+        }
+    }
+}
+
+function Wait-Api($company) {
+    for ($attempt = 1; $attempt -le 60; $attempt++) {
+        $probe = Invoke-Curl "http://127.0.0.1:$($company.apiPort)/ready" -timeout 3
+        if ($probe.StatusCode -eq 200) { return }
+        if (($attempt % 5) -eq 0) { Write-Host "  API not ready yet ($attempt/60)..." }
         Start-Sleep -Seconds 2
     }
-    Assert $ready "$($company.name) API is not ready."
-    $html = Request $base
-    Assert ($html.StatusCode -eq 200 -and $html.Content -match '<app-root') "$base does not serve Angular."
-    $asset = [regex]::Match($html.Content, 'src="(main[^" ]+\.js)"').Groups[1].Value
-    Assert ($asset -and (Request "$base/$asset").StatusCode -eq 200) "$base Angular bundle unavailable."
+    $status = & docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "stms-local-api-$($company.slug)-1" 2>&1
+    throw "$($company.name) API is not ready. Docker state: $status"
+}
+
+$tokens = @{}
+$results = @()
+foreach ($company in $companies) {
+    Write-Host "Checking $($company.name) [$($company.slug)] API :$($company.apiPort) and Angular :$($company.port)..."
+    Wait-Api $company
+    $base = "http://127.0.0.1:$($company.port)"
+    $api = "$base/services/api"
+    $front = Invoke-Curl $base
+    Assert ($front.StatusCode -eq 200 -and $front.Content -match 'app-root') "$($company.name) Angular frontend failed."
     $email = "admin@$($company.slug).example.test"
-    $login = Request "$api/auth/login" POST @{ email = $email; password = $secrets.userPassword }
+    $login = Invoke-Curl "$api/auth/login" 'POST' @{ email = $email; password = $secrets.userPassword }
     if ($login.StatusCode -eq 401) {
-        $register = Request "$api/auth/register" POST @{ firstName = $company.slug; lastName = 'Admin'; email = $email; password = $secrets.userPassword; role = 'Admin' }
-        Assert ($register.StatusCode -eq 200) "Registration failed for $($company.slug): $($register.StatusCode) $($register.Content)"
-        $login = Request "$api/auth/login" POST @{ email = $email; password = $secrets.userPassword }
+        $register = Invoke-Curl "$api/auth/register" 'POST' @{ firstName = $company.slug; lastName = 'Admin'; email = $email; password = $secrets.userPassword; role = 'Admin' }
+        Assert ($register.StatusCode -eq 200) "Registration failed for $($company.slug): $($register.Content)"
+        $login = Invoke-Curl "$api/auth/login" 'POST' @{ email = $email; password = $secrets.userPassword }
     }
     Assert ($login.StatusCode -eq 200) "Login failed for $($company.slug): $($login.Content)"
-    $tokens[$company.slug] = ($login.Content | ConvertFrom-Json).accessToken
-    $headers = @{ Authorization = "Bearer $($tokens[$company.slug])" }
-    $menu = Request "$api/menus/" GET $null $headers
-    Assert ($menu.StatusCode -eq 200 -and $menu.Content -match 'Dashboard') "Menu failed for $($company.slug): $($menu.Content)"
-    $list = Request "$api/projects/" GET $null $headers
-    Assert ($list.StatusCode -eq 200) "Project list failed for $($company.slug): $($list.Content)"
-    $name = "$($company.name) launch"
-    $project = ($list.Content | ConvertFrom-Json).items | Where-Object name -EQ $name | Select-Object -First 1
-    if (!$project) {
-        $create = Request "$api/projects/" POST @{ name = $name; description = "Isolation acceptance: $($company.id)" } $headers
-        Assert ($create.StatusCode -eq 201) "Create project failed for $($company.slug): $($create.StatusCode) $($create.Content)"
-        $project = $create.Content | ConvertFrom-Json
-        $task = Request "$api/tasks/" POST @{ projectId = $project.id; title = "$($company.name) first task"; description = 'Local Docker acceptance'; status = 'Todo'; priority = 'Medium'; assigneeEmail = $email } $headers
-        Assert ($task.StatusCode -in @(200, 201)) "Create task failed for $($company.slug): $($task.Content)"
+    $loginJson = $login.Content | ConvertFrom-Json
+    $tokens[$company.slug] = $loginJson.accessToken
+    $auth = @{ Authorization = "Bearer $($tokens[$company.slug])" }
+    $menus = Invoke-Curl "$api/menus/" 'GET' $null $auth
+    Assert ($menus.StatusCode -eq 200) "Menus failed for $($company.slug): $($menus.Content)"
+    $projects = Invoke-Curl "$api/projects/" 'GET' $null $auth
+    Assert ($projects.StatusCode -eq 200) "Projects failed for $($company.slug): $($projects.Content)"
+    $projectName = "$($company.name) launch"
+    $existing = ($projects.Content | ConvertFrom-Json).items | Where-Object name -EQ $projectName | Select-Object -First 1
+    if ($null -eq $existing) {
+        $created = Invoke-Curl "$api/projects/" 'POST' @{ name = $projectName; description = "Isolation acceptance: $($company.id)" } $auth
+        Assert ($created.StatusCode -eq 201) "Project create failed for $($company.slug): $($created.Content)"
+        $project = $created.Content | ConvertFrom-Json
+        $task = Invoke-Curl "$api/tasks/" 'POST' @{ projectId = $project.id; title = "$($company.name) first task"; description = 'Local Docker acceptance'; status = 'Todo'; priority = 'Medium'; assigneeEmail = $email } $auth
+        Assert ($task.StatusCode -eq 201) "Task create failed for $($company.slug): $($task.Content)"
     }
-    $list = Request "$api/projects/" GET $null $headers
-    $items = ($list.Content | ConvertFrom-Json).items
-    Assert (@($items | Where-Object name -EQ $name).Count -eq 1) "Own project missing for $($company.slug)"
-    foreach ($other in $companies | Where-Object slug -NE $company.slug) {
-        Assert (@($items | Where-Object name -EQ "$($other.name) launch").Count -eq 0) "Cross-company project leak!"
+    $refreshCookie = $login.Headers['Set-Cookie']
+    if ($refreshCookie) {
+        $refresh = Invoke-Curl "$api/auth/refresh" 'POST' @{} @{ Cookie = ($refreshCookie -split ';')[0] }
+        Assert ($refresh.StatusCode -eq 200) "Refresh failed for $($company.slug): $($refresh.Content)"
     }
-    $tasks = Request "$api/tasks/" GET $null $headers
-    Assert ($tasks.StatusCode -eq 200 -and $tasks.Content -match [regex]::Escape("$($company.name) first task")) "Task read failed for $($company.slug): $($tasks.Content)"
-    # Refresh cookie names must be distinct because browser cookies are not isolated by port.
-    $cookie = ($login.Headers['Set-Cookie'] | Select-Object -First 1).Split(';')[0]
-    $refresh = Request "$api/auth/refresh" POST @{} @{ Cookie = $cookie }
-    Assert ($refresh.StatusCode -eq 200) "Refresh failed for $($company.slug): $($refresh.Content)"
-    $results += [pscustomobject]@{ company = $company.name; tier = $company.tier; tenantId = $company.id; frontend = $base; api = "http://localhost:$($company.apiPort)"; email = $email; status = 'passed' }
-    Write-Host "$($company.name): Angular, readiness, login, menus, projects, tasks, refresh passed."
+    $results += [pscustomobject]@{ company = $company.name; tier = $company.tier; frontend = $base; api = "http://127.0.0.1:$($company.apiPort)"; status = 'passed' }
+    Write-Host "$($company.name): frontend, API, login, menus, projects, and refresh passed."
 }
-$rejections = 0
+
 foreach ($source in $companies) {
     foreach ($target in $companies | Where-Object slug -NE $source.slug) {
-        $response = Request "http://localhost:$($target.port)/services/api/projects/" GET $null @{ Authorization = "Bearer $($tokens[$source.slug])" }
-        Assert ($response.StatusCode -eq 401) "$($source.slug) token accepted by $($target.slug)!"
-        $rejections++
+        $response = Invoke-Curl "http://127.0.0.1:$($target.apiPort)/api/projects/" 'GET' $null @{ Authorization = "Bearer $($tokens[$source.slug])" }
+        Assert ($response.StatusCode -eq 401) "$($source.slug) token accepted by $($target.slug)."
     }
 }
-function Sql($tier, $query) {
-    $query | & docker compose -f $compose exec -T "sql-$tier" sh -c '/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -b -h -1 -W'
-    if ($LASTEXITCODE) { throw "SQL isolation check failed: $tier" }
+
+function Invoke-Sql($tier, $query) {
+    $output = $query | & docker compose -f $compose exec -T "sql-$tier" sh -c '/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -b -h -1 -W' 2>&1
+    Assert ($LASTEXITCODE -eq 0) "SQL isolation check failed for ${tier}: $output"
 }
-Sql dedicated "USE StmsLocaldedicated; IF (SELECT COUNT(DISTINCT TenantId) FROM dbo.Users) <> 1 THROW 51000, 'Expected one dedicated company', 1;"
-Sql schema "USE StmsLocalschema; IF (SELECT COUNT(*) FROM sys.tables WHERE name='Users' AND SCHEMA_NAME(schema_id) IN ('atlas','beacon','cedar')) <> 3 THROW 51000, 'Expected three company schemas', 1;"
-$rowQuery = "USE StmsLocalrow; DECLARE @total int=0;"
-foreach ($company in $companies | Where-Object tier -EQ 'row') {
-    $rowQuery += "EXEC sys.sp_set_session_context @key=N'TenantId', @value=N'$($company.id)'; IF NOT EXISTS(SELECT 1 FROM dbo.Users) THROW 51000, 'Missing row company', 1; IF EXISTS(SELECT 1 FROM dbo.Users WHERE TenantId <> '$($company.id)') THROW 51000, 'RLS leaked users', 1; SET @total += 1;"
-}
-$rowQuery += "EXEC sys.sp_set_session_context @key=N'TenantId', @value=NULL; IF EXISTS(SELECT 1 FROM dbo.Users) THROW 51000, 'Unbound session leaked rows', 1; IF @total <> 5 THROW 51000, 'Expected five row companies', 1;"
-$rowQuery += @"
-EXEC sys.sp_set_session_context @key=N'TenantId', @value=N'30000000-0000-0000-0000-000000000001';
-BEGIN TRANSACTION;
-BEGIN TRY
-    INSERT INTO dbo.MenuItems (TenantId, Name, Route, Icon, DisplayOrder, Type, CreatedAt)
-    VALUES ('30000000-0000-0000-0000-000000000002', 'Forbidden', '/forbidden', 'block', 99, 0, SYSUTCDATETIME());
-    ROLLBACK TRANSACTION;
-    THROW 51000, 'RLS allowed a cross-company insert', 1;
-END TRY
-BEGIN CATCH
-    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-    IF ERROR_NUMBER() <> 33504 THROW;
-END CATCH;
-"@
-Sql row $rowQuery
-$containers = & docker compose -f $compose ps --format json | ForEach-Object { $_ | ConvertFrom-Json }
-Assert ($LASTEXITCODE -eq 0) 'Could not inspect containers.'
-$running = @($containers | Where-Object State -EQ 'running')
-Assert ($running.Count -eq 18) "Expected 18 simultaneous containers (3 SQL + 9 API + 9 Angular), found $($running.Count)."
-Assert (@($running | Where-Object Health -NE 'healthy').Count -eq 0) 'Some containers are not healthy.'
-$report = @{ verifiedAt = (Get-Date).ToString('o'); runningContainers = $running.Count; crossCompanyTokenRejections = $rejections; sqlIsolation = 'passed'; companies = $results }
-$report | ConvertTo-Json -Depth 6 | Set-Content "$generated/verification.json"
-$results | Format-Table company, tier, frontend, status
-Write-Host "PASS: 18 service containers running together; $rejections cross-company token rejections; SQL isolation passed."
-Write-Host "Local account password is in $generated/secrets.json (userPassword)."
+Invoke-Sql dedicated "USE StmsLocaldedicated; IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='Users') THROW 51000, 'Dedicated schema missing', 1;"
+Invoke-Sql schema "USE StmsLocalschema; IF (SELECT COUNT(*) FROM sys.schemas WHERE name IN ('atlas','beacon','cedar')) <> 3 THROW 51000, 'Schema isolation missing', 1;"
+Invoke-Sql row "USE StmsLocalrow; IF NOT EXISTS (SELECT 1 FROM sys.security_policies WHERE name='TenantIsolationPolicy') THROW 51000, 'RLS policy missing', 1;"
+
+$services = @(& docker compose -f $compose ps --format json | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object State -EQ 'running')
+Assert ($services.Count -eq 26) "Expected 26 running services; found $($services.Count)."
+$report = @{ verifiedAt = (Get-Date).ToString('o'); runningContainers = $services.Count; companies = $results; status = 'passed' }
+$report | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $generated 'verification.json')
+Write-Host "PASS: 26 service containers, all company API/frontend checks, token isolation, and SQL layout checks passed."

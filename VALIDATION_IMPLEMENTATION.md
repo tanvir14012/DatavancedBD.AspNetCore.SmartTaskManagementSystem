@@ -1,7 +1,9 @@
-# Input Validation Implementation Summary
+# Input validation reference
 
 ## Overview
-Comprehensive input validation has been implemented throughout the Smart Task Management System, covering both backend (ASP.NET Core) and frontend (Angular). All validation rules are derived from Entity Framework type configurations and common security/UX best practices.
+Input validation is implemented at the application boundary in the ASP.NET Core API and Angular
+frontend. Backend validators are the authoritative enforcement point; Angular validators provide
+immediate feedback and use the same limits and formats where practical.
 
 ## Backend Implementation (C# / ASP.NET Core)
 
@@ -39,7 +41,7 @@ Comprehensive input validation has been implemented throughout the Smart Task Ma
   - AssigneeEmail: Valid email format
 
 ### 2. Validation Helper Utility
-**Location:** `Api/Validators/ValidationHelper.cs`
+**Location:** `Application/Validators/ValidationHelper.cs`
 
 Provides reusable validation methods for endpoints:
 - `IsValidEmail()`: Email format validation
@@ -160,17 +162,23 @@ Reusable validator functions:
 5. **Maintainability**: Centralized validators make rules easy to update
 6. **Standards Compliance**: Follows ASP.NET Core and Angular best practices
 
-## Testing Recommendations
+## Verification
 
-1. **Backend Unit Tests**: Test each validator with valid/invalid inputs
-2. **Integration Tests**: Test endpoints with various payload combinations
-3. **Frontend Unit Tests**: Test custom validators with edge cases
-4. **E2E Tests**: Test complete form submission workflows
+Run the solution tests and Angular test suite from the repository root. The local Docker acceptance
+harness also exercises registration, login, project and task creation through the browser-facing API
+for all nine companies and therefore verifies validation in the tenant-aware runtime composition.
+
+```powershell
+dotnet test Infrastructure.Tests/Infrastructure.Tests.csproj --no-build -v:minimal
+cd Frontend/Angular
+npm test -- --watch=false
+cd ../..
+```
 
 ## Files Modified/Created
 
 ### Backend Files
-- ✓ `Api/Validators/ValidationHelper.cs` (NEW)
+- ✓ `Application/Validators/ValidationHelper.cs`
 - ✓ `Application/DependencyInjection.cs` (UPDATED)
 - ✓ `Application/Features/Auth/Login/Validator.cs` (NEW)
 - ✓ `Application/Features/Auth/Register/Validator.cs` (UPDATED)
@@ -188,14 +196,9 @@ Reusable validator functions:
 - ✓ `Frontend/Angular/src/app/features/projects/project-form.page.ts` (UPDATED)
 - ✓ `Frontend/Angular/src/app/features/tasks/tasks.page.ts` (UPDATED)
 
-## Build Status
-✓ Solution builds successfully (Visual Studio 2022)
-✓ No breaking changes to existing functionality
-✓ All validators properly registered in DI container
+## Maintenance
 
-## Future Enhancements
-- Add unit tests for all validators
-- Add integration tests for endpoints
-- Implement async validators for server-side unique constraint checks
-- Add i18n support for validation messages
-- Implement custom error messages for specific domains
+When a field constraint changes, update the backend validator or `ValidationHelper` first, then
+update the corresponding Angular validator and error text. Add or update focused tests in the same
+change. Do not rely on frontend validation for authorization, tenant isolation, or data integrity;
+the API and database boundaries remain authoritative.

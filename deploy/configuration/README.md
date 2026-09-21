@@ -31,6 +31,11 @@ inventory, connection string or credential is committed to source, an image, a p
   worker global, target and organization concurrency and its admission wait budget.
 - `Saas__Provisioning__Defaults__{Database|Schema|Row}__TargetId`, `Region`, and (for Schema)
   `Schema` define trusted provisioning templates. They are read only by the Admin process.
+- `Observability__Loki__Endpoint` and `Observability__Loki__Tenant` configure best-effort structured
+  log delivery to Loki.
+- `Observability__Otlp__TracesEndpoint` and `Observability__Otlp__MetricsEndpoint` configure OTLP/
+  HTTP protobuf delivery to an OpenTelemetry Collector or Grafana Alloy. Traces and metrics are
+  disabled when these endpoints are empty.
 
 `AddTenantCatalog` binds these settings without contacting either provider. Resolution of a provider
 validates required values and then creates one bounded singleton pool. The SQL catalog remains the
@@ -39,9 +44,9 @@ expected revision. Cache deletion is not a relocation fence and must be paired w
 
 `AddTenantAuthorization` composes the SQL authority directory, tenant resolver, durable membership
 validator and `SaasTenant` policy. `AddTenantStorage` composes the three tenant context factories and
-strategy adapters without opening a connection. It reads no tenant inventory during startup. Endpoints
-should opt into `RequireTenantContext` only when they use the tenant context factory; legacy endpoints
-continue using the legacy context until their cutover is reviewed.
+strategy adapters without opening a connection. The `LocalDocker` composition root intentionally
+uses a fixed, server-owned `LocalTenantBinding` and tenant-aware Identity stores for each local API;
+the production composition continues to resolve placements through the authoritative catalog.
 
 AKS should supply secret references through workload identity/Key Vault and rotate them by restarting
 disposable processes. Never log connection strings, tenant target identifiers from untrusted requests,

@@ -82,6 +82,10 @@ The app is available at `http://localhost:4200`.
 For the complete local SaaS tenancy setup, run the root PowerShell harness described in
 [`deploy/local/README.md`](../../deploy/local/README.md). Each generated frontend proxies
 `/services/api/` to its matching API container, so the browser does not need a separate API URL.
+The local harness mounts a generated `tenant-config.js` into each Nginx container. The file contains
+only that company’s tenant ID and display name; `app.config.ts` loads it before the first API request
+so the in-memory tenant context is available to the interceptor. Do not commit or hand-edit generated
+tenant configuration.
 
 ### Build for production
 ```bash

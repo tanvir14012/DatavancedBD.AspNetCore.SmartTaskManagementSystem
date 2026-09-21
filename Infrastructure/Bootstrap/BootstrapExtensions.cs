@@ -33,6 +33,16 @@ public static class BootstrapExtensions
             .WriteTo.Console()
             .WriteTo.File("Logs/log-.txt", rollingInterval: RollingInterval.Day);
 
+        var lokiEndpoint = builder.Configuration["Observability:Loki:Endpoint"];
+        if (!string.IsNullOrWhiteSpace(lokiEndpoint))
+        {
+            loggerConfiguration.WriteTo.Sink(new LokiHttpSink(
+                lokiEndpoint,
+                Shared.Constants.ServiceName,
+                builder.Environment.EnvironmentName,
+                builder.Configuration["Observability:Loki:Tenant"]));
+        }
+
 
 
         Log.Logger = loggerConfiguration.CreateLogger();

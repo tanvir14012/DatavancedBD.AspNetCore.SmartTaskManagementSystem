@@ -21,6 +21,68 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+  loki:
+    image: grafana/loki:3.5.0
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./deploy/observability/loki-config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    ports: ["3100:3100"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  grafana:
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      loki: { condition: service_healthy }
+    ports: ["3000:3000"]
+  alloy:
+    image: grafana/alloy:v1.10.2
+    command: ["run", "/etc/alloy/config.alloy", "--storage.path=/var/lib/alloy/data"]
+    volumes:
+      - ./deploy/observability/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      tempo: { condition: service_healthy }
+      prometheus: { condition: service_healthy }
+    ports: ["4317:4317", "4318:4318"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:12345/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  tempo:
+    image: grafana/tempo:2.8.2
+    command: ["-config.file=/etc/tempo/config.yml"]
+    volumes:
+      - ./deploy/observability/tempo-config.yml:/etc/tempo/config.yml:ro
+      - tempo-data:/var/tempo
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3200/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    ports: ["3200:3200"]
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--web.enable-remote-write-receiver"]
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    ports: ["9090:9090"]
   api:
     build:
       context: .
@@ -30,6 +92,9 @@ services:
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=SmartTaskManagementSystem;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=False;TrustServerCertificate=True"
       Caching__Provider: Redis
       Caching__Redis__ConnectionString: redis:6379
+      Observability__Loki__Endpoint: http://loki:3100/loki/api/v1/push
+      Observability__Otlp__TracesEndpoint: http://alloy:4318
+      Observability__Otlp__MetricsEndpoint: http://alloy:4318
     depends_on:
       sqlserver: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -44,3 +109,8 @@ services:
 volumes:
   sql-data:
   redis-data:
+  loki-data:
+  grafana-data:
+  alloy-data:
+  tempo-data:
+  prometheus-data:

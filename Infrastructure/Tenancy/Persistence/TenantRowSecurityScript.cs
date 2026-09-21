@@ -39,9 +39,13 @@ public static class TenantRowSecurityScript
                     $"ADD BLOCK PREDICATE {function}([TenantId]) ON {target} AFTER UPDATE"
                 };
             });
-        sql.AppendLine($"CREATE SECURITY POLICY {policy}");
-        sql.AppendLine(string.Join(",\n", predicates));
-        sql.AppendLine("WITH (STATE = ON, SCHEMABINDING = ON);");
+        // CREATE FUNCTION must be the first statement in its batch. The policy is also emitted
+        // through dynamic SQL so SQL Server resolves the function created immediately above rather
+        // than compiling the policy batch before that object exists.
+        var policySql = $"CREATE SECURITY POLICY {policy}\n"
+            + string.Join(",\n", predicates)
+            + "\nWITH (STATE = ON, SCHEMABINDING = ON);";
+        sql.AppendLine("EXEC(N'" + policySql.Replace("'", "''") + "');");
         sql.AppendLine("COMMIT TRANSACTION;");
         return sql.ToString();
     }

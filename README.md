@@ -1,6 +1,6 @@
 # Smart Task Management System
 
-Production-oriented SaaS deployment scaffold for the Smart Task Management System. The application is a .NET 10 backend with an Angular 21 frontend. This README is the authoritative architecture and operations guide for the code in this repository.
+Production-oriented SaaS deployment for the Smart Task Management System. The application is a .NET 10 backend with an Angular 21 frontend. This README is the entry point; the detailed developer reference is [docs/DEVELOPER_WIKI.md](docs/DEVELOPER_WIKI.md).
 
 The repository contains the AKS and GitHub Actions implementation, but it does not claim that an Azure subscription has already been deployed or that the application-specific production integrations are complete. An operator must supply the external SQL/Redis services, identities, DNS, secrets, GitHub Environment configuration, and release approvals described below.
 
@@ -24,8 +24,8 @@ Deliberate release prerequisites and limitations:
 - The Bicep modules do not create Azure SQL, Azure Cache for Redis, DNS records, or GitHub Environments. Their endpoints and permissions must be provided by the platform owner.
 - Web startup does not run migrations, enumerate tenant targets, or seed sample accounts. Existing databases must be initialized through the reviewed Admin path.
 - The Helm chart builds, signs, scans, and validates the Worker image, but `worker.enabled` is `false` by default. The current application requires a real `ITenantWorkHandler` and durable queue adapter before the Worker should be enabled.
-- Existing persistence and authentication remain active where tenant-aware endpoint cutover has not been explicitly completed. Tenant-aware persistence is opt-in; the SaaS scaffolding does not silently change every legacy endpoint.
-- Application Insights resources are provisioned by Bicep, but the current application bootstrap exports logs to the console. The Helm chart does not currently inject the Application Insights connection string or claim end-to-end distributed tracing.
+- The local `LocalDocker` composition uses the tenant-aware EF and Identity stores for every company API. Production AKS still uses the external catalog, authority, membership, and target configuration contracts.
+- Application Insights resources remain available in Azure infrastructure, while the local and container observability path uses Loki for logs, Tempo for traces, and Prometheus for metrics.
 - Focused unit tests and static validation are not evidence of live SQL, Redis, Azure RBAC, network, or production-isolation acceptance. Complete the environment-gated acceptance checks before declaring a production release ready.
 
 ## Architecture overview
@@ -69,6 +69,9 @@ The API and Admin process receive secret values through Key Vault-backed Kuberne
 | Azure Key Vault | Secret storage | One vault per environment, RBAC enabled, soft delete enabled, purge protection enabled by default in prod |
 | Azure Container Registry | Immutable application image storage | One shared Premium registry, admin login disabled, anonymous pull disabled |
 | Log Analytics / Container Insights | Cluster and container log collection | `omsAgent` is enabled in each AKS cluster |
+| Grafana/Loki | Structured application log storage and querying | Loki sink is enabled by `Observability__Loki__Endpoint`; Grafana Compose provisioning is supplied for local and container use |
+| Grafana Tempo | Distributed trace storage and search | API OTLP traces are sent to Alloy and forwarded to Tempo |
+| Prometheus | Metrics storage and query | API OTLP metrics are converted by Alloy and written through Prometheus remote write |
 | Application Insights | Azure monitoring resource reserved for application telemetry | Created and linked to Log Analytics; application exporter wiring is not currently enabled |
 
 ## Organization isolation model
@@ -192,7 +195,7 @@ Use this ownership model when deciding where a value belongs:
 | Passwords, JWT material, connection strings, API keys | Azure Key Vault | CSI Provider, Workload Identity, and synced Kubernetes Secret |
 | Nonsecret runtime policy | Helm values/ConfigMap | Chart release configuration; no secret values in values files |
 | Image provenance | ACR digest and Cosign signature | GitHub Actions build once, then promote |
-| Application telemetry | Container Insights/Log Analytics today | Console/container collection; App Insights exporter remains future work |
+| Application telemetry | Loki for logs, Tempo for traces, Prometheus for metrics; Container Insights/Log Analytics also collects stdout | API pushes logs directly to Loki and OTLP traces/metrics to Alloy, which forwards to Tempo and Prometheus; console exporters remain diagnostic fallbacks |
 
 No tenant inventory, database credential, JWT key, API key, or sample password belongs in source, a container image, workflow YAML, or Helm values. The configuration boundary is described in [deploy/configuration/README.md](deploy/configuration/README.md).
 
@@ -484,14 +487,21 @@ The dev server uses the Angular CLI default port unless overridden. The producti
 
 ### Docker Compose
 
-`docker-compose.saas.yml` is a local integration scaffold. It starts SQL Server, Redis, the API, and the frontend. It is not an Azure-equivalent production topology.
+`docker-compose.saas.yml` is a local integration scaffold. It starts SQL Server, Redis, the API,
+the frontend, and the Loki/Alloy/Tempo/Prometheus/Grafana observability path. It is not an
+Azure-equivalent production topology.
 
 ```bash
 export MSSQL_SA_PASSWORD="<local-only-strong-password>"
 docker compose -f docker-compose.saas.yml up --build
 ```
 
-The declared ports are SQL Server `1433`, Redis `6379`, API `8080`, and frontend `8081`. Compose uses a local SQL Server volume and a local Redis append-only volume. It supplies only the minimum API database and Redis settings; JWT, tenant catalog, AI, and production TLS settings still need to be configured if the corresponding features are exercised.
+The declared application ports are SQL Server `1433`, Redis `6379`, API `8080`, and frontend `8081`.
+Observability is available on Loki `3100`, Grafana `3000`, Tempo `3200`, and Prometheus `9090`;
+Alloy receives OTLP on `4317`/`4318`. Compose uses a local SQL Server volume, Redis append-only
+volume, and telemetry data volumes. It supplies only the minimum API database and Redis settings;
+JWT, tenant catalog, AI, and production TLS settings still need to be configured if the corresponding
+features are exercised.
 
 For the full local SaaS isolation acceptance run, use the nine-company harness instead:
 
@@ -541,7 +551,7 @@ GET /health -> frontend Nginx health response when requested directly
 
 The exact `health-check.sh` gate verifies `/alive` and `/ready`; it does not test every authenticated tenant route. Add live tenant-catalog, Redis, SQL-target, DNS, certificate, and authorization acceptance tests to the release process.
 
-Container logs are collected by Container Insights into the environment Log Analytics workspace. The current Bicep output includes an Application Insights connection string for future application telemetry wiring, but provisioning that resource alone does not send API traces to it.
+Container logs are collected by Container Insights into the environment Log Analytics workspace. The API also pushes structured logs to Loki when configured; stdout remains enabled for container collection. OTLP traces and metrics are routed through Alloy to Tempo and Prometheus in the local observability composition.
 
 ### Security controls
 

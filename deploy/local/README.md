@@ -11,7 +11,8 @@ docker compose -f deploy/local/generated/compose.json stop
 ```
 
 The script builds the actual .NET API and Angular application, initializes new local tenant
-databases through the Admin image, starts every company together, and runs acceptance checks.
+databases through the Admin image, starts every company together with Loki, Alloy, Tempo,
+Prometheus, and Grafana, and runs acceptance checks.
 Allow memory for three SQL Server instances (2 GB configured per server) plus nine APIs.
 The first run downloads SQL Server, .NET, Node and Nginx images.
 
@@ -41,8 +42,10 @@ Credentials and SQL volumes persist across runs; retain secrets.json when retain
 All published ports bind to loopback; SQL has no published host ports.
 
 The `LocalDocker` environment explicitly replaces legacy application and Identity stores with
-the existing tenant-aware model. Placement comes from each container's server configuration;
-headers cannot change it. Tokens carry the tenant ID and use a company-specific issuer/audience.
+the existing tenant-aware model. Placement comes from each API container's server configuration;
+headers cannot change it. Each local Angular container receives a generated `tenant-config.js`
+containing only its tenant ID and display name, so the browser store initializes before the first
+authenticated API request. Tokens carry the tenant ID and use a company-specific issuer/audience.
 Cookies use company-specific names to avoid localhost port collisions. Nginx proxies
 `/services/api/` to the matching company's API.
 
@@ -53,8 +56,14 @@ seeds navigation. It does not retrofit legacy databases or run DDL during API st
 Local SQL connections use the generated administrator password; production must use managed,
 least-privilege credentials and the production provisioning path.
 
+Grafana is available at `http://localhost:3000` (`admin`/`admin`), Loki at
+`http://localhost:3100/ready`, Tempo at `http://localhost:3200/ready`, and Prometheus at
+`http://localhost:9090/-/ready`. APIs push logs to Loki and OTLP traces/metrics to Alloy; Alloy
+forwards traces to Tempo and metrics to Prometheus. Console exporters remain diagnostic fallbacks.
+Telemetry export is best effort; an unavailable observability backend does not block API startup.
+
 `generated/verification.json` records the latest successful acceptance run: Angular document
 and bundle delivery, database-backed API readiness, registration/login, menus, project/task
-creation and reads, refresh, 72 cross-company JWT rejections, SQL isolation checks and all 18
+creation and reads, refresh, 72 cross-company JWT rejections, SQL isolation checks and all 26
 long-running service containers running simultaneously. The nine initializer containers exit
 successfully after provisioning.

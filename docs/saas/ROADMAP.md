@@ -253,12 +253,13 @@ queue, quota and breaker implementations are explicit deployment bindings.
 
 The API exposes separate liveness (`/alive`) and readiness (`/ready`) probes and includes validated
 trace/tenant fields in structured observability scopes without unbounded tenant metric labels. API,
-Admin, Worker and Angular multi-stage container files plus a health-gated SQL Server/Redis Compose
-environment are supplied. Release YAML keeps build, reviewed Admin migration and application rollout
-as separate stages and does not perform destructive cleanup implicitly. AKS/runtime credentials,
-registries and live telemetry sinks remain deployment-supplied.
+Admin, Worker and Angular multi-stage container files plus health-gated SQL Server/Redis and local
+Loki/Alloy/Tempo/Prometheus/Grafana Compose environments are supplied. Release YAML keeps build,
+reviewed Admin migration and application rollout as separate stages and does not perform destructive
+cleanup implicitly. AKS/runtime credentials, registries and live telemetry sinks remain deployment-
+supplied.
 
-## Remaining release acceptance
+## Release acceptance status
 
 ### Local Docker acceptance harness
 
@@ -270,16 +271,18 @@ cross-company JWT rejection, schema separation, row filters, write blocking, RLS
 and simultaneous service health. The generated report is
 `deploy/local/generated/verification.json` and is intentionally ignored by Git.
 
-This is a local release gate. It does not validate the external catalog, Redis, Azure SQL, AKS, DNS,
-certificates, or production workload identity.
+The local release gate now runs the tenant-aware API and Identity stores for every company. It also
+verifies the generated Angular `tenant-config.js`, browser authentication flows, cross-company token
+rejection, SQL Server isolation, RLS, and the complete 26-service observability-enabled Compose
+environment. A successful run writes the evidence to `deploy/local/generated/verification.json`.
 
-The legacy Identity/database endpoints are intentionally not silently switched to tenant persistence;
-their cutover must compose the tenant context factory and organization-bound Identity stores together.
-Live SQL Server/Redis acceptance must verify pooled checkout, RLS, raw SQL, colliding local IDs,
-interrupted migrations, relocation fencing, queue fairness and all-tier startup before production.
+This local gate does not validate the external catalog, Redis, Azure SQL, AKS, DNS, certificates,
+production workload identity, or production telemetry credentials. Live SQL Server/Redis acceptance
+must still verify pooled checkout, RLS, raw SQL, colliding local IDs, interrupted migrations,
+relocation fencing, queue fairness and all-tier startup before production.
 
 Do not rewrite deployed migration history blindly. Plan a reviewed baseline/upgrade path for the fixed stms schema, hardcoded partition SQL and ownership backfill. A dedicated database and a schema do not automatically isolate CPU or enforce organization ownership.
 
-## Release acceptance
+## General release requirements
 
 Every module must pass its unit tests plus relevant infrastructure scenarios before wiring it into production. Focused tests do not prove SQL Server, Redis or AKS isolation; the explicitly skipped acceptance checks require isolated deployment services.
