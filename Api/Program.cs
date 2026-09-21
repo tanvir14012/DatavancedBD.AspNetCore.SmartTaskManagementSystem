@@ -10,6 +10,15 @@ using Api.Tenancy;
 using Infrastructure.Tenancy.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
+// Container readiness probe uses the shipped runtime; no curl/wget package is required.
+if (args is ["--healthcheck"])
+{
+    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+    try { return (await client.GetAsync("http://127.0.0.1:8080/ready")).IsSuccessStatusCode ? 0 : 1; }
+    catch (HttpRequestException) { return 1; }
+    catch (TaskCanceledException) { return 1; }
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddDefaultBootstrap();
@@ -27,12 +36,16 @@ builder.Services.AddHttpClient<GroqModelsAiService>();
 
 builder.Services.AddEndpoints(typeof(Program).Assembly);
 builder.Services.AddObservability(builder.Configuration, Shared.Constants.ServiceName);
-builder.Services.AddTenantCatalog(builder.Configuration);
-builder.Services.AddTenantAuthorization(builder.Configuration);
+if (!builder.Environment.IsEnvironment("LocalDocker"))
+{
+    builder.Services.AddTenantCatalog(builder.Configuration);
+    builder.Services.AddTenantAuthorization(builder.Configuration);
+}
 builder.Services.AddTenantStorage();
 
 builder.Services.AddApplication();
 builder.Services.AddAutoMapper(cfg => { }, typeof(ICurrentUser).Assembly);
+builder.AddLocalTenant();
 
 var app = builder.Build()
     .UseDefaultMiddleware();
@@ -48,3 +61,4 @@ app.MapGet("/", () => Results.Ok(new
 })).AllowAnonymous();
 
 app.Run();
+return 0;

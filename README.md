@@ -6,6 +6,9 @@ The repository contains the AKS and GitHub Actions implementation, but it does n
 
 ## Status and boundaries
 
+For the reproducible nine-company local Docker environment (one dedicated, three schema,
+five shared-row companies), see [local SaaS acceptance](deploy/local/README.md).
+
 Implemented in this repository:
 
 - Organization-level tenancy primitives: immutable placement validation, cache-first catalog resolution, durable SQL compare-and-set writes, Redis publication, authority and membership checks, and generation-fenced browser organization context.
@@ -489,6 +492,19 @@ docker compose -f docker-compose.saas.yml up --build
 ```
 
 The declared ports are SQL Server `1433`, Redis `6379`, API `8080`, and frontend `8081`. Compose uses a local SQL Server volume and a local Redis append-only volume. It supplies only the minimum API database and Redis settings; JWT, tenant catalog, AI, and production TLS settings still need to be configured if the corresponding features are exercised.
+
+For the full local SaaS isolation acceptance run, use the nine-company harness instead:
+
+```powershell
+./deploy/local/Start-LocalSaas.ps1
+```
+
+This creates one dedicated company, three schema-isolated companies, and five shared-row companies.
+It starts three SQL Server containers, nine APIs, and nine Angular frontends; the nine Admin
+initializers exit after provisioning. Angular ports are 8101–8305 and API ports are 9101–9305.
+The matching verification command is `./deploy/local/Test-LocalSaas.ps1`. See
+[`deploy/local/README.md`](deploy/local/README.md) for company names, credentials, data boundaries,
+and the distinction between this local gate and the production AKS topology.
 
 ## Release safety and operations
 

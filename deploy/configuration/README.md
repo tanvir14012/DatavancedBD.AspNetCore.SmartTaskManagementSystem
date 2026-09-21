@@ -1,5 +1,18 @@
 # Configuration boundary — SAAS-01
 
+## Local Docker configuration
+
+The reproducible local acceptance environment is separate from the production catalog configuration.
+`deploy/local/Start-LocalSaas.ps1` supplies `ASPNETCORE_ENVIRONMENT=LocalDocker` and the server-owned
+`LocalTenant__Id`, `LocalTenant__Isolation`, `LocalTenant__Schema`, and `LocalTenant__Target` values
+to each API container. In this mode the API uses the tenant-aware EF model and Identity stores for
+one fixed company; it does not contact the production tenant catalog or Redis. Browser selector
+headers cannot change placement.
+
+Generated local credentials are written to the ignored file `deploy/local/generated/secrets.json`.
+Do not commit that file or reuse its values outside local testing. Production remains on the external
+catalog, authority, membership, SQL target, Redis, and Key Vault contract below.
+
 The API binds these external sections at its composition root. Environment variables, Azure App
 Configuration and Key Vault references use the normal .NET hierarchical binding form; no tenant
 inventory, connection string or credential is committed to source, an image, a pipeline or Helm values.

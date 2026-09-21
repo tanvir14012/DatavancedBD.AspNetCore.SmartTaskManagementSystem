@@ -1,5 +1,11 @@
 # AKS production deployment
 
+For local Docker validation before an AKS deployment, use
+[`deploy/local/README.md`](../local/README.md). It provisions nine fictional companies across
+dedicated-database, schema, and shared-row layouts and validates API and Angular containers together.
+It is an acceptance harness only; it does not replace the production catalog, Key Vault, managed SQL,
+Redis, or Helm migration path described here.
+
 This directory contains the deployable AKS release, not just a design contract.
 
 The deployment has three layers:

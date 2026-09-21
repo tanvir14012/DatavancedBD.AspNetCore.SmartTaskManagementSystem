@@ -12,3 +12,6 @@ Api/Logs/
 *.user
 *.suo
 TestResults/
+.env
+.env.*
+deploy/local/generated/

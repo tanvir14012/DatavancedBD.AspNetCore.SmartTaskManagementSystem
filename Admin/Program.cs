@@ -31,6 +31,9 @@ try
 
     switch (args[0].ToLowerInvariant())
     {
+        case "local-init" when args.Length == 1:
+            await LocalTenantBootstrap.RunAsync(builder.Configuration, cancellation.Token);
+            return 0;
         case "migrate" when args.Length == 1:
         {
             var outcomes = await host.Services.GetRequiredService<ITenantMigrationRunner>()
@@ -59,6 +62,7 @@ catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
 }
 catch (Exception error)
 {
+    if (builder.Environment.EnvironmentName == "LocalDocker") Console.Error.WriteLine(error);
     Console.Error.WriteLine($"Administration failed: {error.GetType().Name}");
     return 1;
 }

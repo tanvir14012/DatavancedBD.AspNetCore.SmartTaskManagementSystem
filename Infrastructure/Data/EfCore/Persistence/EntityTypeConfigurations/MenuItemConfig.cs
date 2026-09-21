@@ -32,7 +32,7 @@ public class MenuItemConfig : IEntityTypeConfiguration<MenuItem>
         if (_includeSeeds) builder.HasData(GetSeedMenuItems());
     }
 
-    private static List<MenuItem> GetSeedMenuItems()
+    public static List<MenuItem> GetSeedMenuItems()
     {
         return new List<MenuItem>
         {

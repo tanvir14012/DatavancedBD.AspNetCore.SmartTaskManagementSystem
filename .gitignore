@@ -48,4 +48,5 @@ Frontend/Angular/.angular/
 Frontend/Angular/coverage/
 Frontend/Angular/.sass-cache/
 Frontend/Angular/.cache/
+deploy/local/generated/
 Frontend/Angular/certs/

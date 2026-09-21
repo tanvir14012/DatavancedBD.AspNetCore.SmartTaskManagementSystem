@@ -1,0 +1,11 @@
+[
+  { "slug": "titan", "name": "Titan Technologies", "tier": "dedicated", "isolation": "Database", "schema": "dbo", "id": "10000000-0000-0000-0000-000000000001", "port": 8101, "apiPort": 9101 },
+  { "slug": "atlas", "name": "Atlas Systems", "tier": "schema", "isolation": "Schema", "schema": "atlas", "id": "20000000-0000-0000-0000-000000000001", "port": 8201, "apiPort": 9201 },
+  { "slug": "beacon", "name": "Beacon Labs", "tier": "schema", "isolation": "Schema", "schema": "beacon", "id": "20000000-0000-0000-0000-000000000002", "port": 8202, "apiPort": 9202 },
+  { "slug": "cedar", "name": "Cedar Software", "tier": "schema", "isolation": "Schema", "schema": "cedar", "id": "20000000-0000-0000-0000-000000000003", "port": 8203, "apiPort": 9203 },
+  { "slug": "delta", "name": "Delta Studio", "tier": "row", "isolation": "Row", "schema": "dbo", "id": "30000000-0000-0000-0000-000000000001", "port": 8301, "apiPort": 9301 },
+  { "slug": "ember", "name": "Ember Design", "tier": "row", "isolation": "Row", "schema": "dbo", "id": "30000000-0000-0000-0000-000000000002", "port": 8302, "apiPort": 9302 },
+  { "slug": "fern", "name": "Fern Consulting", "tier": "row", "isolation": "Row", "schema": "dbo", "id": "30000000-0000-0000-0000-000000000003", "port": 8303, "apiPort": 9303 },
+  { "slug": "grove", "name": "Grove Retail", "tier": "row", "isolation": "Row", "schema": "dbo", "id": "30000000-0000-0000-0000-000000000004", "port": 8304, "apiPort": 9304 },
+  { "slug": "harbor", "name": "Harbor Media", "tier": "row", "isolation": "Row", "schema": "dbo", "id": "30000000-0000-0000-0000-000000000005", "port": 8305, "apiPort": 9305 }
+]

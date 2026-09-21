@@ -260,6 +260,19 @@ registries and live telemetry sinks remain deployment-supplied.
 
 ## Remaining release acceptance
 
+### Local Docker acceptance harness
+
+The repository includes `deploy/local/Start-LocalSaas.ps1` and `deploy/local/Test-LocalSaas.ps1`.
+The harness provisions nine fictional companies: one dedicated database, three schemas in one
+database, and five row tenants in one database/schema. Each company gets an API and Angular frontend
+container. Acceptance checks cover registration/login, menus, projects, tasks, refresh cookies,
+cross-company JWT rejection, schema separation, row filters, write blocking, RLS session ownership,
+and simultaneous service health. The generated report is
+`deploy/local/generated/verification.json` and is intentionally ignored by Git.
+
+This is a local release gate. It does not validate the external catalog, Redis, Azure SQL, AKS, DNS,
+certificates, or production workload identity.
+
 The legacy Identity/database endpoints are intentionally not silently switched to tenant persistence;
 their cutover must compose the tenant context factory and organization-bound Identity stores together.
 Live SQL Server/Redis acceptance must verify pooled checkout, RLS, raw SQL, colliding local IDs,

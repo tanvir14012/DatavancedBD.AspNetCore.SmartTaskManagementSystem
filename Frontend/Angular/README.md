@@ -1,6 +1,6 @@
 ﻿# Angular Frontend - Smart Task Management System
 
-Modern Angular 19 web application for the Smart Task Management System. It provides a responsive user interface for task management, project organization, team collaboration, and dashboard analytics.
+Modern Angular 21 web application for the Smart Task Management System. It provides a responsive user interface for task management, project organization, team collaboration, and dashboard analytics.
 
 ---
 
@@ -22,7 +22,7 @@ This frontend consumes the ASP.NET Core backend API and delivers a full task man
 ## Technology stack
 
 ### Core framework
-- **Angular 19**
+- **Angular 21**
 - **TypeScript 5.x**
 - **RxJS 7.x**
 
@@ -42,7 +42,7 @@ This frontend consumes the ASP.NET Core backend API and delivers a full task man
 - **Route resolvers**
 
 ### Development tools
-- **Angular CLI 19**
+- **Angular CLI 21**
 - **Prettier**
 - **ESLint**
 
@@ -53,7 +53,7 @@ This frontend consumes the ASP.NET Core backend API and delivers a full task man
 ### Prerequisites
 - **Node.js 20+**
 - **npm 10+**
-- **Angular CLI 19**
+- **Angular CLI 21**
 - **Running backend API** - See the root [README.md](../../README.md)
 
 ### Installation
@@ -68,7 +68,7 @@ Edit `src/environments/environment.ts`:
 ```typescript
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:5000/api',
+  apiBaseUrl: 'http://localhost:8080/api',
 };
 ```
 
@@ -78,6 +78,10 @@ npm start
 ```
 
 The app is available at `http://localhost:4200`.
+
+For the complete local SaaS tenancy setup, run the root PowerShell harness described in
+[`deploy/local/README.md`](../../deploy/local/README.md). Each generated frontend proxies
+`/services/api/` to its matching API container, so the browser does not need a separate API URL.
 
 ### Build for production
 ```bash
