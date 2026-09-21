@@ -1,0 +1,14 @@
+{
+  "auth": {
+    "login": {
+      "title": "সাইন ইন",
+      "email": "ইমেইল",
+      "password": "পাসওয়ার্ড",
+      "submit": "সাইন ইন",
+      "validation": {
+        "emailInvalid": "সঠিক ইমেইল ঠিকানা দিন",
+        "passwordRequired": "পাসওয়ার্ড প্রয়োজন"
+      }
+    }
+  }
+}

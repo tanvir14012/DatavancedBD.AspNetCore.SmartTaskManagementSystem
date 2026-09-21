@@ -1,0 +1,14 @@
+{
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "validation": {
+        "emailInvalid": "Enter a valid email address",
+        "passwordRequired": "Password is required"
+      }
+    }
+  }
+}
