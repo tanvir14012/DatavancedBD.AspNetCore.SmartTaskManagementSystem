@@ -21,7 +21,7 @@ export type ProjectMember = {
   userId: number
   userName: string
   email: string
-  role: string
+  role: string | number
 }
 
 export type ProjectDetail = {
@@ -50,7 +50,7 @@ export type ProjectAssignment = {
   userId: number
   userName: string
   email: string
-  role: string
+  role: string | number
 }
 
 export type ProjectListParams = {
