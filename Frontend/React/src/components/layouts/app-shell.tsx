@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
+import { useTranslation } from 'react-i18next'
 
 import { useSyncTheme } from '@/hooks/use-sync-theme'
 import { LanguageSwitcher } from '@/components/shared/language-switcher'
@@ -29,6 +30,7 @@ function readExpandedMenuIds(): number[] {
 
 export function AppShell() {
   useSyncTheme()
+  const { t } = useTranslation()
 
   const [mobileOpen, setMobileOpen] = useState(false)
   const [expandedMenuIds, setExpandedMenuIds] = useState<number[]>(readExpandedMenuIds)
@@ -63,6 +65,7 @@ export function AppShell() {
   }, [])
 
   const getMenuRoute = (menu: MenuItem) => menu.children[0]?.route ?? menu.route
+  const menuLabel = (menu: MenuItem) => t(`navigation.menus.${menu.id}`, { defaultValue: menu.name })
 
   useEffect(() => {
     menus.forEach((menu) => {
@@ -104,7 +107,7 @@ export function AppShell() {
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   ].join(' ')}
                 >
-                  {menu.name}
+                  {menuLabel(menu)}
                 </NavLink>
               ))}
             </nav>
@@ -115,8 +118,18 @@ export function AppShell() {
 
             <details className="relative">
               <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                   {initials}
+                  {user?.avatarUrl && (
+                    <img
+                      src={user.avatarUrl}
+                      alt={`${user.firstName} ${user.lastName}`.trim()}
+                      className="absolute inset-0 h-full w-full object-cover"
+                      onError={(event) => {
+                        event.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  )}
                 </span>
 
                 <span className="hidden max-w-48 text-left lg:block">
@@ -132,11 +145,11 @@ export function AppShell() {
 
               <div className="absolute right-0 mt-2 w-64 rounded-md border border-border bg-card p-3 shadow-lg">
                 <div className="mb-3 flex items-center justify-between border-b border-border pb-3">
-                  <span className="text-sm font-semibold">Account</span>
+                    <span className="text-sm font-semibold">{t('common.account')}</span>
 
                   <button
                     type="button"
-                    aria-label="Close user menu"
+                    aria-label={t('common.closeUserMenu')}
                     className="rounded-md px-2 py-1 text-lg hover:bg-muted"
                     onClick={(event) => {
                       event.currentTarget.closest('details')?.removeAttribute('open')
@@ -156,7 +169,7 @@ export function AppShell() {
 
                 <div className="mb-3 border-b border-border pb-3">
                   <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-                    Appearance
+                    {t('common.appearance')}
                   </p>
 
                   <div className="grid grid-cols-3 gap-1">
@@ -183,9 +196,9 @@ export function AppShell() {
                     onChange={(event) => setPalette(event.target.value as Palette)}
                     className="mt-2 h-8 w-full rounded-md border border-border bg-background px-2 text-xs"
                   >
-                    <option value="blue">Blue palette</option>
-                    <option value="violet">Violet palette</option>
-                    <option value="green">Green palette</option>
+                    <option value="blue">{t('common.paletteBlue')}</option>
+                    <option value="violet">{t('common.paletteViolet')}</option>
+                    <option value="green">{t('common.paletteGreen')}</option>
                   </select>
                 </div>
 
@@ -196,7 +209,7 @@ export function AppShell() {
                   disabled={logoutMutation.isPending}
                   onClick={() => logoutMutation.mutate()}
                 >
-                  {logoutMutation.isPending ? 'Signing out...' : 'Sign out'}
+                  {logoutMutation.isPending ? t('common.signingOut') : t('common.signOut')}
                 </Button>
               </div>
             </details>
@@ -222,11 +235,11 @@ export function AppShell() {
           ].join(' ')}
         >
           <div className="mb-4 flex items-center justify-between lg:hidden">
-            <span className="font-semibold">Navigation</span>
+            <span className="font-semibold">{t('common.navigation')}</span>
 
             <button
               type="button"
-              aria-label="Close navigation"
+              aria-label={t('common.closeNavigation')}
               className="rounded-md border border-border px-3 py-1"
               onClick={() => setMobileOpen(false)}
             >
@@ -234,11 +247,11 @@ export function AppShell() {
             </button>
           </div>
 
-          {isPending && <p className="text-sm text-muted-foreground">Loading navigation...</p>}
+          {isPending && <p className="text-sm text-muted-foreground">{t('common.loadingNavigation')}</p>}
 
           {isError && (
             <p className="text-sm text-red-600" role="alert">
-              Navigation could not be loaded.
+              {t('common.navigationFailed')}
             </p>
           )}
 
@@ -259,7 +272,7 @@ export function AppShell() {
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                     ].join(' ')}
                   >
-                    {menu.name}
+                    {menuLabel(menu)}
                   </NavLink>
                 )
               }
@@ -280,7 +293,7 @@ export function AppShell() {
                           : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                       ].join(' ')}
                     >
-                      <span>{menu.name}</span>
+                      <span>{menuLabel(menu)}</span>
 
                       <span
                         aria-hidden="true"
@@ -306,7 +319,7 @@ export function AppShell() {
                           ].join(' ')
                         }
                       >
-                        {child.name}
+                        {menuLabel(child)}
                       </NavLink>
                     ))}
                   </CollapsibleContent>

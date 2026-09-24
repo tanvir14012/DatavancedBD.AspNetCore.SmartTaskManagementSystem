@@ -8,8 +8,11 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/shared/language-switcher'
 import { useNavigate } from 'react-router'
+import { getApiErrorMessage } from '@/utils/api-error'
+import { useSyncTheme } from '@/hooks/use-sync-theme'
 
 export function LoginPage() {
+  useSyncTheme()
   const { t } = useTranslation()
   const loginMutation = useLoginMutation()
   const navigate = useNavigate()
@@ -29,7 +32,7 @@ export function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-foreground p-6">
+    <main className="relative flex min-h-screen items-center justify-center bg-background p-6">
       <div className="absolute right-4 top-4">
         <LanguageSwitcher />
       </div>
@@ -38,7 +41,7 @@ export function LoginPage() {
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-2">
-            <label htmlFor="email">{t('auth.login.email')}</label>
+            <Label htmlFor="email">{t('auth.login.email')}</Label>
 
             <Input id="email" type="email" autoComplete="email" {...register('email')} />
             {errors.email && (
@@ -66,7 +69,9 @@ export function LoginPage() {
           </div>
 
           {loginMutation.isError && (
-            <p className="text-sm text-red-600">{t('auth.login.validation.loginFailed')}</p>
+            <p className="text-sm text-red-600" role="alert">
+              {getApiErrorMessage(loginMutation.error, t('auth.login.validation.loginFailed'))}
+            </p>
           )}
 
           <Button className="w-full" type="submit" disabled={loginMutation.isPending}>

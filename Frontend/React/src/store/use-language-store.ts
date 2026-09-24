@@ -19,3 +19,5 @@ export const userLanguageStore = create<LanguageState>()(
     },
   ),
 )
+
+export const useLanguageStore = userLanguageStore

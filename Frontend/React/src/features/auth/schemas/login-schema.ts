@@ -4,7 +4,7 @@ export const loginSchema = z.object({
   email: z.email({
     error: 'auth.login.validation.emailInvalid',
   }),
-  password: z.string().min(8, {
+  password: z.string().min(1, {
     error: 'auth.login.validation.passwordRequired',
   }),
 })
