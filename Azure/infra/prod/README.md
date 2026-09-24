@@ -4,6 +4,10 @@ This folder contains the production Azure DevOps CI/CD and Infrastructure-as-Cod
 
 The production design uses a **Windows Server 2022 Azure VM** in **Southeast Asia**, **IIS** for both the Angular frontend and ASP.NET Core API, and **SQL Server 2022 Express** on the same VM. Azure DevOps builds the backend and frontend, provisions/reconciles Azure infrastructure with Bicep, applies EF Core migrations, deploys the application, configures IIS/HTTPS, and performs a public smoke test.
 
+## React frontend option
+
+The production YAML currently builds and packages Angular. The parallel React client lives in `Frontend/React` and can be adopted by changing the frontend build/package steps to use `npm ci`, `npm run build`, and `Frontend/React/dist`. Set `VITE_API_BASE_URL` to the production API origin at build time and retain the IIS SPA fallback and HTTPS configuration.
+
 ## Files
 
 | File | Purpose |

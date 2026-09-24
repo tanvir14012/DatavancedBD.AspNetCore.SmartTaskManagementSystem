@@ -1,6 +1,6 @@
 # Smart Task Management System
 
-A full-stack project and task management application built with ASP.NET Core 10 and Angular 21. It includes role-based access control, project membership, task assignments and boards, dashboard summaries, and AI-assisted task description refinement through Groq.
+A full-stack project and task management application built with ASP.NET Core 10, Angular 21, and a parallel React 19 + Vite frontend. It includes role-based access control, project membership, task assignments and boards, dashboard summaries, and AI-assisted task description refinement through Groq.
 
 The application has been successfully deployed to Azure. This repository includes Bicep infrastructure, parallel backend/frontend builds, an Ubuntu/Nginx development deployment driven by GitHub Actions, and a separate Windows Server/IIS production deployment driven by Azure DevOps.
 
@@ -8,6 +8,7 @@ The application has been successfully deployed to Azure. This repository include
 
 - [Application and architecture](#application-and-architecture)
 - [Run locally](#run-locally)
+- [Frontend choices](#frontend-choices)
 - [API routes](#api-routes)
 - [Azure infrastructure](#azure-infrastructure)
 - [Production CI/CD in Azure DevOps](#production-cicd-in-azure-devops)
@@ -26,7 +27,7 @@ The application has been successfully deployed to Azure. This repository include
 - **Dashboard:** project/task counts, completion status, priority distribution, and upcoming work.
 - **AI:** `GroqModelsAiService` calls Groq's OpenAI-compatible API to refine descriptions.
 - **Backend:** .NET 10, ASP.NET Core Minimal API endpoints, EF Core with SQL Server, MediatR, FluentValidation, and AutoMapper.
-- **Frontend:** Angular 21, Angular Material/CDK, Tailwind CSS, SCSS, RxJS, reactive forms, and ngx-translate; CI uses Node.js 22.
+- **Frontends:** Angular 21 with Angular Material/CDK, Tailwind CSS, SCSS, RxJS, reactive forms, and ngx-translate; React 19 with TypeScript, Vite, Tailwind CSS, TanStack Query, Zustand, React Hook Form, Zod, React Router, and react-i18next.
 - **Infrastructure services:** configurable memory/Redis caching, HTTP response caching, EF cache invalidation, rate limiting, request tracing, audit logging, Serilog console/daily-file logging, and OpenTelemetry console exporters.
 
 ### Responsibilities after the class-library refactor
@@ -42,6 +43,7 @@ The API is the HTTP host and composition root. Business features, service contra
 | [Shared](Shared) | Shared constants and project-level dependencies. |
 | [Infrastructure.Tests](Infrastructure.Tests) | Backend tests executed by the CI workflow. |
 | [Frontend/Angular](Frontend/Angular) | Angular application, frontend environments, assets, and npm scripts. |
+| [Frontend/React](Frontend/React) | React 19 + Vite application, localized feature modules, protected routing, and npm scripts. |
 
 Project references flow from `Api` to `Application`, `Infrastructure`, and `Shared`; `Infrastructure` references `Application` and `Shared`; `Application` references `Domain` and `Shared`.
 
@@ -67,10 +69,22 @@ Domain/
 Shared/
 Infrastructure.Tests/
 Frontend/Angular/
+Frontend/React/
 Azure/infra/                        # Bicep templates and development parameters
 .github/workflows/                  # CI/CD and development cleanup
 docs/images/azure/                  # Deployment screenshots
 ```
+
+## Frontend choices
+
+The repository contains two browser clients for the same ASP.NET Core API:
+
+| Client | Directory | Development server | Production output |
+| --- | --- | --- | --- |
+| Angular 21 | `Frontend/Angular` | `npm start` or `npm run start:https` | `dist/smart-task-management-system/browser` |
+| React 19 + Vite | `Frontend/React` | `npm run dev` | `dist` |
+
+Both clients implement authentication, protected navigation, projects, tasks, dashboard views, user management, localization, and responsive layouts. The existing GitHub Actions and Azure DevOps deployment pipelines continue to build and package Angular. The React client is ready for local development and static hosting; a deployment can switch clients by changing the frontend working directory, build command, and static output path.
 
 ## Run locally
 
@@ -79,7 +93,7 @@ docs/images/azure/                  # Deployment screenshots
 - .NET 10 SDK and a reachable SQL Server instance.
 - Node.js 22 and npm; use the committed frontend lockfile with `npm ci`.
 - EF Core CLI for explicit migrations; CI currently installs `dotnet-ef` version `10.0.11`.
-- Trusted local HTTPS certificates for the API and, when using the HTTPS frontend script, Angular.
+- Trusted local HTTPS certificates for the API and frontend. Angular uses its HTTPS script; Vite React uses `vite-plugin-mkcert`.
 
 ### Backend
 
@@ -107,7 +121,7 @@ The explicit `https` launch profile exposes `https://localhost:7108` and `http:/
 
 The startup hosted service also checks/applies migrations and seeds roles, users, projects, and tasks. Review [seeding](Infrastructure/Data/EfCore/Persistence/Seeding/SeedingExtensions.cs) before exposing an instance; these are demonstration accounts/data, not a production account-provisioning process.
 
-### Frontend
+### Frontend: Angular (current deployment client)
 
 ```bash
 cd Frontend/Angular
@@ -124,6 +138,25 @@ npm run build:prod
 ```
 
 The [production environment](Frontend/Angular/src/environments/environment.prod.ts) is validated by the Azure DevOps production pipeline to use the relative API path `/services/api`. The browser output is `Frontend/Angular/dist/smart-task-management-system/browser`.
+
+### React + Vite
+
+```bash
+cd Frontend/React
+npm ci
+cp .env.example .env.local
+npm run dev
+```
+
+On PowerShell, use `Copy-Item .env.example .env.local` for the environment file. The Vite server runs at `https://localhost:4200` and reads `VITE_API_BASE_URL` from `.env.local`; the default value is `https://localhost:7108`.
+
+```bash
+npm run lint
+npm run build
+npm run preview
+```
+
+The production build is written to `Frontend/React/dist`. Set the API URL before building for each environment. The static host must route unknown application paths to `index.html`.
 
 ### Configuration and tests
 
@@ -359,6 +392,7 @@ These screenshots supplied from successful deployments show the running applicat
 
 ## Further documentation
 
+- [React frontend guide](Frontend/React/README.md)
 - [Production Azure DevOps CI/CD manual](Azure/infra/prod/README.md)
 - [Production Azure DevOps pipeline](Azure/infra/prod/azure-pipelines-prod.yml) and [production cleanup pipeline](Azure/infra/prod/azure-pipelines-prod-cleanup.yml)
 - [Azure CI/CD workflow](.github/workflows/dev-cicd.yml) and [development cleanup](.github/workflows/dev-cleanup.yml)

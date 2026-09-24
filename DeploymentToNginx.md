@@ -1,8 +1,14 @@
-﻿# Deployment Guide: Ubuntu + nginx + SQL Server + .NET Runtime
+# Deployment Guide: Ubuntu + nginx + SQL Server + .NET Runtime
 
 This is the working setup we used for the Smart Task Management System on Ubuntu 24.04 / WSL 2 and a real Ubuntu server.
 
 It is intentionally concise and matches the configuration that worked in practice.
+
+---
+
+## React + Vite alternative
+
+The commands below package Angular because that is the current deployment path. To serve the React client instead, run `npm ci` and `npm run build` from `Frontend/React`, set `VITE_API_BASE_URL` before the build, and copy `Frontend/React/dist` to `/var/www/stms-web`. Keep the existing Nginx API proxy and SPA fallback; only the static frontend directory changes.
 
 ---
 
@@ -313,4 +319,3 @@ This avoids browser warnings and makes the site work normally for end users.
 ---
 
 This is the exact setup pattern that worked in practice: SQL Server on localhost, ASP.NET Core on port `5000`, nginx reverse proxy on `80/443`, and runtime config supplied via environment variables in the Linux service file.
-

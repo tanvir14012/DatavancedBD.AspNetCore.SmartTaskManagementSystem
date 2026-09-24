@@ -1,6 +1,6 @@
-﻿# Angular Frontend - Smart Task Management System
+# Angular Frontend - Smart Task Management System
 
-Modern Angular 19 web application for the Smart Task Management System. It provides a responsive user interface for task management, project organization, team collaboration, and dashboard analytics.
+Modern Angular 21 web application for the Smart Task Management System. It provides a responsive user interface for task management, project organization, team collaboration, and dashboard analytics.
 
 ---
 
@@ -22,7 +22,7 @@ This frontend consumes the ASP.NET Core backend API and delivers a full task man
 ## Technology stack
 
 ### Core framework
-- **Angular 19**
+- **Angular 21**
 - **TypeScript 5.x**
 - **RxJS 7.x**
 
@@ -42,7 +42,7 @@ This frontend consumes the ASP.NET Core backend API and delivers a full task man
 - **Route resolvers**
 
 ### Development tools
-- **Angular CLI 19**
+- **Angular CLI 21**
 - **Prettier**
 - **ESLint**
 
@@ -51,9 +51,9 @@ This frontend consumes the ASP.NET Core backend API and delivers a full task man
 ## Setup instructions
 
 ### Prerequisites
-- **Node.js 20+**
+- **Node.js 22+**
 - **npm 10+**
-- **Angular CLI 19**
+- **Angular CLI 21**
 - **Running backend API** - See the root [README.md](../../README.md)
 
 ### Installation
@@ -94,6 +94,10 @@ npm test
 npm run lint
 npm run format
 ```
+
+## Alternative React frontend
+
+The repository also contains a parallel React 19 + Vite frontend in [Frontend/React](../React). Both clients use the same ASP.NET Core API and support the same core workflows. See the React frontend guide for setup and scripts.
 
 ## AI note
 The UI does not call Groq directly. The Angular frontend calls the backend endpoint for task improvement; the backend uses Groq's OpenAI-compatible API and returns the polished description.

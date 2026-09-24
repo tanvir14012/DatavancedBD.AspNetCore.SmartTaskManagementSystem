@@ -1,13 +1,19 @@
-# Deployment Guide: Angular SPA & .NET API on IIS
+# Deployment Guide: SPA (Angular or Vite React) & .NET API on IIS
 
-This guide walks you through deploying the Angular frontend and ASP.NET Core backend under a single IIS website using HTTPS and application pool isolation.
+This guide walks you through deploying the Angular frontend or a Vite React static build with the ASP.NET Core backend under a single IIS website using HTTPS and application pool isolation.
+
+---
+
+## React + Vite alternative
+
+This guide uses Angular for the existing deployment pipeline. A React deployment uses the same IIS site, HTTPS binding, API sub-application, and SPA rewrite rule: run `npm ci` and `npm run build` from `Frontend/React`, set `VITE_API_BASE_URL` before building, and publish the contents of `Frontend/React/dist` to the client directory.
 
 ---
 
 ## Prerequisites & Requirements
 
 * Operating System: Windows 10/11 or Windows Server 2016+
-* Frameworks: .NET 10 SDK and Node.js / Angular CLI installed on the build machine
+* Frameworks: .NET 10 SDK and Node.js 22; Angular CLI 21 is required only for Angular builds.
 * Administrator privileges: required for IIS, hosts file, and certificate store configuration
 
 ---

@@ -49,3 +49,9 @@ Frontend/Angular/coverage/
 Frontend/Angular/.sass-cache/
 Frontend/Angular/.cache/
 Frontend/Angular/certs/
+
+# Frontend (React + Vite)
+Frontend/React/node_modules/
+Frontend/React/dist/
+Frontend/React/.vite/
+Frontend/React/certs/
