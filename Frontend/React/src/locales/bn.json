@@ -1,13 +1,18 @@
 {
+  "common": {
+    "language": "ভাষা"
+  },
   "auth": {
     "login": {
       "title": "সাইন ইন",
       "email": "ইমেইল",
       "password": "পাসওয়ার্ড",
       "submit": "সাইন ইন",
+      "submitting": "সাইন ইন হচ্ছে...",
       "validation": {
         "emailInvalid": "সঠিক ইমেইল ঠিকানা দিন",
-        "passwordRequired": "পাসওয়ার্ড প্রয়োজন"
+        "passwordRequired": "পাসওয়ার্ড প্রয়োজন",
+        "loginFailed": "ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।"
       }
     }
   }

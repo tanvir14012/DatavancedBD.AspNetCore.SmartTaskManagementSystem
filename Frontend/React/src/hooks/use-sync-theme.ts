@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 
 export function useSyncTheme() {
   const mode = useThemeStore((state) => state.mode)
+  const palette = useThemeStore((state) => state.palette)
 
   useEffect(() => {
     const root = document.documentElement
@@ -12,6 +13,7 @@ export function useSyncTheme() {
       const isDark = mode === 'dark' || (mode === 'system' && mediaQuery.matches)
 
       root.classList.toggle('dark', isDark)
+      root.dataset.palette = palette
     }
 
     applyTheme()
@@ -20,5 +22,5 @@ export function useSyncTheme() {
     return () => {
       mediaQuery.removeEventListener('change', applyTheme)
     }
-  }, [mode])
+  }, [mode, palette])
 }

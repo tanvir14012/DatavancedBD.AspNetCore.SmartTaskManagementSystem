@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router'
 import { AppErrorBoundary } from './app/app-error-boundary.tsx'
 import { router } from './app/router.tsx'
-import './index.css'
+import '@/index.css'
 import { queryClient } from './lib/query-client.ts'
 
 createRoot(document.getElementById('root')!).render(
