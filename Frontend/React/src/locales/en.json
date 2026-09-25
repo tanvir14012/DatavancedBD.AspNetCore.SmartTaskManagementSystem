@@ -1,0 +1,77 @@
+{
+  "common": {
+    "language": "Language",
+    "mainNavigation": "Main navigation",
+    "all": "All",
+    "search": "Search",
+    "loading": "Loading...",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing...",
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "remove": "Remove",
+    "edit": "Edit",
+    "view": "View",
+    "back": "Back",
+    "actions": "Actions",
+    "previous": "Previous",
+    "next": "Next",
+    "ascending": "Ascending",
+    "descending": "Descending",
+    "pageOf": "Page {{page}} of {{total}}"
+    ,"account": "Account",
+    "appearance": "Appearance",
+    "paletteBlue": "Blue palette",
+    "paletteViolet": "Violet palette",
+    "paletteGreen": "Green palette",
+    "signingOut": "Signing out...",
+    "signOut": "Sign out",
+    "navigation": "Navigation",
+    "closeNavigation": "Close navigation",
+    "closeUserMenu": "Close user menu",
+    "loadingNavigation": "Loading navigation...",
+    "navigationFailed": "Navigation could not be loaded."
+  },
+  "home": {
+    "eyebrow": "Built for fast-moving teams",
+    "title": "Manage projects, tasks, and delivery in one smart workspace.",
+    "description": "Plan work, track progress, and move ideas to delivery without scattered updates.",
+    "loginCta": "Go to login",
+    "registerCta": "Create account",
+    "features": {
+      "planning": { "title": "Real-time planning", "description": "Keep priorities and delivery visible." },
+      "visibility": { "title": "Team visibility", "description": "Coordinate people, projects, and tasks." },
+      "insights": { "title": "Actionable insights", "description": "Understand progress at a glance." }
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "submitting": "Signing in...",
+      "validation": { "emailInvalid": "Enter a valid email address", "passwordRequired": "Password is required", "loginFailed": "Email or password is incorrect." }
+    },
+    "register": {
+      "title": "Create your account",
+      "description": "Set up your workspace and start organizing projects and tasks.",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "submit": "Create account",
+      "submitting": "Creating account...",
+      "existingAccount": "Already have an account?",
+      "validation": { "firstNameTooLong": "First name is too long.", "lastNameTooLong": "Last name is too long.", "emailInvalid": "Enter a valid email address.", "passwordMin": "Password must be at least 8 characters.", "passwordUpper": "Password must contain an uppercase letter.", "passwordLower": "Password must contain a lowercase letter.", "passwordDigit": "Password must contain a digit.", "passwordSpecial": "Password must contain a special character.", "failed": "Unable to create the account right now." }
+    }
+  },
+  "dashboard": { "eyebrow": "Overview", "title": "Dashboard", "loadFailed": "Unable to load dashboard details.", "totalProjects": "Total projects", "totalTasks": "Total tasks", "pending": "Pending", "completed": "Completed", "completionRate": "Completion rate", "statusBreakdown": "Task status", "priorityBreakdown": "Priority mix", "upcoming": "Upcoming due", "noUrgentTasks": "No urgent tasks due in the next 7 days." },
+  "projects": { "eyebrow": "Portfolio", "title": "Projects", "new": "New project", "create": "Create project", "edit": "Edit project", "search": "Search projects", "loadFailed": "Unable to load projects.", "saveFailed": "Unable to save the project.", "empty": "No projects match the current filters.", "member": "Member", "noDescription": "No description provided.", "recently": "Recently", "tasks": "Tasks", "project": "Project", "assignments": "Project assignments", "deleteConfirm": "Delete this project?", "status": { "active": "Active", "planned": "Planned", "completed": "Completed" }, "sort": { "name": "Name", "created": "Created", "updated": "Updated" }, "fields": { "name": "Project name", "description": "Description", "startDate": "Start date", "endDate": "End date" }, "validation": { "nameRequired": "Project name is required.", "nameTooLong": "Project name is too long.", "descriptionTooLong": "Description is too long.", "dateRange": "End date must be on or after the start date." } },
+  "tasks": { "eyebrow": "Execution", "title": "Tasks", "board": "Task board", "new": "New task", "create": "Create task", "edit": "Edit task", "project": "Project", "selectProject": "Select a project", "allProjects": "All projects", "allPriorities": "All priorities", "saveFailed": "Unable to save the task.", "deleteConfirm": "Delete this task?", "fields": { "title": "Title", "description": "Description", "status": "Status", "priority": "Priority", "dueDate": "Due date" }, "status": { "todo": "To do", "inProgress": "In progress", "completed": "Completed", "cancelled": "Cancelled" }, "priority": { "low": "Low", "medium": "Medium", "high": "High", "critical": "Critical" }, "validation": { "projectRequired": "Select a project.", "titleRequired": "Task title is required.", "titleTooLong": "Task title is too long.", "descriptionTooLong": "Description is too long." } },
+  "users": { "eyebrow": "Directory", "title": "Users", "add": "Add member", "edit": "Edit user", "name": "Name", "firstName": "First name", "lastName": "Last name", "email": "Email", "role": "Role", "status": "Status", "created": "Created", "active": "Active", "inactive": "Inactive", "saveFailed": "Unable to save the user.", "deleteConfirm": "Delete this user?" }
+  ,"projectMembers": { "title": "Members", "userId": "User ID", "assign": "Assign" }
+  ,"taskUi": { "assigneeEmail": "Assignee email", "assigneeInvalid": "Enter a valid assignee email.", "improve": "Improve with AI", "improving": "Improving..." }
+  ,"projectAssignments": { "eyebrow": "Project access", "title": "Assignments", "formTitle": "Assign user to project", "project": "Project", "user": "User", "email": "Email", "role": "Role", "selectProject": "Select project", "selectUser": "Select user", "assign": "Assign member", "assigning": "Assigning...", "search": "Search assignments", "allProjects": "All projects", "allRoles": "All roles", "empty": "No project assignments match the current filters.", "loadFailed": "Unable to load project assignments.", "assignFailed": "The selected user could not be assigned to the project.", "removeFailed": "Unable to remove this user from the project.", "removeConfirm": "Remove {{user}} from {{project}}?", "roles": { "owner": "Owner", "manager": "Manager", "member": "Member", "viewer": "Viewer" } }
+  ,"navigation": { "menus": { "1": "Dashboard", "10": "Overview", "2": "Projects", "20": "All projects", "21": "New project", "41": "Assign member", "3": "Tasks", "30": "All tasks", "31": "Task board", "4": "Users", "40": "All users" } }
+}

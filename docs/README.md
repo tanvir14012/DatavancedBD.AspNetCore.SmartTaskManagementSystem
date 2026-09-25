@@ -5,6 +5,7 @@ Use the documents below as the maintained reference for the current repository.
 | Document | Purpose |
 | --- | --- |
 | [Developer wiki](DEVELOPER_WIKI.md) | Full architecture, tenant isolation, configuration ownership, observability, local Docker, testing, troubleshooting, and change procedures |
+| [Multitenancy implementation guide](Multitenancy.md) | Detailed master-to-saas code walkthrough, explained C# and SQL excerpts, diagrams, configuration, Docker, local frontend switching, and production scaling boundaries |
 | [SaaS roadmap](saas/ROADMAP.md) | Delivery increments, release boundaries, and acceptance requirements |
 | [Observability guide](../deploy/observability/README.md) | Loki logs, Tempo traces, Prometheus metrics, Grafana provisioning, and OTLP routing |
 | [Local SaaS guide](../deploy/local/README.md) | Nine-company Docker topology, ports, credentials, startup, and acceptance verification |

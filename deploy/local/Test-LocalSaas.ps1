@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $generated = Join-Path $PSScriptRoot 'generated'
 $compose = Join-Path $generated 'compose.json'
+$composition = Get-Content $compose -Raw | ConvertFrom-Json
 $companies = Get-Content (Join-Path $PSScriptRoot 'companies.json') -Raw | ConvertFrom-Json
 $secrets = Get-Content (Join-Path $generated 'secrets.json') -Raw | ConvertFrom-Json
 $dockerInfo = & docker info 2>&1
@@ -51,19 +52,29 @@ function Wait-Api($company) {
         if (($attempt % 5) -eq 0) { Write-Host "  API not ready yet ($attempt/60)..." }
         Start-Sleep -Seconds 2
     }
-    $status = & docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "stms-local-api-$($company.slug)-1" 2>&1
+    $status = & docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$($composition.name)-api-$($company.slug)-1" 2>&1
     throw "$($company.name) API is not ready. Docker state: $status"
 }
 
 $tokens = @{}
 $results = @()
 foreach ($company in $companies) {
-    Write-Host "Checking $($company.name) [$($company.slug)] API :$($company.apiPort) and Angular :$($company.port)..."
+    $frontendClient = $composition.services."web-$($company.slug)".labels.'stms.frontend-client'
+    if (!$frontendClient) { $frontendClient = 'Angular' }
+    $rootMarker = if ($frontendClient -eq 'React') { '<div id="root"' } else { 'app-root' }
+    Write-Host "Checking $($company.name) [$($company.slug)] API :$($company.apiPort) and $frontendClient :$($company.port)..."
     Wait-Api $company
     $base = "http://127.0.0.1:$($company.port)"
     $api = "$base/services/api"
     $front = Invoke-Curl $base
-    Assert ($front.StatusCode -eq 200 -and $front.Content -match 'app-root') "$($company.name) Angular frontend failed."
+    Assert ($front.StatusCode -eq 200 -and $front.Content -match $rootMarker) "$($company.name) $frontendClient frontend failed."
+    $scripts = [regex]::Matches($front.Content, '<script[^>]+src="([^"]+\.js)"')
+    Assert ($scripts.Count -gt 0) "$($company.name) frontend has no JavaScript bundles."
+    foreach ($script in $scripts) {
+        $bundleUri = [Uri]::new([Uri]"$base/", $script.Groups[1].Value).AbsoluteUri
+        $bundle = Invoke-Curl $bundleUri
+        Assert ($bundle.StatusCode -eq 200 -and $bundle.Headers['Content-Type'] -match 'javascript') "$($company.name) bundle failed: $bundleUri"
+    }
     $email = "admin@$($company.slug).example.test"
     $login = Invoke-Curl "$api/auth/login" 'POST' @{ email = $email; password = $secrets.userPassword }
     if ($login.StatusCode -eq 401) {

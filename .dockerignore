@@ -7,6 +7,7 @@
 **/obj/
 **/node_modules/
 Frontend/Angular/dist/
+Frontend/React/dist/
 Frontend/Angular/certs/
 Api/Logs/
 *.user

@@ -1,12 +1,32 @@
-param([switch]$GenerateOnly, [switch]$SkipBuild)
+param(
+    [switch]$GenerateOnly,
+    [switch]$SkipBuild,
+    [ValidateSet('Angular', 'React')][string]$FrontendClient,
+    [ValidatePattern('^[a-z0-9][a-z0-9_-]*$')][string]$ProjectName = 'stms-local'
+)
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot/../..").Path
-$dockerInfo = & docker info 2>&1
-if ($LASTEXITCODE -ne 0) {
-    throw "Docker Desktop Linux engine is unavailable. Start Docker Desktop, switch to Linux containers, wait for the engine to become ready, then rerun this script.`n$dockerInfo"
+$settings = Get-Content "$PSScriptRoot/settings.json" -Raw | ConvertFrom-Json
+if (!$FrontendClient) { $FrontendClient = $settings.frontendClient }
+if ($FrontendClient -notin @('Angular', 'React')) { throw 'frontendClient must be Angular or React.' }
+$FrontendClient = if ($FrontendClient -ieq 'React') { 'React' } else { 'Angular' }
+$frontendImage = if ($FrontendClient -eq 'React') { 'stms-local-web-react' } else { 'stms-local-web' }
+if (!$GenerateOnly) {
+    $dockerInfo = & docker info 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker Desktop Linux engine is unavailable. Start Docker Desktop, switch to Linux containers, wait for the engine to become ready, then rerun this script.`n$dockerInfo"
+    }
 }
 $generated = Join-Path $PSScriptRoot 'generated'
 New-Item -ItemType Directory -Force $generated | Out-Null
+$compose = Join-Path $generated 'compose.json'
+if (Test-Path $compose) {
+    $previous = Get-Content $compose -Raw | ConvertFrom-Json
+    if (!$GenerateOnly) {
+        & docker compose -f $compose down --volumes --remove-orphans | Out-Host
+        if ($LASTEXITCODE) { throw "Unable to reset the previous local project '$($previous.name)'." }
+    }
+}
 $secretPath = Join-Path $generated 'secrets.json'
 if (!(Test-Path $secretPath)) {
     @{ sqlPassword = 'Sql!9a' + [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(20)); jwtKey = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(48)); userPassword = 'Demo!9a' + [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(10)) } |
@@ -113,15 +133,15 @@ server {
     $tenantConfigPath = Join-Path $generated "$slug-tenant-config.js"
     "window.__STMS_TENANT__ = { tenantId: '$($company.id)', displayName: '$($company.name)' };" | Set-Content $tenantConfigPath
     $services["web-$slug"] = @{
-        image = 'stms-local-web'; build = @{ context = "$root/Frontend/Angular"; dockerfile = 'Dockerfile' }
+        image = $frontendImage; build = @{ context = "$root/Frontend/$FrontendClient"; dockerfile = 'Dockerfile' }
+        labels = @{ 'stms.frontend-client' = $FrontendClient }
         ports = @("127.0.0.1:$($company.port):8080")
         volumes = @("${nginxPath}:/etc/nginx/conf.d/default.conf:ro", "${tenantConfigPath}:/usr/share/nginx/html/tenant-config.js:ro")
         depends_on = @{ "api-$slug" = @{ condition = 'service_healthy' } }
         healthcheck = @{ test = @('CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/health'); interval = '10s'; timeout = '5s'; retries = 12 }
     }
 }
-$compose = Join-Path $generated 'compose.json'
-@{ name = 'stms-local'; services = $services; volumes = $volumes } | ConvertTo-Json -Depth 15 | Set-Content $compose
+@{ name = $ProjectName; services = $services; volumes = $volumes } | ConvertTo-Json -Depth 15 | Set-Content $compose
 if ($GenerateOnly) { Write-Host "Generated $compose"; return }
 if (!$SkipBuild) {
     & docker compose -f $compose build api-titan init-titan web-titan
