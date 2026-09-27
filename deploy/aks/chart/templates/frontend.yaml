@@ -6,7 +6,11 @@ metadata:
     {{- include "stms.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
 spec:
+  {{- if not .Values.frontend.autoscaling.enabled }}
   replicas: {{ .Values.frontend.replicas }}
+  {{- end }}
+  minReadySeconds: 10
+  progressDeadlineSeconds: 600
   revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
   strategy:
     type: RollingUpdate
@@ -26,7 +30,7 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 45
       nodeSelector:
         workload.stms/type: application
         {{- with .Values.nodeSelector }}{{ toYaml . | nindent 8 }}{{- end }}
@@ -42,6 +46,10 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
           volumeMounts:
@@ -51,16 +59,25 @@ spec:
               mountPath: /var/run
             - name: tmp
               mountPath: /tmp
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /health
               port: http
+            timeoutSeconds: 3
             failureThreshold: 3
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /health
               port: http
+            timeoutSeconds: 3
             failureThreshold: 3
             periodSeconds: 20
       topologySpreadConstraints:

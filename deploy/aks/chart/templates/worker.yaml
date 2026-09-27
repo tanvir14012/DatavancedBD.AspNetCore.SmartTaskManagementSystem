@@ -21,7 +21,7 @@ spec:
         azure.workload.identity/use: "true"
     spec:
       serviceAccountName: {{ include "stms.fullname" . }}-worker
-      automountServiceAccountToken: true
+      automountServiceAccountToken: false
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: 60

@@ -5,18 +5,18 @@ ingress:
   tlsSecretName: stms-dev-tls
 
 api:
-  replicas: 1
+  replicas: 2
   autoscaling:
-    minReplicas: 1
+    minReplicas: 2
     maxReplicas: 3
   corsOrigins:
     - https://stms-dev.example.com
 
 frontend:
-  replicas: 1
+  replicas: 2
   autoscaling:
-    minReplicas: 1
+    minReplicas: 2
     maxReplicas: 3
 
 admin:
-  migrationEnabled: true
+  migrationEnabled: false

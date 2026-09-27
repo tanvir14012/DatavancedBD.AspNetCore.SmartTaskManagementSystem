@@ -50,3 +50,7 @@ Frontend/Angular/.sass-cache/
 Frontend/Angular/.cache/
 deploy/local/generated/
 Frontend/Angular/certs/
+
+# Python deployment validation tools
+deploy/aks/**/__pycache__/
+deploy/aks/__pycache__/

@@ -3,110 +3,122 @@ name: STMS Production CD
 on:
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: Immutable image tag promoted from dev (normally a commit SHA)
-        required: true
+      dev_run_id:
+        description: Successful STMS Dev CD run ID to promote
         type: string
+        default: ''
+      rollback_revision:
+        description: Explicit production Helm revision to restore (instead of promotion)
+        type: string
+        default: ''
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: stms-prod
   cancel-in-progress: false
 
-env:
-  ACME_SERVER: https://acme-v02.api.letsencrypt.org/directory
-  CERT_ISSUER_NAME: letsencrypt-prod
-
 jobs:
   deploy:
-    name: Promote and deploy production
+    if: contains(fromJSON('["saas","main","master"]'), github.ref_name)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment: stms-prod
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
     env:
-      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      CI_PRINCIPAL_OBJECT_ID: ${{ vars.CI_PRINCIPAL_OBJECT_ID }}
-      SHARED_RESOURCE_GROUP: ${{ vars.SHARED_RESOURCE_GROUP }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
-      ACR_NAME: ${{ vars.ACR_NAME }}
       AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
-      KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
       NAMESPACE: ${{ vars.NAMESPACE }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+      RUNTIME_CLIENT_ID: ${{ vars.RUNTIME_CLIENT_ID }}
+      ADMIN_CLIENT_ID: ${{ vars.ADMIN_CLIENT_ID }}
       INGRESS_HOST: ${{ vars.INGRESS_HOST }}
-      ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+      ENVIRONMENT: prod
+      CERT_ISSUER_NAME: letsencrypt-prod
+      RELEASE_MANIFEST: release.json
+      ROLLBACK_REVISION: ${{ inputs.rollback_revision }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
+      - name: Validate promotion provenance
+        id: source
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          DEV_RUN_ID: ${{ inputs.dev_run_id }}
+        with:
+          script: |
+            const runId = process.env.DEV_RUN_ID;
+            const revision = process.env.ROLLBACK_REVISION;
+            if (Boolean(runId) === Boolean(revision)) throw new Error('Supply exactly one of dev_run_id or rollback_revision');
+            if (revision) {
+              if (!/^[1-9][0-9]*$/.test(revision)) throw new Error('Invalid rollback revision');
+              return;
+            }
+            if (!/^[1-9][0-9]*$/.test(runId)) throw new Error('Invalid dev run ID');
+            const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id: Number(runId)});
+            if (run.path !== '.github/workflows/dev-cicd.yml' || run.conclusion !== 'success' ||
+                !['push', 'workflow_dispatch'].includes(run.event) ||
+                !['saas', 'main', 'master'].includes(run.head_branch) ||
+                run.head_repository.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+              throw new Error('Promotion requires a successful trusted dev deployment');
+            }
+            core.setOutput('sha', run.head_sha);
+            core.exportVariable('RELEASE_SOURCE', run.head_sha);
+            core.exportVariable('SOURCE_BRANCH', run.head_branch);
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Deploy the chart and scripts tested with the selected images.
+          ref: ${{ steps.source.outputs.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: inputs.rollback_revision == ''
+        with:
+          name: release-manifest
+          run-id: ${{ inputs.dev_run_id }}
+          github-token: ${{ github.token }}
+      - uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - uses: azure/setup-helm@v4
-      - uses: azure/setup-kubectl@v4
-      - uses: azure/use-kubelogin@v1
-      - uses: sigstore/cosign-installer@v3
-      - name: Login to ACR
-        run: az acr login --name "$ACR_NAME"
-      - name: Validate promoted images exist
+      - name: Use isolated cluster credentials
+        run: echo "KUBECONFIG=$RUNNER_TEMP/stms-kubeconfig" >> "$GITHUB_ENV"
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v3.19.0
+      - uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
+        with:
+          version: v1.34.1
+      - uses: azure/use-kubelogin@76597ae0fcbaace21b05e13a2cbf8daee2c6e820 # v1
+        with:
+          kubelogin-version: v0.2.12
+      - run: az acr login --name "$ACR_NAME"
+      - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+        if: inputs.rollback_revision == ''
+      - name: Verify the exact digests to be deployed
+        if: inputs.rollback_revision == ''
         env:
-          IMAGE_TAG: ${{ inputs.image_tag }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          case "$IMAGE_TAG" in *[!A-Za-z0-9._-]*) echo "Invalid image tag" >&2; exit 2 ;; esac
-          for image in api admin worker frontend; do
-            az acr manifest show --registry "$ACR_NAME" --name "stms-${image}:${IMAGE_TAG}" --query digest --output tsv >/dev/null
-          done
-      - name: Verify dev image signatures
-        env:
-          IMAGE_TAG: ${{ inputs.image_tag }}
-          COSIGN_CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/dev-cicd.yml@refs/heads/(saas|main|master)
-          COSIGN_CERTIFICATE_OIDC_ISSUER: https://token.actions.githubusercontent.com
+          registry="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
+          python deploy/aks/release-manifest.py release.json "$registry" "$RELEASE_SOURCE" > "$RUNNER_TEMP/images.txt"
+          while IFS='=' read -r image digest; do
+            cosign verify --certificate-identity "https://github.com/$REPOSITORY/.github/workflows/dev-cicd.yml@refs/heads/$SOURCE_BRANCH" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              "$registry/stms-$image@$digest" > /dev/null
+          done < "$RUNNER_TEMP/images.txt"
+      - name: Deploy or restore the release
         run: |
-          registry="$(az acr show --name "$ACR_NAME" --query loginServer --output tsv)"
-          for image in api admin worker frontend; do
-            digest="$(az acr manifest show --registry "$ACR_NAME" --name "stms-${image}:${IMAGE_TAG}" --query digest --output tsv)"
-            [[ "$digest" == sha256:* ]] || { echo "Could not resolve digest for stms-${image}." >&2; exit 1; }
-            cosign verify \
-              --certificate-identity-regexp "$COSIGN_CERTIFICATE_IDENTITY" \
-              --certificate-oidc-issuer "$COSIGN_CERTIFICATE_OIDC_ISSUER" \
-              "$registry/stms-${image}@${digest}" >/dev/null
-          done
-      - name: Provision or update production Azure infrastructure
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-        run: |
-          bash deploy/aks/deploy-infrastructure.sh prod
-          echo "RUNTIME_CLIENT_ID=$(az deployment group show --resource-group "$RESOURCE_GROUP" --name stms-aks-prod --query properties.outputs.runtimeClientId.value --output tsv)" >> "$GITHUB_ENV"
-          echo "ADMIN_CLIENT_ID=$(az deployment group show --resource-group "$RESOURCE_GROUP" --name stms-aks-prod --query properties.outputs.adminClientId.value --output tsv)" >> "$GITHUB_ENV"
-      - name: Update production Key Vault secrets
-        env:
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
-          DEFAULT_CONNECTION_STRING: ${{ secrets.DEFAULT_CONNECTION_STRING }}
-          STORAGE_TARGET_CONNECTION_STRING: ${{ secrets.STORAGE_TARGET_CONNECTION_STRING }}
-          JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
-          JWT_AUDIENCE: ${{ secrets.JWT_AUDIENCE }}
-          JWT_KEY: ${{ secrets.JWT_KEY }}
-          REDIS_CONNECTION_STRING: ${{ secrets.REDIS_CONNECTION_STRING }}
-          TENANT_CATALOG_SQL_CONNECTION_STRING: ${{ secrets.TENANT_CATALOG_SQL_CONNECTION_STRING }}
-          TENANT_CATALOG_REDIS_CONNECTION_STRING: ${{ secrets.TENANT_CATALOG_REDIS_CONNECTION_STRING }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: bash deploy/aks/sync-keyvault-secrets.sh
-      - name: Deploy promoted immutable release
-        env:
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
-          AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
-          ACR_NAME: ${{ vars.ACR_NAME }}
-          NAMESPACE: ${{ vars.NAMESPACE }}
-          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
-          IMAGE_TAG: ${{ inputs.image_tag }}
-          ENVIRONMENT: prod
-          INGRESS_HOST: ${{ vars.INGRESS_HOST }}
-          ACME_EMAIL: ${{ vars.ACME_EMAIL }}
-          ACME_SERVER: https://acme-v02.api.letsencrypt.org/directory
-          CERT_ISSUER_NAME: letsencrypt-prod
-        run: bash deploy/aks/deploy-release.sh
+          if [[ -n "$ROLLBACK_REVISION" ]]; then
+            bash deploy/aks/rollback-release.sh
+          else
+            bash deploy/aks/deploy-release.sh
+          fi
+      - name: Remove local cluster credentials
+        if: always()
+        run: rm -f "$KUBECONFIG"

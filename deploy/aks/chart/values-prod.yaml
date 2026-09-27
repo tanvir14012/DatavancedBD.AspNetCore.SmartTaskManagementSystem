@@ -26,4 +26,4 @@ frontend:
     minAvailable: 2
 
 admin:
-  migrationEnabled: true
+  migrationEnabled: false

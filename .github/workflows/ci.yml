@@ -1,6 +1,7 @@
 name: STMS CI
 
 on:
+  workflow_call:
   pull_request:
     branches: [saas, main, master]
   push:
@@ -10,51 +11,59 @@ permissions:
   contents: read
 
 concurrency:
-  group: stms-ci-${{ github.ref }}
+  group: stms-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   backend:
     name: Backend build and tests
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 10.0.x
       - name: Restore
         run: dotnet restore DatavancedBD.AspNetCore.SmartTaskManagementSystem.slnx
       - name: Build
-        run: dotnet build DatavancedBD.AspNetCore.SmartTaskManagementSystem.slnx --configuration Release --no-restore
+        run: dotnet build DatavancedBD.AspNetCore.SmartTaskManagementSystem.slnx --configuration Release --no-restore /p:TreatWarningsAsErrors=true
       - name: Test
         run: dotnet test Infrastructure.Tests/Infrastructure.Tests.csproj --configuration Release --no-restore --no-build --logger trx --results-directory TestResults
       - name: Publish test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: backend-test-results
           path: TestResults
 
   frontend:
     name: Frontend build and tests
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: Frontend/Angular
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.x
           cache: npm
           cache-dependency-path: Frontend/Angular/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm test -- --watch=false
       - run: npm run build:prod
 
   container-build:
     name: Validate ${{ matrix.name }} image
-    needs: [backend, frontend]
+    needs: [backend, frontend, react, chart-lint]
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -70,8 +79,10 @@ jobs:
             dockerfile: Frontend/Angular/Dockerfile
             context: Frontend/Angular
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Build image without publishing
         run: |
           docker buildx build \
@@ -81,10 +92,32 @@ jobs:
 
   chart-lint:
     name: Helm chart lint
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v3.19.0
+      - name: Test deployment recovery and release inputs
+        run: python -m unittest discover -s deploy/aks/tests -v
+      - name: Validate chart contracts
+        run: |
+          python -m pip install -r deploy/aks/tests/requirements.txt
+          python deploy/aks/tests/check_chart.py
+      - name: Shell syntax
+        run: for script in deploy/aks/*.sh; do bash -n "$script"; done
+      - name: Validate workflows and shell scripts
+        run: |
+          curl --fail --silent --show-error --location --max-time 60 \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint"
+          shellcheck deploy/aks/*.sh
       - name: Build Bicep templates
         run: |
           az bicep build --file Azure/infra/shared.bicep --stdout > /dev/null
@@ -99,3 +132,23 @@ jobs:
               --set-string workloadIdentity.runtimeClientId=00000000-0000-0000-0000-000000000001 \
               --set-string workloadIdentity.adminClientId=00000000-0000-0000-0000-000000000002
           done
+
+  react:
+    name: React lint and build
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Frontend/React
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: Frontend/React/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

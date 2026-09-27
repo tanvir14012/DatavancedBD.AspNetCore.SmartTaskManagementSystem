@@ -117,7 +117,8 @@ worker:
   maxInFlightJobs: 32
 
 admin:
-  migrationEnabled: true
+  # Render this Job separately for an approved migration. Routine CD forces false.
+  migrationEnabled: false
   activeDeadlineSeconds: 1800
   backoffLimit: 1
 

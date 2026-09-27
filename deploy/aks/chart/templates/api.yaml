@@ -6,7 +6,11 @@ metadata:
     {{- include "stms.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
+  {{- if not .Values.api.autoscaling.enabled }}
   replicas: {{ .Values.api.replicas }}
+  {{- end }}
+  minReadySeconds: 10
+  progressDeadlineSeconds: 600
   revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
   strategy:
     type: RollingUpdate
@@ -28,10 +32,10 @@ spec:
         checksum/secrets: {{ include (print $.Template.BasePath "/secret-provider-class.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "stms.fullname" . }}-api
-      automountServiceAccountToken: true
+      automountServiceAccountToken: false
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      terminationGracePeriodSeconds: 45
+      terminationGracePeriodSeconds: 60
       nodeSelector:
         workload.stms/type: application
         {{- with .Values.nodeSelector }}{{ toYaml . | nindent 8 }}{{- end }}
@@ -68,14 +72,21 @@ spec:
                 name: {{ include "stms.fullname" . }}-config
           volumeMounts:
             {{- include "stms.secretMount" . | nindent 12 }}
+            - name: tmp
+              mountPath: /tmp
             - name: logs
               mountPath: /app/Logs
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
           startupProbe:
             httpGet:
               path: /alive
               port: http
+            timeoutSeconds: 3
             failureThreshold: 30
             periodSeconds: 5
           readinessProbe:
@@ -94,6 +105,8 @@ spec:
             timeoutSeconds: 3
       volumes:
         {{- include "stms.runtimeSecretVolume" . | nindent 8 }}
+        - name: tmp
+          emptyDir: {}
         - name: logs
           emptyDir: {}
 ---
