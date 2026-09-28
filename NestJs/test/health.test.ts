@@ -14,7 +14,7 @@ void test('Fastify liveness is independent of unavailable business dependencies'
     }
     assert.equal(
       (await app.inject({ method: 'GET', url: '/api/projects' })).statusCode,
-      404,
+      503,
     );
   } finally {
     await app.close();

@@ -6,7 +6,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-generated.mjs",
     "start": "node dist/src/main.js",
     "test": "npm run build && node --test dist/test/*.test.js",
     "lint": "eslint src test",
@@ -22,6 +22,7 @@
     "@nestjs/core": "12.1.0",
     "@nestjs/platform-fastify": "12.1.0",
     "@prisma/client": "6.19.3",
+    "jose": "6.1.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2"
   },

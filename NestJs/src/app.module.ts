@@ -4,6 +4,12 @@ import {
   Module,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import {
+  CatalogReader,
+  TenantStorage,
+} from './infrastructure/prisma/prisma.service.js';
+import { TenantGuard } from './http/tenant.guard.js';
+import { ProjectsController } from './http/projects.controller.js';
 
 @Controller()
 class HealthController {
@@ -19,5 +25,8 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [HealthController] })
+@Module({
+  controllers: [HealthController, ProjectsController],
+  providers: [CatalogReader, TenantStorage, TenantGuard],
+})
 export class AppModule {}
