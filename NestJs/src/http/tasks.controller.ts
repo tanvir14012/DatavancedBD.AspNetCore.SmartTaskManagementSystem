@@ -23,9 +23,23 @@ import {
   TenantGuard,
 } from './tenant.guard.js';
 import { membership, page, positiveId } from './projects.controller.js';
+import type { Prisma } from '../../generated/tenant/index.js';
 
 const statuses = ['Todo', 'InProgress', 'Completed', 'Cancelled'] as const;
 const priorities = ['Low', 'Medium', 'High', 'Critical'] as const;
+const taskSortFields: Readonly<
+  Record<
+    string,
+    'title' | 'projectId' | 'status' | 'priority' | 'dueDate' | 'createdAt'
+  >
+> = {
+  Title: 'title',
+  ProjectId: 'projectId',
+  Status: 'status',
+  Priority: 'priority',
+  DueDate: 'dueDate',
+  CreatedAt: 'createdAt',
+};
 
 function enumValue(
   value: unknown,
@@ -177,19 +191,52 @@ export class TasksController {
       query.priority === undefined
         ? undefined
         : enumValue(query.priority, priorities, -1);
+    const assigneeId =
+      query.assigneeId === undefined
+        ? undefined
+        : typeof query.assigneeId === 'string'
+          ? positiveId(query.assigneeId)
+          : (() => {
+              throw new BadRequestException('Invalid assignee identifier.');
+            })();
     const search = typeof query.search === 'string' ? query.search.trim() : '';
     if (search.length > 200)
       throw new BadRequestException('Search is too long.');
+    const sortColumn =
+      typeof query.sortColumn === 'string' ? query.sortColumn : 'CreatedAt';
+    const sortField = taskSortFields[sortColumn];
+    if (!sortField) throw new BadRequestException('Invalid sort column.');
+    const sortDirection =
+      typeof query.sortDirection === 'string'
+        ? query.sortDirection.toLowerCase()
+        : 'desc';
+    if (sortDirection !== 'asc' && sortDirection !== 'desc')
+      throw new BadRequestException('Invalid sort direction.');
+    const orderBy: Prisma.ProjectTaskOrderByWithRelationInput = {
+      [sortField]: sortDirection,
+    };
     return this.storage.execute(context, async (db) => {
-      const where = {
+      const where: Prisma.ProjectTaskWhereInput = {
         tenantId,
         isDeleted: false,
         project: {
           isDeleted: false,
           ...(!roles.has('Admin') && {
-            members: { some: { tenantId, userId } },
+            ...(roles.has('Project Manager') && {
+              members: {
+                some: { tenantId, userId, projectRole: { in: [0, 1] } },
+              },
+            }),
           }),
         },
+        AND: [
+          ...(!roles.has('Admin') && !roles.has('Project Manager')
+            ? [{ assignees: { some: { tenantId, userId } } }]
+            : []),
+          ...(assigneeId
+            ? [{ assignees: { some: { tenantId, userId: assigneeId } } }]
+            : []),
+        ],
         ...(projectId && { projectId }),
         ...(status !== undefined && { status }),
         ...(priority !== undefined && { priority }),
@@ -197,6 +244,7 @@ export class TasksController {
           OR: [
             { title: { contains: search } },
             { description: { contains: search } },
+            { project: { name: { contains: search } } },
           ],
         }),
       };
@@ -206,9 +254,17 @@ export class TasksController {
           where,
           skip: start,
           take: length,
-          orderBy: { createdAt: 'desc' },
+          orderBy: [orderBy, { id: 'asc' }],
           include: {
-            project: { select: { name: true } },
+            project: {
+              select: {
+                name: true,
+                members: {
+                  where: { tenantId, userId, projectRole: { in: [0, 1] } },
+                  select: { userId: true },
+                },
+              },
+            },
             assignees: {
               where: { tenantId, userId },
               select: { userId: true },
@@ -226,8 +282,11 @@ export class TasksController {
           output(
             row,
             row.project.name,
-            roles.has('Admin') || row.assignees.length > 0,
-            roles.has('Admin'),
+            roles.has('Admin') ||
+              row.project.members.length > 0 ||
+              row.assignees.length > 0,
+            roles.has('Admin') ||
+              (roles.has('Project Manager') && row.project.members.length > 0),
           ),
         ),
       };

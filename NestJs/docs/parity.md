@@ -11,8 +11,8 @@ status, authorization, transactional changes and invalidation all require eviden
 | 2 | Tenant resolution, immutable context, authoritative authorization | Implemented application boundary; unit tests pass; HTTP authentication wiring pending |
 | 3 | Prisma catalog and tenant model, three storage strategies, RLS transactions | Clients generated; runtime routing and RLS transaction implemented; live SQL Server acceptance pending |
 | 4 | Identity password compatibility, register/login/refresh/logout, cookies and CSRF | Login/refresh/logout and password hash compatibility implemented; token issue and protected requests recheck tenant account lockout and current roles; public register intentionally closed pending invite/provisioning policy; SQL/HTTP acceptance pending |
-| 5 | Projects CRUD, members, assignments, pagination and permissions | Routes implemented; SQL-backed and contract acceptance pending |
-| 6 | Tasks CRUD, assignment, board, filters and permissions | Routes implemented; SQL-backed and HTTP contract acceptance pending |
+| 5 | Projects CRUD, members, assignments, pagination and permissions | Routes, status filters, sorting and bounded pagination implemented; SQL-backed and contract acceptance pending |
+| 6 | Tasks CRUD, assignment, board, filters and permissions | Routes and role-specific list scope implemented; colliding-ID two-tenant query-scope test passes; SQL-backed and HTTP contract acceptance pending |
 | 7 | Users CRUD, dashboard, menus, AI description improvement | User list/get/update, account deactivation, dashboard, menus, optional Groq description provider and local fallback implemented; user creation pending; SQL-backed, provider, and HTTP contract acceptance pending |
 | 8 | Tenant caches/invalidation, admission, reauthorized background jobs | Pending |
 | 9 | Admin provisioning/migration, release fencing, deployment and recovery | Pending |

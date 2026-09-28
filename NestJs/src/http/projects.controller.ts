@@ -23,6 +23,17 @@ import {
   requireContext,
   TenantGuard,
 } from './tenant.guard.js';
+import type { Prisma } from '../../generated/tenant/index.js';
+
+const projectSortFields: Readonly<
+  Record<string, 'name' | 'startDate' | 'endDate' | 'updatedAt' | 'createdAt'>
+> = {
+  Name: 'name',
+  StartDate: 'startDate',
+  EndDate: 'endDate',
+  UpdatedAt: 'updatedAt',
+  CreatedAt: 'createdAt',
+};
 
 export function positiveId(raw: string): number {
   const id = Number(raw);
@@ -42,7 +53,7 @@ export function page(
     start < 0 ||
     !Number.isSafeInteger(length) ||
     length < 1 ||
-    length > 100
+    length > 200
   )
     throw new BadRequestException('Invalid pagination.');
   return { start, length };
@@ -128,17 +139,50 @@ export class ProjectsController {
     const search = typeof query.search === 'string' ? query.search.trim() : '';
     if (search.length > 200)
       throw new BadRequestException('Search is too long.');
+    const status =
+      typeof query.status === 'string' ? query.status.toLowerCase() : 'all';
+    if (!['all', 'active', 'archived', 'planned', 'completed'].includes(status))
+      throw new BadRequestException('Invalid project status.');
+    const sortColumn =
+      typeof query.sortColumn === 'string' ? query.sortColumn : 'CreatedAt';
+    const sortField = projectSortFields[sortColumn];
+    if (!sortField) throw new BadRequestException('Invalid sort column.');
+    const sortDirection =
+      typeof query.sortDirection === 'string'
+        ? query.sortDirection.toLowerCase()
+        : 'desc';
+    if (sortDirection !== 'asc' && sortDirection !== 'desc')
+      throw new BadRequestException('Invalid sort direction.');
+    const orderBy: Prisma.ProjectOrderByWithRelationInput = {
+      [sortField]: sortDirection,
+    };
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
     const tenantId = context.placement.tenantId;
     const isAdmin = roles.has('Admin');
     return this.storage.execute(context, async (db) => {
-      const where = {
+      const where: Prisma.ProjectWhereInput = {
         tenantId,
         isDeleted: false,
         ...(!isAdmin && { members: { some: { tenantId, userId } } }),
+        ...(status === 'active' && { isArchived: false }),
+        ...(status === 'archived' && { isArchived: true }),
+        ...(status === 'planned' && {
+          isArchived: false,
+          OR: [{ startDate: null }, { startDate: { gt: today } }],
+        }),
+        ...(status === 'completed' && {
+          isArchived: false,
+          endDate: { lte: today },
+        }),
         ...(search && {
-          OR: [
-            { name: { contains: search } },
-            { description: { contains: search } },
+          AND: [
+            {
+              OR: [
+                { name: { contains: search } },
+                { description: { contains: search } },
+              ],
+            },
           ],
         }),
       };
@@ -146,7 +190,7 @@ export class ProjectsController {
         db.project.count({ where }),
         db.project.findMany({
           where,
-          orderBy: { createdAt: 'desc' },
+          orderBy: [orderBy, { id: 'asc' }],
           skip: start,
           take: length,
           include: {

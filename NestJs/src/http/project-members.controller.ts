@@ -43,7 +43,7 @@ export class ProjectMembersController {
     const { context, userId, roles } = requireContext(request);
     if (!roles.has('Admin') && !roles.has('Project Manager'))
       throw new ForbiddenException();
-    const { start, length } = page(query.start, query.length);
+    const { start, length } = page(query.start, query.length ?? 10);
     const projectId =
       query.projectId === undefined
         ? undefined
