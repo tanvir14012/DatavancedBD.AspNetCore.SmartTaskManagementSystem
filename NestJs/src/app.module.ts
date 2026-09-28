@@ -18,6 +18,7 @@ import {
   MenusController,
 } from './http/read-models.controller.js';
 import { UsersController } from './http/users.controller.js';
+import { AiController } from './http/ai.controller.js';
 
 @Controller()
 class HealthController {
@@ -43,6 +44,7 @@ class HealthController {
     DashboardController,
     MenusController,
     UsersController,
+    AiController,
   ],
   providers: [CatalogReader, TenantStorage, TenantGuard],
 })
