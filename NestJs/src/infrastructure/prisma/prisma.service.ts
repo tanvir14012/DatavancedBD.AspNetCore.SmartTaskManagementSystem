@@ -172,7 +172,10 @@ export class TenantStorage implements OnModuleDestroy {
         if (placement.isolation === TenantIsolation.Row) {
           // The transaction pins every subsequent Prisma statement to this checked connection.
           await db.$executeRaw`EXEC sys.sp_set_session_context @key=N'TenantId', @value=${placement.tenantId}, @read_only=0`;
-          const policy = await db.$queryRaw<Array<{ missingCount: number }>>`
+        }
+        try {
+          if (placement.isolation === TenantIsolation.Row) {
+            const policy = await db.$queryRaw<Array<{ missingCount: number }>>`
             SELECT COUNT(*) AS missingCount FROM sys.tables t
             WHERE t.schema_id=SCHEMA_ID(${schema})
               AND EXISTS (SELECT 1 FROM sys.columns c WHERE c.object_id=t.object_id AND c.name=N'TenantId')
@@ -181,10 +184,9 @@ export class TenantStorage implements OnModuleDestroy {
                   AND EXISTS (SELECT 1 FROM sys.security_predicates sp WHERE sp.object_id=p.object_id AND sp.target_object_id=t.object_id AND sp.predicate_type=0)
                   AND EXISTS (SELECT 1 FROM sys.security_predicates sp WHERE sp.object_id=p.object_id AND sp.target_object_id=t.object_id AND sp.predicate_type=1 AND sp.operation=1)
                   AND EXISTS (SELECT 1 FROM sys.security_predicates sp WHERE sp.object_id=p.object_id AND sp.target_object_id=t.object_id AND sp.predicate_type=1 AND sp.operation=2))`;
-          if (policy[0]?.missingCount !== 0)
-            throw new Error('Tenant row security is incomplete.');
-        }
-        try {
+            if (policy[0]?.missingCount !== 0)
+              throw new Error('Tenant row security is incomplete.');
+          }
           return await action(db);
         } finally {
           if (placement.isolation === TenantIsolation.Row) {

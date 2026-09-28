@@ -13,6 +13,11 @@ import { ProjectsController } from './http/projects.controller.js';
 import { ProjectMembersController } from './http/project-members.controller.js';
 import { TasksController } from './http/tasks.controller.js';
 import { AuthController } from './http/auth.controller.js';
+import {
+  DashboardController,
+  MenusController,
+} from './http/read-models.controller.js';
+import { UsersController } from './http/users.controller.js';
 
 @Controller()
 class HealthController {
@@ -35,6 +40,9 @@ class HealthController {
     ProjectMembersController,
     TasksController,
     AuthController,
+    DashboardController,
+    MenusController,
+    UsersController,
   ],
   providers: [CatalogReader, TenantStorage, TenantGuard],
 })

@@ -12,8 +12,8 @@ status, authorization, transactional changes and invalidation all require eviden
 | 3 | Prisma catalog and tenant model, three storage strategies, RLS transactions | Clients generated; runtime routing and RLS transaction implemented; live SQL Server acceptance pending |
 | 4 | Identity password compatibility, register/login/refresh/logout, cookies and CSRF | Login/refresh/logout and password hash compatibility implemented; public register intentionally closed pending invite/provisioning policy; SQL/HTTP acceptance pending |
 | 5 | Projects CRUD, members, assignments, pagination and permissions | Routes implemented; SQL-backed and contract acceptance pending |
-| 6 | Tasks CRUD, assignment, board, filters and permissions | CRUD and assignment routes implemented; board and SQL-backed acceptance pending |
-| 7 | Users CRUD, dashboard, menus, AI description improvement | Pending |
+| 6 | Tasks CRUD, assignment, board, filters and permissions | Routes implemented; SQL-backed and HTTP contract acceptance pending |
+| 7 | Users CRUD, dashboard, menus, AI description improvement | User list/get/update, account deactivation, dashboard, and menus routes implemented; creation and AI improvement pending; SQL-backed and HTTP contract acceptance pending |
 | 8 | Tenant caches/invalidation, admission, reauthorized background jobs | Pending |
 | 9 | Admin provisioning/migration, release fencing, deployment and recovery | Pending |
 | 10 | SQL Server/Redis and HTTP parity acceptance across all strategies | Pending |
@@ -32,6 +32,12 @@ The legacy public register endpoint lets a caller request an application role. T
 port rejects registration until an invitation or privileged provisioning flow can
 establish catalog membership and restrict roles. This is an intentional security
 contract change; clients must use the Admin enrollment process once implemented.
+
+User creation is also closed until privileged catalog enrollment exists. User deletion
+deactivates the account and revokes refresh tokens instead of hard-deleting a referenced
+identity. This intentionally changes the legacy delete implementation to preserve audit
+history and prevent dependent foreign-key failures. Access tokens are checked against
+current tenant roles and account lockout on every protected request.
 
 Chunk 3 evidence: both Prisma schemas pass `prisma validate` and clients generate.
 The generated clients are copied into the build output and omitted from Git. No SQL Server

@@ -15,7 +15,10 @@ import {
 } from '../domain/tenancy.js';
 import { TenantRequestResolver } from '../application/tenancy/resolver.js';
 import { TenantContextAuthorizer } from '../application/tenancy/authorizer.js';
-import { CatalogReader } from '../infrastructure/prisma/prisma.service.js';
+import {
+  CatalogReader,
+  TenantStorage,
+} from '../infrastructure/prisma/prisma.service.js';
 
 export interface AuthorizedRequest extends FastifyRequest {
   tenantContext?: TenantContext;
@@ -26,7 +29,10 @@ export interface AuthorizedRequest extends FastifyRequest {
 /** Authenticates before tenant resolution or any business storage operation. */
 @Injectable()
 export class TenantGuard implements CanActivate {
-  constructor(private readonly catalog: CatalogReader) {}
+  constructor(
+    private readonly catalog: CatalogReader,
+    private readonly storage: TenantStorage,
+  ) {}
 
   async canActivate(execution: ExecutionContext): Promise<boolean> {
     const request = execution.switchToHttp().getRequest<AuthorizedRequest>();
@@ -50,7 +56,6 @@ export class TenantGuard implements CanActivate {
       throw new UnauthorizedException();
     let access: TenantAccess;
     let userId: number;
-    let roles: ReadonlySet<string>;
     try {
       const { payload } = await jwtVerify(
         authorization.slice(7),
@@ -67,18 +72,6 @@ export class TenantGuard implements CanActivate {
       if (!Number.isSafeInteger(userId) || userId <= 0)
         throw new TenantAccessDenied();
       access = new TenantAccess(payload.tenant_id, payload.sub, payload.iss);
-      const roleClaim =
-        payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
-      const roleValues = Array.isArray(roleClaim)
-        ? roleClaim
-        : typeof roleClaim === 'string'
-          ? [roleClaim]
-          : [];
-      roles = new Set(
-        roleValues.filter(
-          (value): value is string => typeof value === 'string',
-        ),
-      );
     } catch {
       throw new UnauthorizedException();
     }
@@ -103,6 +96,26 @@ export class TenantGuard implements CanActivate {
       if (error instanceof TenantAccessDenied) throw new ForbiddenException();
       throw error;
     }
+    const context = request.tenantContext;
+    if (!context) throw new UnauthorizedException();
+    const roles = await this.storage.execute(context, async (db) => {
+      const tenantId = context.placement.tenantId;
+      const user = await db.user.findUnique({
+        where: { tenantId_id: { tenantId, id: userId } },
+        select: { lockoutEnd: true },
+      });
+      if (!user || (user.lockoutEnd !== null && user.lockoutEnd > new Date()))
+        throw new ForbiddenException();
+      const rows = await db.userRole.findMany({
+        where: { tenantId, userId },
+        include: { role: { select: { name: true } } },
+      });
+      return new Set(
+        rows
+          .map((row) => row.role.name)
+          .filter((value): value is string => value !== null),
+      );
+    });
     request.userId = userId;
     request.roles = roles;
     return true;

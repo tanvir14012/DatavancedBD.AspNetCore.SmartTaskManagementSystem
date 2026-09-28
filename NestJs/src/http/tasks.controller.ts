@@ -193,7 +193,12 @@ export class TasksController {
         ...(projectId && { projectId }),
         ...(status !== undefined && { status }),
         ...(priority !== undefined && { priority }),
-        ...(search && { title: { contains: search } }),
+        ...(search && {
+          OR: [
+            { title: { contains: search } },
+            { description: { contains: search } },
+          ],
+        }),
       };
       const [totalCount, rows] = await Promise.all([
         db.projectTask.count({ where }),
@@ -225,6 +230,95 @@ export class TasksController {
             roles.has('Admin'),
           ),
         ),
+      };
+    });
+  }
+
+  @Get('board')
+  async board(
+    @Req() request: AuthorizedRequest,
+    @Query() query: Record<string, unknown>,
+  ) {
+    const { context, userId, roles } = requireContext(request);
+    if (!roles.has('Admin') && !roles.has('Project Manager'))
+      throw new ForbiddenException();
+    const tenantId = context.placement.tenantId;
+    const projectId =
+      typeof query.projectId === 'string'
+        ? positiveId(query.projectId)
+        : undefined;
+    const priority =
+      query.priority === undefined
+        ? undefined
+        : enumValue(query.priority, priorities, -1);
+    const search = typeof query.search === 'string' ? query.search.trim() : '';
+    if (search.length > 200)
+      throw new BadRequestException('Search is too long.');
+    return this.storage.execute(context, async (db) => {
+      const where = {
+        tenantId,
+        isDeleted: false,
+        project: {
+          isDeleted: false,
+          ...(!roles.has('Admin') && {
+            members: {
+              some: { tenantId, userId, projectRole: { in: [0, 1] } },
+            },
+          }),
+        },
+        ...(projectId && { projectId }),
+        ...(priority !== undefined && { priority }),
+        ...(search && {
+          OR: [
+            { title: { contains: search } },
+            { description: { contains: search } },
+          ],
+        }),
+      };
+      const totalCount = await db.projectTask.count({ where });
+      if (totalCount > 200)
+        throw new BadRequestException(
+          'Narrow the task board to a project or search.',
+        );
+      const tasks = await db.projectTask.findMany({
+        where,
+        take: 200,
+        orderBy: [
+          { priority: 'desc' },
+          { dueDate: 'asc' },
+          { createdAt: 'asc' },
+        ],
+        include: {
+          project: { select: { name: true } },
+          assignees: {
+            include: {
+              user: {
+                select: { firstName: true, lastName: true, email: true },
+              },
+            },
+          },
+        },
+      });
+      const cards = tasks.map((task) => ({
+        ...output(task, task.project.name, true, true),
+        assignees: task.assignees.map(
+          (assignment) =>
+            `${assignment.user.firstName} ${assignment.user.lastName}`.trim() ||
+            assignment.user.email ||
+            '',
+        ),
+      }));
+      return {
+        totalCount,
+        columns: statuses.map((status, index) => {
+          const columnTasks = cards.filter((task) => task.status === status);
+          return {
+            status,
+            title: ['To do', 'In progress', 'Completed', 'Cancelled'][index],
+            taskCount: columnTasks.length,
+            tasks: columnTasks,
+          };
+        }),
       };
     });
   }
