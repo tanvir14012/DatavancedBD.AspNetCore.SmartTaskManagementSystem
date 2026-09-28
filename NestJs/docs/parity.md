@@ -13,7 +13,7 @@ status, authorization, transactional changes and invalidation all require eviden
 | 4 | Identity password compatibility, register/login/refresh/logout, cookies and CSRF | Login/refresh/logout and password hash compatibility implemented; public register intentionally closed pending invite/provisioning policy; SQL/HTTP acceptance pending |
 | 5 | Projects CRUD, members, assignments, pagination and permissions | Routes implemented; SQL-backed and contract acceptance pending |
 | 6 | Tasks CRUD, assignment, board, filters and permissions | Routes implemented; SQL-backed and HTTP contract acceptance pending |
-| 7 | Users CRUD, dashboard, menus, AI description improvement | User list/get/update, account deactivation, dashboard, menus, and local AI fallback implemented; creation and remote AI provider pending; SQL-backed and HTTP contract acceptance pending |
+| 7 | Users CRUD, dashboard, menus, AI description improvement | User list/get/update, account deactivation, dashboard, menus, optional Groq description provider and local fallback implemented; user creation pending; SQL-backed, provider, and HTTP contract acceptance pending |
 | 8 | Tenant caches/invalidation, admission, reauthorized background jobs | Pending |
 | 9 | Admin provisioning/migration, release fencing, deployment and recovery | Pending |
 | 10 | SQL Server/Redis and HTTP parity acceptance across all strategies | Pending |

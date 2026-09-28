@@ -22,6 +22,12 @@ automatic migrations or permissive CORS are configured.
 
 See [parity tracking](docs/parity.md) and [architecture decision](../docs/adr/0001-nestjs-parallel-backend.md).
 
+The description assistant defaults to the local clarity pass. An optional Groq call
+requires `AI_ENABLED=true`, `GROQ_API_KEY` from a secret provider, and `GROQ_MODEL`;
+`GROQ_ENDPOINT` may point only to `https://api.groq.com`. Provider failures fall back
+to local processing after a five-second deadline. Never place the API key in source or
+the browser bundle.
+
 Prisma is pinned to 6.19.3. Its `deepmerge-ts` tooling dependency is overridden to
 8.0.0 for GHSA-ggr8-5vv4-36mx; schema validation and client generation must pass before
 changing that override. Prisma 7.10 additionally pulled an affected MySQL driver

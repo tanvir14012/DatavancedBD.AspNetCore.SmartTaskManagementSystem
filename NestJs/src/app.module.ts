@@ -19,6 +19,7 @@ import {
 } from './http/read-models.controller.js';
 import { UsersController } from './http/users.controller.js';
 import { AiController } from './http/ai.controller.js';
+import { DescriptionAiService } from './infrastructure/description-ai.js';
 
 @Controller()
 class HealthController {
@@ -46,6 +47,6 @@ class HealthController {
     UsersController,
     AiController,
   ],
-  providers: [CatalogReader, TenantStorage, TenantGuard],
+  providers: [CatalogReader, TenantStorage, TenantGuard, DescriptionAiService],
 })
 export class AppModule {}
