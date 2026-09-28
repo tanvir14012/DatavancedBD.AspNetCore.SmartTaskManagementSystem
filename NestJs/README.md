@@ -20,6 +20,11 @@ Liveness: `/alive`. Readiness and `/health` deliberately return 503 until the cu
 dependencies are wired and verified. No default database, development credentials,
 automatic migrations or permissive CORS are configured.
 
+Set `ALLOWED_ORIGINS` to a comma-separated list of exact trusted browser origins.
+Fastify rejects other browser origins and accepts credentialed preflight requests only
+for listed origins. `trustProxy` remains disabled, so deployments must preserve a
+trusted Host header and must not depend on unvalidated forwarded headers.
+
 See [parity tracking](docs/parity.md) and [architecture decision](../docs/adr/0001-nestjs-parallel-backend.md).
 
 The description assistant defaults to the local clarity pass. An optional Groq call
