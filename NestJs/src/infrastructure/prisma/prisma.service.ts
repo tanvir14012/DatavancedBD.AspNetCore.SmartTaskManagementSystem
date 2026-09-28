@@ -38,6 +38,16 @@ export class CatalogReader implements TenantAuthorityReader, OnModuleDestroy {
     return this.client;
   }
 
+  async isReachable(): Promise<boolean> {
+    if (!this.client) return false;
+    try {
+      await this.client.$queryRaw`SELECT 1 AS available`;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async findTenant(
     authority: string,
     signal: AbortSignal,
@@ -102,6 +112,15 @@ export class TenantStorage implements OnModuleDestroy {
   private readonly clients = new Map<string, TenantClient>();
 
   constructor(private readonly catalog: CatalogReader) {}
+
+  hasConfiguredTargets(): boolean {
+    try {
+      this.targets ??= parseStorageTargets(process.env.TENANT_STORAGE_TARGETS);
+      return this.targets.size > 0;
+    } catch {
+      return false;
+    }
+  }
 
   async onModuleDestroy(): Promise<void> {
     await Promise.all(

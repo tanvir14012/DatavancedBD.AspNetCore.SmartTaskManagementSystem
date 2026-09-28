@@ -16,8 +16,10 @@ npm run format:check
 npm start
 ```
 
-Liveness: `/alive`. Readiness and `/health` deliberately return 503 until the cutover
-dependencies are wired and verified. No default database, development credentials,
+Liveness: `/alive`. Readiness and `/health` return 503 until `NESTJS_CUTOVER_ENABLED=true`,
+required authentication and storage settings are present, and the catalog responds to a
+database probe. Tenant target health and SQL isolation still require separate acceptance
+checks before cutover. No default database, development credentials,
 automatic migrations or permissive CORS are configured.
 
 Set `ALLOWED_ORIGINS` to a comma-separated list of exact trusted browser origins.

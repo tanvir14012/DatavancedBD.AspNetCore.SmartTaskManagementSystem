@@ -23,15 +23,31 @@ import { DescriptionAiService } from './infrastructure/description-ai.js';
 
 @Controller()
 class HealthController {
+  constructor(
+    private readonly catalog: CatalogReader,
+    private readonly storage: TenantStorage,
+  ) {}
+
   @Get('alive')
   alive(): string {
     return 'Healthy';
   }
 
   @Get(['ready', 'health'])
-  ready(): never {
-    // A running process is not evidence that tenant storage is ready to serve traffic.
-    throw new ServiceUnavailableException('Backend cutover is not enabled.');
+  async ready(): Promise<string> {
+    if (
+      process.env.NESTJS_CUTOVER_ENABLED !== 'true' ||
+      !process.env.JWT_ISSUER ||
+      !process.env.JWT_AUDIENCE ||
+      !process.env.JWT_KEY ||
+      Buffer.byteLength(process.env.JWT_KEY) < 32 ||
+      !process.env.TENANT_REGION ||
+      !process.env.ALLOWED_ORIGINS ||
+      !this.storage.hasConfiguredTargets() ||
+      !(await this.catalog.isReachable())
+    )
+      throw new ServiceUnavailableException('Backend is not ready.');
+    return 'Healthy';
   }
 }
 
