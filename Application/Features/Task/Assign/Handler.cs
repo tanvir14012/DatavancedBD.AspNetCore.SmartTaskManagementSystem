@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Task.Assign;
 
+/// <summary>Executes the task assign use case.</summary>
 public sealed class Handler(
     IAppDbContext dbContext,
     UserManager<AppUser> userManager,
@@ -18,6 +19,7 @@ public sealed class Handler(
     ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Command, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(Command request, CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
@@ -95,6 +97,7 @@ public sealed class Handler(
     }
 }
 
+/// <summary>Unassign handler contract for task assign.</summary>
 public sealed class UnassignHandler(
     IAppDbContext dbContext,
     ICurrentUser currentUser,
@@ -102,6 +105,7 @@ public sealed class UnassignHandler(
     ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<UnassignCommand, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(UnassignCommand request, CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)

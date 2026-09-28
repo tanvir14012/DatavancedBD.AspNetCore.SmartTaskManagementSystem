@@ -8,10 +8,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Dashboard.Summary;
 
+/// <summary>Executes the dashboard summary use case.</summary>
 public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService,
     ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Query, DashboardSummary>
 {
+    /// <inheritdoc />
     public async Task<DashboardSummary> Handle(Query request, CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)

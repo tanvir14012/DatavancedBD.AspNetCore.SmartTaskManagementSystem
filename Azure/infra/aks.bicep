@@ -47,7 +47,6 @@ var tags = {
   environment: environment
   managedBy: 'bicep'
 }
-var acrPullRoleDefinitionId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 var keyVaultSecretsUserRoleDefinitionId = '4633458b-17de-408a-b874-0445c86b69e6'
 var keyVaultSecretsOfficerRoleDefinitionId = 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
 var aksClusterUserRoleDefinitionId = '4abbcc35-e782-43d8-92c5-2d3f1bd2253f'
@@ -243,39 +242,33 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
       authorizedIPRanges: authorizedApiServerIpRanges
     }
     autoScalerProfile: {
-      balanceSimilarNodeGroups: 'true'
+      'balance-similar-node-groups': 'true'
       expander: 'least-waste'
-      maxEmptyBulkDelete: '10'
-      maxGracefulTerminationSec: '600'
-      maxNodeProvisionTime: '15m'
-      maxTotalUnreadyPercentage: '45'
-      newPodScaleUpDelay: '0s'
-      okTotalUnreadyCount: '3'
-      scaleDownDelayAfterAdd: '10m'
-      scaleDownDelayAfterDelete: '10s'
-      scaleDownDelayAfterFailure: '3m'
-      scaleDownUnneededTime: '10m'
-      scaleDownUnreadyTime: '20m'
-      scanInterval: '10s'
-      skipNodesWithLocalStorage: 'false'
-      skipNodesWithSystemPods: 'true'
+      'max-empty-bulk-delete': '10'
+      'max-graceful-termination-sec': '600'
+      'max-node-provision-time': '15m'
+      'max-total-unready-percentage': '45'
+      'new-pod-scale-up-delay': '0s'
+      'ok-total-unready-count': '3'
+      'scale-down-delay-after-add': '10m'
+      'scale-down-delay-after-delete': '10s'
+      'scale-down-delay-after-failure': '3m'
+      'scale-down-unneeded-time': '10m'
+      'scale-down-unready-time': '20m'
+      'scan-interval': '10s'
+      'skip-nodes-with-local-storage': 'false'
+      'skip-nodes-with-system-pods': 'true'
     }
   }
 }
 
-resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
-  name: acrName
+module acrPullRole 'modules/acr-pull-role.bicep' = {
+  name: 'stms-${environment}-acr-pull'
   scope: resourceGroup(acrResourceGroupName)
-}
-
-resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acr.id, aks.id, 'acr-pull')
-  scope: acr
-  dependsOn: [aks]
-  properties: {
-    principalId: aks.properties.identityProfile.kubeletidentity.objectId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleDefinitionId)
+  params: {
+    acrName: acrName
+    clusterId: aks.id
+    kubeletPrincipalId: aks.properties.identityProfile.kubeletidentity.objectId
   }
 }
 

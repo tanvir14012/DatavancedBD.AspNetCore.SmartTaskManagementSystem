@@ -1,12 +1,24 @@
 import { CommonModule } from '@angular/common';
 import { httpResource } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
-import { ProjectAssignmentItem, ProjectAssignmentResult, ProjectListItem, ProjectListResult, ProjectService } from '../../core/services/project.service';
-import { UserListItem, UserListResult, UserService } from '../../core/services/user.service';
+import {
+  ProjectAssignmentItem,
+  ProjectAssignmentResult,
+  ProjectListResult,
+  ProjectService,
+} from '../../core/services/project.service';
+import { UserListResult, UserService } from '../../core/services/user.service';
 import { environment } from '../../../environments/environment';
 
 @Component({
@@ -28,9 +40,12 @@ export class ProjectAssignmentsPage {
   readonly users = computed(() => this.usersResource.value()?.items ?? []);
   readonly page = signal(1);
   readonly pageSize = 10;
-  readonly search = toSignal(toObservable(this.rawSearch).pipe(debounceTime(300), distinctUntilChanged()), {
-    initialValue: '',
-  });
+  readonly search = toSignal(
+    toObservable(this.rawSearch).pipe(debounceTime(300), distinctUntilChanged()),
+    {
+      initialValue: '',
+    },
+  );
   readonly roleFilter = signal('all');
   readonly projectFilter = signal('all');
   readonly selectedProjectId = signal<number | null>(null);
@@ -50,7 +65,9 @@ export class ProjectAssignmentsPage {
     };
 
     const normalized = Object.fromEntries(
-      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '' && value !== 'all'),
+      Object.entries(params).filter(
+        ([, value]) => value !== undefined && value !== null && value !== '' && value !== 'all',
+      ),
     ) as Record<string, string | number | boolean>;
 
     return normalized;
@@ -82,14 +99,19 @@ export class ProjectAssignmentsPage {
     effect(() => {
       const role = this.authService.currentUser()?.role ?? '';
       this.isAdmin.set(role === 'Admin');
-      this.allowedRoles.set(this.isAdmin() ? ['Owner', 'Manager', 'Member', 'Viewer'] : ['Member', 'Viewer']);
+      this.allowedRoles.set(
+        this.isAdmin() ? ['Owner', 'Manager', 'Member', 'Viewer'] : ['Member', 'Viewer'],
+      );
       this.selectedRole.set(this.allowedRoles()[0] ?? 'Member');
 
       const projects = this.projects();
       if (!this.selectedProjectId() && projects.length > 0) {
         this.selectedProjectId.set(projects[0].id);
       }
-      if (this.projectFilter() !== 'all' && !projects.some((project) => project.id === Number(this.projectFilter()))) {
+      if (
+        this.projectFilter() !== 'all' &&
+        !projects.some((project) => project.id === Number(this.projectFilter()))
+      ) {
         this.projectFilter.set('all');
       }
 

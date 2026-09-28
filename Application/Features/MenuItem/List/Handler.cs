@@ -7,10 +7,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.MenuItem.List;
 
+/// <summary>Executes the menuitem list use case.</summary>
 public sealed class Handler(IAppDbContext dbContext, ICacheService cacheService, ICurrentUser currentUser,
     ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Query, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(Query request, CancellationToken cancellationToken)
     {
         var cacheKey = $"menu-items:tree:{GetRoleScope(currentUser)}";

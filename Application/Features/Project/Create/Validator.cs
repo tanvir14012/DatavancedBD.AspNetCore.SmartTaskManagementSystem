@@ -2,8 +2,10 @@ using FluentValidation;
 
 namespace Application.Features.Project.Create;
 
+/// <summary>Validates inputs for the project create use case.</summary>
 public sealed class Validator : AbstractValidator<Command>
 {
+    /// <summary>Creates the project create validator with its required dependencies.</summary>
     public Validator()
     {
         RuleFor(x => x.Name)

@@ -1,12 +1,20 @@
 import { CommonModule } from '@angular/common';
 import { httpResource } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
-import { ProjectListItem, ProjectListResult, ProjectService } from '../../core/services/project.service';
+import { ProjectListResult, ProjectService } from '../../core/services/project.service';
 import { environment } from '../../../environments/environment';
 
 @Component({
@@ -45,7 +53,9 @@ export class ProjectsPage {
     };
 
     const normalized = Object.fromEntries(
-      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '' && value !== 'all'),
+      Object.entries(params).filter(
+        ([, value]) => value !== undefined && value !== null && value !== '' && value !== 'all',
+      ),
     ) as Record<string, string | number | boolean>;
 
     return normalized;
@@ -66,7 +76,8 @@ export class ProjectsPage {
 
   constructor() {
     this.canCreateProject =
-      this.authService.currentUser()?.role === 'Admin' || this.authService.currentUser()?.role === 'Project Manager';
+      this.authService.currentUser()?.role === 'Admin' ||
+      this.authService.currentUser()?.role === 'Project Manager';
 
     effect(() => {
       this.search();

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -72,7 +73,8 @@ esac
             helm.chmod(0o755)
             env = {**os.environ, "SCENARIO": scenario, "NAMESPACE": "test-owned",
                    "TEST_LOG": str(root / "commands"), "TEST_STATE": str(root / "state"),
-                   "TEST_RECOVERED": str(root / "recovered"), "PYTHON_BIN": os.environ.get("PYTHON_BIN", "python"),
+                   "TEST_RECOVERED": str(root / "recovered"), "PYTHON_BIN": sys.executable,
+                   "INGRESS_SMOKE_REQUIRED": "false",
                    "PATH": str(binary) + os.pathsep + os.environ["PATH"]}
             result = subprocess.run([BASH, str(scripts / "release-transaction.sh"), "chart"],
                                     env=env, capture_output=True, text=True, timeout=20)

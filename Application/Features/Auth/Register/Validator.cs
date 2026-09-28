@@ -2,8 +2,10 @@ using FluentValidation;
 
 namespace Application.Features.Auth.Register;
 
+/// <summary>Validates inputs for the auth register use case.</summary>
 public sealed class Validator : AbstractValidator<Command>
 {
+    /// <summary>Creates the auth register validator with its required dependencies.</summary>
     public Validator()
     {
         RuleFor(x => x.FirstName)

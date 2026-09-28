@@ -5,6 +5,7 @@ using MediatR;
 
 namespace Application.Features.Project.Create;
 
+/// <summary>Executes the project create use case.</summary>
 public sealed class Handler(
     IAppDbContext db,
     ICurrentUser currentUser,
@@ -13,6 +14,7 @@ public sealed class Handler(
     ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Command, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(
         Command request,
         CancellationToken cancellationToken)

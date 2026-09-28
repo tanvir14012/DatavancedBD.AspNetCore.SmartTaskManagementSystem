@@ -74,9 +74,7 @@ export class TenantContextStore {
       selection === null ||
       typeof selection !== 'object' ||
       typeof selection.tenantId !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        selection.tenantId,
-      ) ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selection.tenantId) ||
       selection.tenantId === '00000000-0000-0000-0000-000000000000'
     ) {
       throw new TypeError('Organization ID must be a nonempty UUID in canonical format.');
@@ -90,9 +88,14 @@ export class TenantContextStore {
     if (
       displayName.length === 0 ||
       displayName.length > 200 ||
-      /[\u0000-\u001f\u007f-\u009f]/.test(selection.displayName)
+      [...selection.displayName].some((character) => {
+        const code = character.charCodeAt(0);
+        return code < 32 || (code >= 127 && code <= 159);
+      })
     ) {
-      throw new TypeError('Organization display name must contain 1–200 characters without controls.');
+      throw new TypeError(
+        'Organization display name must contain 1–200 characters without controls.',
+      );
     }
 
     return Object.freeze({ tenantId: selection.tenantId.toLowerCase(), displayName });

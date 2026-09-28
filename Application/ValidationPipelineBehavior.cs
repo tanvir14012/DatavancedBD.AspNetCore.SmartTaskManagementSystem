@@ -3,11 +3,13 @@ using MediatR;
 
 namespace Application;
 
+/// <summary>Validation pipeline behavior contract for application.</summary>
 public sealed class ValidationPipelineBehavior<TRequest, TResponse>(
     IEnumerable<IValidator<TRequest>> validators)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
+    /// <inheritdoc />
     public async Task<TResponse> Handle(
         TRequest request,
         RequestHandlerDelegate<TResponse> next,

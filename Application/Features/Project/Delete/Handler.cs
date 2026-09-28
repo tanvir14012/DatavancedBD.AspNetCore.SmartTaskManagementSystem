@@ -5,10 +5,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Project.Delete;
 
+/// <summary>Executes the project delete use case.</summary>
 public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService,
     ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Command, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(Command request, CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)

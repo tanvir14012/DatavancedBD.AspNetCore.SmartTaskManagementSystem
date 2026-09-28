@@ -7,10 +7,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Task.List;
 
+/// <summary>Executes the task list use case.</summary>
 public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService,
     ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Query, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(Query request, CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)

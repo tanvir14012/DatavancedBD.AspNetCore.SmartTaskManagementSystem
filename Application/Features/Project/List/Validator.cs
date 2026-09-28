@@ -2,8 +2,10 @@ using FluentValidation;
 
 namespace Application.Features.Project.List;
 
+/// <summary>Validates inputs for the project list use case.</summary>
 public sealed class Validator : AbstractValidator<Query>
 {
+    /// <summary>Creates the project list validator with its required dependencies.</summary>
     public Validator()
     {
         RuleFor(x => x.Start)

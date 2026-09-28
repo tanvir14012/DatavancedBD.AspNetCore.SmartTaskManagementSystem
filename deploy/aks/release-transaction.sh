@@ -8,6 +8,10 @@ python_bin="${PYTHON_BIN:-python3}"
 previous=""
 mutating=false
 
+if [[ "${INGRESS_SMOKE_REQUIRED:-true}" == true ]]; then
+  "$python_bin" "$root_dir/deploy/aks/ingress-check.py" --validate
+fi
+
 # A failed API request must never be interpreted as an absent release.
 releases="$(helm list -n "$NAMESPACE" --all --filter '^stms$' -o json)"
 exists="$("$python_bin" -c 'import json,sys; print(len(json.load(sys.stdin)))' <<< "$releases")"

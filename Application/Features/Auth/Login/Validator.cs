@@ -2,8 +2,10 @@ using FluentValidation;
 
 namespace Application.Features.Auth.Login;
 
+/// <summary>Validates inputs for the auth login use case.</summary>
 public sealed class Validator : AbstractValidator<Command>
 {
+    /// <summary>Creates the auth login validator with its required dependencies.</summary>
     public Validator()
     {
         RuleFor(x => x.Email)

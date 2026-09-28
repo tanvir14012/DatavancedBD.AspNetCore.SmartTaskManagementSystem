@@ -2,8 +2,10 @@ using FluentValidation;
 
 namespace Application.Features.Task.Assign;
 
+/// <summary>Validates inputs for the task assign use case.</summary>
 public sealed class Validator : AbstractValidator<Command>
 {
+    /// <summary>Creates the task assign validator with its required dependencies.</summary>
     public Validator()
     {
         RuleFor(x => x.TaskId)

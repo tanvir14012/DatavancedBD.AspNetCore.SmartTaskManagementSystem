@@ -5,11 +5,13 @@ using Microsoft.AspNetCore.Identity;
 
 namespace Application.Features.Auth.Login;
 
+/// <summary>Executes the auth login use case.</summary>
 public sealed class Handler(
     UserManager<AppUser> userManager,
     IAuthService authService)
     : IRequestHandler<Command, Response?>
 {
+    /// <inheritdoc />
     public async Task<Response?> Handle(Command request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))

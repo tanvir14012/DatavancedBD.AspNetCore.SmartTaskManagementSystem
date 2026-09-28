@@ -33,7 +33,7 @@ export class DashboardService {
 
   private readonly http = inject(HttpClient);
 
-  getSummary(projectId?: number, forceReload = false): Observable<DashboardSummary> {
+  getSummary(projectId?: number): Observable<DashboardSummary> {
     let params = new HttpParams();
 
     if (projectId !== undefined && projectId !== null) {

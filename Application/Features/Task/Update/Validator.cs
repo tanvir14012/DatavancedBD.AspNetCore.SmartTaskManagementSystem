@@ -3,8 +3,10 @@ using Domain.Enums;
 
 namespace Application.Features.Task.Update;
 
+/// <summary>Validates inputs for the task update use case.</summary>
 public sealed class Validator : AbstractValidator<Command>
 {
+    /// <summary>Creates the task update validator with its required dependencies.</summary>
     public Validator()
     {
         RuleFor(x => x.Id)

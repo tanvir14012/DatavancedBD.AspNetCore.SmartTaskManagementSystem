@@ -3,7 +3,11 @@ import { ChangeDetectionStrategy, Component, OnInit, signal, inject } from '@ang
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-import { ProjectDetail, ProjectItemMember, ProjectService } from '../../core/services/project.service';
+import {
+  ProjectDetail,
+  ProjectItemMember,
+  ProjectService,
+} from '../../core/services/project.service';
 import { CustomValidators } from '../../shared/validators/custom-validators';
 
 @Component({
@@ -85,14 +89,20 @@ export class ProjectFormPage implements OnInit {
     if (!this.form.name.trim()) {
       errors['name'] = 'Project name is required.';
     } else if (this.form.name.length > CustomValidators.MAX_PROJECT_NAME_LENGTH) {
-      errors['name'] = `Project name cannot exceed ${CustomValidators.MAX_PROJECT_NAME_LENGTH} characters.`;
+      errors['name'] =
+        `Project name cannot exceed ${CustomValidators.MAX_PROJECT_NAME_LENGTH} characters.`;
     } else if (!/^[a-zA-Z0-9\s\-_.&()]+$/.test(this.form.name)) {
-      errors['name'] = 'Project name contains invalid characters. Only alphanumeric, spaces, and -_.&() are allowed.';
+      errors['name'] =
+        'Project name contains invalid characters. Only alphanumeric, spaces, and -_.&() are allowed.';
     }
 
     // Validate Description
-    if (this.form.description && this.form.description.length > CustomValidators.MAX_PROJECT_DESCRIPTION_LENGTH) {
-      errors['description'] = `Project description cannot exceed ${CustomValidators.MAX_PROJECT_DESCRIPTION_LENGTH} characters.`;
+    if (
+      this.form.description &&
+      this.form.description.length > CustomValidators.MAX_PROJECT_DESCRIPTION_LENGTH
+    ) {
+      errors['description'] =
+        `Project description cannot exceed ${CustomValidators.MAX_PROJECT_DESCRIPTION_LENGTH} characters.`;
     }
 
     // Validate Dates
@@ -140,15 +150,16 @@ export class ProjectFormPage implements OnInit {
     };
 
     const id = this.projectId();
-    const request$ = this.isEditMode() && id
-      ? this.projectService.updateProject(id, payload)
-      : this.projectService.createProject(payload);
+    const request$ =
+      this.isEditMode() && id
+        ? this.projectService.updateProject(id, payload)
+        : this.projectService.createProject(payload);
 
     request$.subscribe({
-      next: (project) => {
+      next: () => {
         this.isSubmitting.set(false);
         this.successMessage.set(
-          this.isEditMode() ? 'Project updated successfully!' : 'Project created successfully!'
+          this.isEditMode() ? 'Project updated successfully!' : 'Project created successfully!',
         );
         setTimeout(() => {
           this.router.navigate(['/projects/list']);
@@ -156,7 +167,10 @@ export class ProjectFormPage implements OnInit {
       },
       error: (error) => {
         this.isSubmitting.set(false);
-        const errorMessage = error?.error?.errors?.['name']?.[0] || error?.error?.message || 'An error occurred while saving the project.';
+        const errorMessage =
+          error?.error?.errors?.['name']?.[0] ||
+          error?.error?.message ||
+          'An error occurred while saving the project.';
         this.formErrors.set({ submit: errorMessage });
       },
     });

@@ -5,6 +5,7 @@ namespace Application.Tenancy.Resolution;
 /// <summary>Strict, non-network normalization shared by requests and deployment configuration.</summary>
 public static class TenantAuthority
 {
+    /// <summary>Try normalize for this application tenancy resolution contract.</summary>
     public static bool TryNormalize(string? value, out string canonicalAuthority)
     {
         canonicalAuthority = string.Empty;

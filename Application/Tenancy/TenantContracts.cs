@@ -1,11 +1,13 @@
 namespace Application.Tenancy;
 
+/// <summary>Untrusted request authority and tenant selector to resolve.</summary>
 public sealed record TenantRequest(string? Host, string? TenantSelector);
 
 /// <summary>Looks up organization placement; null means absent, never a dependency failure.</summary>
 /// <remarks>Lookup does not authorize access or guarantee that a cached revision is current.</remarks>
 public interface ITenantCatalog
 {
+    /// <summary>Looks up tenant placement; absence returns null.</summary>
     Task<TenantPlacement?> FindAsync(Guid tenantId, CancellationToken cancellationToken);
 }
 
@@ -17,18 +19,25 @@ public interface ITenantCatalog
 /// </remarks>
 public interface ITenantPlacementCache
 {
+    /// <summary>Reads the entry or returns a cache miss when absent.</summary>
     Task<TenantPlacement?> GetAsync(Guid tenantId, CancellationToken cancellationToken);
+    /// <summary>Stores an entry according to its expiration and version rules.</summary>
     Task SetAsync(TenantPlacement placement, CancellationToken cancellationToken);
+    /// <summary>Invalidates the tenant's cached placement.</summary>
     Task InvalidateAsync(Guid tenantId, CancellationToken cancellationToken);
 }
 
+/// <summary>Resolves a tenant identity without granting access to it.</summary>
 public interface ITenantResolver
 {
+    /// <summary>Resolves the request selectors to a tenant identifier without granting access.</summary>
     Task<Guid> ResolveAsync(TenantRequest request, CancellationToken cancellationToken);
 }
 
+/// <summary>Validates subject membership and access against authoritative tenant data.</summary>
 public interface ITenantAccessValidator
 {
+    /// <summary>Validates the supplied tenant operation against the implementing authority.</summary>
     Task ValidateAsync(TenantAccess access, CancellationToken cancellationToken);
 }
 
@@ -67,6 +76,8 @@ public interface ITenantContextInitializer
 /// </remarks>
 public interface ITenantCacheKeyBuilder
 {
+    /// <summary>Builds a key inside the current tenant cache namespace.</summary>
     string Build(string key);
+    /// <summary>Builds an invalidation pattern inside the current tenant cache namespace.</summary>
     string BuildPattern(string pattern);
 }

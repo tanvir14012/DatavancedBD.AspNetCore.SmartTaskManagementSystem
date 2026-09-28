@@ -5,9 +5,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Task.Get;
 
+/// <summary>Executes the task get use case.</summary>
 public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<Query, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(Query request, CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)

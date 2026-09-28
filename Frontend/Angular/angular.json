@@ -19,6 +19,12 @@
       "sourceRoot": "src",
       "prefix": "app",
       "architect": {
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["src/**/*.ts", "src/**/*.html"]
+          }
+        },
         "build": {
           "builder": "@angular/build:application",
           "options": {

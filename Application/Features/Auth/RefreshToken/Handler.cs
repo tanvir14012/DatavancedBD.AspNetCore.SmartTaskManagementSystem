@@ -3,8 +3,10 @@ using MediatR;
 
 namespace Application.Features.Auth.RefreshToken;
 
+/// <summary>Executes the auth refreshtoken use case.</summary>
 public sealed class Handler(IAuthService authService) : IRequestHandler<Command, Response?>
 {
+    /// <inheritdoc />
     public async Task<Response?> Handle(Command request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.RefreshToken))

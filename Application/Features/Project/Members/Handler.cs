@@ -7,9 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Project.Members;
 
+/// <summary>Assignments handler contract for project members.</summary>
 public sealed class AssignmentsHandler(IAppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<AssignmentsQuery, AssignmentsResponse>
 {
+    /// <inheritdoc />
     public async Task<AssignmentsResponse> Handle(AssignmentsQuery request, CancellationToken cancellationToken)
     {
         var query = dbContext.UserProjects
@@ -75,9 +77,11 @@ public sealed class AssignmentsHandler(IAppDbContext dbContext, ICurrentUser cur
     }
 }
 
+/// <summary>Members handler contract for project members.</summary>
 public sealed class MembersHandler(IAppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<MembersQuery, IReadOnlyList<ProjectMemberSummary>>
 {
+    /// <inheritdoc />
     public async Task<IReadOnlyList<ProjectMemberSummary>> Handle(MembersQuery request, CancellationToken cancellationToken)
     {
         var project = await dbContext.Projects
@@ -112,9 +116,11 @@ public sealed class MembersHandler(IAppDbContext dbContext, ICurrentUser current
     }
 }
 
+/// <summary>Assign handler contract for project members.</summary>
 public sealed class AssignHandler(IAppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<AssignCommand, AssignResult>
 {
+    /// <inheritdoc />
     public async Task<AssignResult> Handle(AssignCommand request, CancellationToken cancellationToken)
     {
         var project = await dbContext.Projects
@@ -176,9 +182,11 @@ public sealed class AssignHandler(IAppDbContext dbContext, ICurrentUser currentU
     }
 }
 
+/// <summary>Remove handler contract for project members.</summary>
 public sealed class RemoveHandler(IAppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<RemoveCommand, bool>
 {
+    /// <inheritdoc />
     public async Task<bool> Handle(RemoveCommand request, CancellationToken cancellationToken)
     {
         var project = await dbContext.Projects

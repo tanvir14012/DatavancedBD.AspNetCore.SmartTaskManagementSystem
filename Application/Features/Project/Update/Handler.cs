@@ -7,10 +7,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Project.Update;
 
+/// <summary>Executes the project update use case.</summary>
 public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser, ICacheService cacheService,
     ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Command, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(Command request, CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)

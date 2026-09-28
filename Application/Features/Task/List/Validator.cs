@@ -3,8 +3,10 @@ using Domain.Enums;
 
 namespace Application.Features.Task.List;
 
+/// <summary>Validates inputs for the task list use case.</summary>
 public sealed class Validator : AbstractValidator<Query>
 {
+    /// <summary>Creates the task list validator with its required dependencies.</summary>
     public Validator()
     {
         RuleFor(x => x.Start)

@@ -9,12 +9,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Task.Create;
 
+/// <summary>Executes the task create use case.</summary>
 public sealed class Handler(
     IAppDbContext dbContext,
     UserManager<AppUser> userManager,
     ICurrentUser currentUser)
     : IRequestHandler<Command, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(Command request, CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)

@@ -5,10 +5,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Project.Get;
 
+/// <summary>Executes the project get use case.</summary>
 public sealed class Handler(IAppDbContext dbContext, ICacheService cacheService,
     ITenantCacheKeyBuilder? tenantKeys = null)
     : IRequestHandler<Query, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(Query request, CancellationToken cancellationToken)
     {
         var cacheKey = $"ef:{nameof(Domain.Project)}:{request.Id}";

@@ -20,13 +20,15 @@ export class TenantApiPolicy {
       throw new Error('At least one tenant API origin is required.');
     }
     this.baseUrl = base.href;
-    this.origins = new Set(options.allowedOrigins.map((value) => {
-      const url = this.parseAbsolute(value);
-      if (url.pathname !== '/' || url.search || url.hash) {
-        throw new Error('Tenant API allowlist entries must be origins without paths.');
-      }
-      return url.origin;
-    }));
+    this.origins = new Set(
+      options.allowedOrigins.map((value) => {
+        const url = this.parseAbsolute(value);
+        if (url.pathname !== '/' || url.search || url.hash) {
+          throw new Error('Tenant API allowlist entries must be origins without paths.');
+        }
+        return url.origin;
+      }),
+    );
   }
 
   /** Non-API and malformed URLs never receive organization context. */
@@ -41,7 +43,11 @@ export class TenantApiPolicy {
 
   private parseAbsolute(value: string): URL {
     try {
-      if (value.trim() !== value || /[\u0000-\u001f\u007f\\]/u.test(value)) {
+      const hasUnsafeCharacter = [...value].some(
+        (character) =>
+          character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 || character === '\\',
+      );
+      if (value.trim() !== value || hasUnsafeCharacter) {
         throw new Error();
       }
       const url = new URL(value);

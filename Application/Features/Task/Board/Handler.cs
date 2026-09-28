@@ -5,11 +5,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Task.Board;
 
+/// <summary>Executes the task board use case.</summary>
 public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<Query, Response>
 {
+    /// <inheritdoc />
     public async Task<Response> Handle(Query request, CancellationToken cancellationToken)
     {
+        if (!currentUser.IsAuthenticated || !currentUser.UserId.HasValue)
+        {
+            throw new UnauthorizedAccessException("Authentication is required.");
+        }
 
         var userId = currentUser.UserId.Value;
         IQueryable<Domain.ProjectTask> query = dbContext.ProjectTasks
@@ -64,7 +70,7 @@ public sealed class Handler(IAppDbContext dbContext, ICurrentUser currentUser)
                 .Select(a =>
                 {
                     var fullName = $"{a.User.FirstName} {a.User.LastName}".Trim();
-                    return string.IsNullOrWhiteSpace(fullName) ? a.User.Email : fullName;
+                    return string.IsNullOrWhiteSpace(fullName) ? a.User.Email ?? string.Empty : fullName;
                 })
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase)

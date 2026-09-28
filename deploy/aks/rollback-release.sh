@@ -5,6 +5,9 @@ set -Eeuo pipefail
 [[ "$ROLLBACK_REVISION" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid revision" >&2; exit 1; }
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python_bin="${PYTHON_BIN:-python3}"
+if [[ "${INGRESS_SMOKE_REQUIRED:-true}" == true ]]; then
+  "$python_bin" "$root_dir/deploy/aks/ingress-check.py" --validate
+fi
 bash "$root_dir/deploy/aks/connect-cluster.sh"
 history="$(helm history stms -n "$NAMESPACE" --max 256 -o json)"
 "$python_bin" -c 'import json,sys; rows=json.load(sys.stdin); target=int(sys.argv[1]); assert any(int(r["revision"]) == target and r["status"] in ("deployed", "superseded") for r in rows), "Revision must be a retained successful release"' "$ROLLBACK_REVISION" <<< "$history"

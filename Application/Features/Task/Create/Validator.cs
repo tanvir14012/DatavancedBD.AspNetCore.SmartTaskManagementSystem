@@ -3,8 +3,10 @@ using Domain.Enums;
 
 namespace Application.Features.Task.Create;
 
+/// <summary>Validates inputs for the task create use case.</summary>
 public sealed class Validator : AbstractValidator<Command>
 {
+    /// <summary>Creates the task create validator with its required dependencies.</summary>
     public Validator()
     {
         RuleFor(x => x.ProjectId)

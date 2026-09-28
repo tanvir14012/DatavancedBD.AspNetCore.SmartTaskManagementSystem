@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { httpResource } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { DashboardService, DashboardSummary } from '../../core/services/dashboard.service';
 import { environment } from '../../../environments/environment';
 

@@ -3,8 +3,10 @@ using System.Text.RegularExpressions;
 
 namespace Application.Features.Project.Update;
 
+/// <summary>Validates inputs for the project update use case.</summary>
 public sealed class Validator : AbstractValidator<Command>
 {
+    /// <summary>Creates the project update validator with its required dependencies.</summary>
     public Validator()
     {
         RuleFor(x => x.Id)

@@ -5,8 +5,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Application;
 
+/// <summary>Registers the application's use-case services and validation pipeline.</summary>
 public static class DependencyInjection
 {
+    /// <summary>Registers application handlers and validation services.</summary>
     public static IServiceCollection AddApplication(
         this IServiceCollection services)
     {
