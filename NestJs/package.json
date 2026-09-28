@@ -12,8 +12,10 @@
     "lint": "eslint src test",
     "format:check": "prettier --check src test package.json tsconfig.json",
     "format": "prettier --write src test package.json tsconfig.json",
-    "prisma:validate": "prisma validate",
-    "prisma:generate": "prisma generate"
+    "prisma:validate:catalog": "prisma validate --schema prisma/catalog.prisma",
+    "prisma:validate:tenant": "prisma validate --schema prisma/tenant.prisma",
+    "prisma:generate:catalog": "prisma generate --schema prisma/catalog.prisma",
+    "prisma:generate:tenant": "prisma generate --schema prisma/tenant.prisma"
   },
   "dependencies": {
     "@nestjs/common": "12.1.0",

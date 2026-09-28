@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/tenant"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("TENANT_DATABASE_URL")
+}
+
+// Mapping of the tenant-aware EF model, not the legacy single-key stms model.
+// DDL remains Admin-owned. Do not use db push/migrate against deployed databases.
+model User {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  id Int @default(autoincrement()) @map("Id")
+  userName String? @map("UserName") @db.NVarChar(256)
+  normalizedUserName String? @map("NormalizedUserName") @db.NVarChar(256)
+  email String? @map("Email") @db.NVarChar(256)
+  normalizedEmail String? @map("NormalizedEmail") @db.NVarChar(256)
+  emailConfirmed Boolean @map("EmailConfirmed")
+  passwordHash String? @map("PasswordHash") @db.NVarChar(Max)
+  securityStamp String? @map("SecurityStamp") @db.NVarChar(Max)
+  concurrencyStamp String? @map("ConcurrencyStamp") @db.NVarChar(Max)
+  phoneNumber String? @map("PhoneNumber") @db.NVarChar(Max)
+  phoneNumberConfirmed Boolean @map("PhoneNumberConfirmed")
+  twoFactorEnabled Boolean @map("TwoFactorEnabled")
+  lockoutEnd DateTime? @map("LockoutEnd") @db.DateTimeOffset
+  lockoutEnabled Boolean @map("LockoutEnabled")
+  accessFailedCount Int @map("AccessFailedCount")
+  firstName String @map("FirstName") @db.NVarChar(25)
+  lastName String @map("LastName") @db.NVarChar(25)
+  imageUrl String? @map("ImageUrl") @db.NVarChar(250)
+  createdAt DateTime @map("CreatedAt") @db.DateTime2
+  updatedAt DateTime? @map("UpdatedAt") @db.DateTime2
+  createdById Int? @map("CreatedById")
+  updatedById Int? @map("UpdatedById")
+  createdBy User? @relation("UserCreator", fields: [tenantId, createdById], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  createdUsers User[] @relation("UserCreator")
+  createdRoles Role[]
+  createdProjects Project[]
+  createdTasks ProjectTask[]
+  assignmentsMade UserTask[] @relation("AssignmentActor")
+  projects UserProject[]
+  tasks UserTask[] @relation("TaskAssignee")
+  refreshTokens RefreshToken[]
+  roles UserRole[]
+  claims UserClaim[]
+  logins UserLogin[]
+  tokens UserToken[]
+
+  @@id([tenantId, id])
+  @@index([tenantId, normalizedEmail], map: "EmailIndex")
+  // EF's filtered unique UserNameIndex is managed in SQL, not expressible here.
+  @@map("Users")
+}
+
+model Role {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  id Int @default(autoincrement()) @map("Id")
+  name String? @map("Name") @db.NVarChar(256)
+  normalizedName String? @map("NormalizedName") @db.NVarChar(256)
+  concurrencyStamp String? @map("ConcurrencyStamp") @db.NVarChar(Max)
+  description String? @map("Description") @db.NVarChar(1000)
+  createdAt DateTime @map("CreatedAt") @db.DateTime2
+  updatedAt DateTime? @map("UpdatedAt") @db.DateTime2
+  createdById Int? @map("CreatedById")
+  updatedById Int? @map("UpdatedById")
+  createdBy User? @relation(fields: [tenantId, createdById], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  users UserRole[]
+  claims RoleClaim[]
+
+  @@id([tenantId, id])
+  // EF's filtered unique RoleNameIndex remains SQL-owned.
+  @@map("Roles")
+}
+
+model UserRole {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  userId Int @map("UserId")
+  roleId Int @map("RoleId")
+  user User @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  role Role @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  @@id([tenantId, userId, roleId])
+  @@map("UserRoles")
+}
+
+model UserClaim {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  id Int @default(autoincrement()) @map("Id")
+  userId Int @map("UserId")
+  claimType String? @map("ClaimType") @db.NVarChar(Max)
+  claimValue String? @map("ClaimValue") @db.NVarChar(Max)
+  user User @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  @@id([tenantId, id])
+  @@map("UserClaims")
+}
+
+model RoleClaim {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  id Int @default(autoincrement()) @map("Id")
+  roleId Int @map("RoleId")
+  claimType String? @map("ClaimType") @db.NVarChar(Max)
+  claimValue String? @map("ClaimValue") @db.NVarChar(Max)
+  role Role @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  @@id([tenantId, id])
+  @@map("RoleClaims")
+}
+
+model UserLogin {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  loginProvider String @map("LoginProvider") @db.NVarChar(128)
+  providerKey String @map("ProviderKey") @db.NVarChar(128)
+  providerDisplayName String? @map("ProviderDisplayName") @db.NVarChar(Max)
+  userId Int @map("UserId")
+  user User @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  @@id([tenantId, loginProvider, providerKey])
+  @@map("UserLogins")
+}
+
+model UserToken {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  userId Int @map("UserId")
+  loginProvider String @map("LoginProvider") @db.NVarChar(128)
+  name String @map("Name") @db.NVarChar(128)
+  value String? @map("Value") @db.NVarChar(Max)
+  user User @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  @@id([tenantId, userId, loginProvider, name])
+  @@map("UserTokens")
+}
+
+model Project {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  id Int @default(autoincrement()) @map("Id")
+  name String @map("Name") @db.NVarChar(200)
+  description String? @map("Description") @db.NVarChar(1000)
+  startDate DateTime? @map("StartDate") @db.Date
+  endDate DateTime? @map("EndDate") @db.Date
+  isArchived Boolean @map("IsArchived")
+  isDeleted Boolean @map("IsDeleted")
+  createdAt DateTime @map("CreatedAt") @db.DateTime2
+  updatedAt DateTime? @map("UpdatedAt") @db.DateTime2
+  createdById Int? @map("CreatedById")
+  updatedById Int? @map("UpdatedById")
+  // SearchVector is an EF/SQL-owned persisted computed column, never written by Prisma.
+  createdBy User? @relation(fields: [tenantId, createdById], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  members UserProject[]
+  tasks ProjectTask[]
+  @@id([tenantId, id])
+  @@map("Projects")
+}
+
+model ProjectTask {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  id Int @default(autoincrement()) @map("Id")
+  projectId Int @map("ProjectId")
+  title String @map("Title") @db.NVarChar(200)
+  description String? @map("Description") @db.NVarChar(4000)
+  status Int @map("Status")
+  priority Int @map("Priority")
+  dueDate DateTime? @map("DueDate") @db.Date
+  isDeleted Boolean @map("IsDeleted")
+  createdAt DateTime @map("CreatedAt") @db.DateTime2
+  updatedAt DateTime? @map("UpdatedAt") @db.DateTime2
+  createdById Int? @map("CreatedById")
+  updatedById Int? @map("UpdatedById")
+  createdBy User? @relation(fields: [tenantId, createdById], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  project Project @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  assignees UserTask[]
+  @@id([tenantId, id])
+  @@index([tenantId, projectId, status, priority])
+  @@index([tenantId, dueDate])
+  @@map("ProjectTasks")
+}
+
+model UserProject {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  userId Int @map("UserId")
+  projectId Int @map("ProjectId")
+  projectRole Int @map("ProjectRole")
+  joinedAt DateTime @map("JoinedAt") @db.DateTime2
+  user User @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  project Project @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  @@id([tenantId, userId, projectId])
+  @@map("UserProjects")
+}
+
+model UserTask {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  userId Int @map("UserId")
+  taskId Int @map("TaskId")
+  isPrimary Boolean @map("IsPrimary")
+  assignedAt DateTime @map("AssignedAt") @db.DateTime2
+  assignedById Int @map("AssignedById")
+  user User @relation("TaskAssignee", fields: [tenantId, userId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  task ProjectTask @relation(fields: [tenantId, taskId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  assignedBy User @relation("AssignmentActor", fields: [tenantId, assignedById], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  @@id([tenantId, userId, taskId])
+  @@map("UserTasks")
+}
+
+model RefreshToken {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  id Int @default(autoincrement()) @map("Id")
+  tokenHash String @map("TokenHash") @db.NVarChar(128)
+  userId Int @map("UserId")
+  createdAtUtc DateTime @map("CreatedAtUtc") @db.DateTime2
+  expiresAtUtc DateTime @map("ExpiresAtUtc") @db.DateTime2
+  isRevoked Boolean @map("IsRevoked")
+  revokedAtUtc DateTime? @map("RevokedAtUtc") @db.DateTime2
+  user User @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  @@id([tenantId, id])
+  @@unique([tenantId, tokenHash])
+  @@map("RefreshTokens")
+}
+
+model MenuItem {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  id Int @default(autoincrement()) @map("Id")
+  name String @map("Name") @db.NVarChar(100)
+  route String @map("Route") @db.NVarChar(200)
+  icon String @map("Icon") @db.NVarChar(50)
+  displayOrder Int @map("DisplayOrder")
+  type Int @map("Type")
+  parentId Int? @map("ParentId")
+  parent MenuItem? @relation("MenuTree", fields: [tenantId, parentId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction)
+  children MenuItem[] @relation("MenuTree")
+  @@id([tenantId, id])
+  @@map("MenuItems")
+}

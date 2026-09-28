@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/catalog"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("CATALOG_DATABASE_URL")
+}
+
+// Existing Admin SQL baselines own DDL, collation, checks and migration history.
+// Configure schema=catalog in the server-owned connection URL.
+model TenantPlacement {
+  tenantId   String @id @map("TenantId") @db.UniqueIdentifier
+  isolation  Int @map("Isolation") @db.TinyInt
+  targetId   String @map("TargetId") @db.NVarChar(128)
+  schemaName String? @map("SchemaName") @db.NVarChar(128)
+  region     String @map("Region") @db.NVarChar(128)
+  version    BigInt @map("Version")
+  lifecycle  Int @map("Lifecycle") @db.TinyInt
+  authorities TenantAuthority[]
+  memberships TenantMembership[]
+
+  @@map("TenantPlacements")
+}
+
+model TenantAuthority {
+  authority String @id @map("Authority") @db.NVarChar(259)
+  tenantId  String @map("TenantId") @db.UniqueIdentifier
+  isActive  Boolean @map("IsActive")
+  placement TenantPlacement @relation(fields: [tenantId], references: [tenantId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("TenantAuthorities")
+}
+
+model TenantMembership {
+  tenantId String @map("TenantId") @db.UniqueIdentifier
+  issuer String @map("Issuer") @db.NVarChar(256)
+  subjectId String @map("SubjectId") @db.NVarChar(256)
+  isActive Boolean @map("IsActive")
+  placement TenantPlacement @relation(fields: [tenantId], references: [tenantId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([tenantId, issuer, subjectId], clustered: false)
+  @@map("TenantMemberships")
+}
