@@ -8,6 +8,7 @@ import {
   TenantAccess,
   TenantContext,
   TenantIsolation,
+  TenantLifecycle,
   TenantPlacement,
 } from '../../domain/tenancy.js';
 import { TenantAuthorityReader } from '../../application/tenancy/ports.js';
@@ -118,7 +119,37 @@ export class TenantStorage implements OnModuleDestroy {
       context,
       new AbortController().signal,
     );
-    const placement = context.placement;
+    return this.executeAtPlacement(context.placement, action);
+  }
+
+  /** Login-only path: resolve a candidate, check active placement, then verify user and membership. */
+  async executeCandidate<T>(
+    placement: TenantPlacement,
+    action: (db: TenantTransaction) => Promise<T>,
+  ): Promise<T> {
+    const fresh = await this.catalog.findPlacement(
+      placement.tenantId,
+      new AbortController().signal,
+    );
+    if (
+      !fresh ||
+      fresh.lifecycle !== TenantLifecycle.Active ||
+      fresh.version !== placement.version ||
+      fresh.targetId !== placement.targetId ||
+      fresh.schema !== placement.schema ||
+      fresh.region !== placement.region ||
+      fresh.isolation !== placement.isolation ||
+      fresh.region !== process.env.TENANT_REGION
+    ) {
+      throw new Error('Tenant placement changed or is unavailable.');
+    }
+    return this.executeAtPlacement(fresh, action);
+  }
+
+  private async executeAtPlacement<T>(
+    placement: TenantPlacement,
+    action: (db: TenantTransaction) => Promise<T>,
+  ): Promise<T> {
     this.targets ??= parseStorageTargets(process.env.TENANT_STORAGE_TARGETS);
     const target = this.targets.get(placement.targetId);
     if (

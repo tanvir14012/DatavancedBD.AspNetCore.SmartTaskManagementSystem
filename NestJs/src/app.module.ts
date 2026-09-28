@@ -12,6 +12,7 @@ import { TenantGuard } from './http/tenant.guard.js';
 import { ProjectsController } from './http/projects.controller.js';
 import { ProjectMembersController } from './http/project-members.controller.js';
 import { TasksController } from './http/tasks.controller.js';
+import { AuthController } from './http/auth.controller.js';
 
 @Controller()
 class HealthController {
@@ -33,6 +34,7 @@ class HealthController {
     ProjectsController,
     ProjectMembersController,
     TasksController,
+    AuthController,
   ],
   providers: [CatalogReader, TenantStorage, TenantGuard],
 })

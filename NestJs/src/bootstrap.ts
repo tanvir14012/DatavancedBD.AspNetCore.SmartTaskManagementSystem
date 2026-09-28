@@ -5,6 +5,7 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module.js';
+import fastifyCookie from '@fastify/cookie';
 
 export async function createApplication(): Promise<NestFastifyApplication> {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -24,5 +25,6 @@ export async function createApplication(): Promise<NestFastifyApplication> {
     { logger: ['error', 'warn', 'log'] },
   );
   app.enableShutdownHooks();
+  await app.register(fastifyCookie);
   return app;
 }

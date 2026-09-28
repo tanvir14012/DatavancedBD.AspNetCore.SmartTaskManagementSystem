@@ -18,6 +18,7 @@
     "prisma:generate:tenant": "prisma generate --schema prisma/tenant.prisma"
   },
   "dependencies": {
+    "@fastify/cookie": "11.0.2",
     "@nestjs/common": "12.1.0",
     "@nestjs/core": "12.1.0",
     "@nestjs/platform-fastify": "12.1.0",
