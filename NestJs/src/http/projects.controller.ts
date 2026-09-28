@@ -24,14 +24,14 @@ import {
   TenantGuard,
 } from './tenant.guard.js';
 
-function positiveId(raw: string): number {
+export function positiveId(raw: string): number {
   const id = Number(raw);
   if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(id))
     throw new BadRequestException('Invalid identifier.');
   return id;
 }
 
-function page(
+export function page(
   rawStart: unknown,
   rawLength: unknown,
 ): { start: number; length: number } {
@@ -100,7 +100,7 @@ function dateOutput(value: Date | null): string | null {
   return value?.toISOString().slice(0, 10) ?? null;
 }
 
-async function membership(
+export async function membership(
   db: TenantTransaction,
   tenantId: string,
   projectId: number,

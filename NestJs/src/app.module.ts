@@ -10,6 +10,8 @@ import {
 } from './infrastructure/prisma/prisma.service.js';
 import { TenantGuard } from './http/tenant.guard.js';
 import { ProjectsController } from './http/projects.controller.js';
+import { ProjectMembersController } from './http/project-members.controller.js';
+import { TasksController } from './http/tasks.controller.js';
 
 @Controller()
 class HealthController {
@@ -26,7 +28,12 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, ProjectsController],
+  controllers: [
+    HealthController,
+    ProjectsController,
+    ProjectMembersController,
+    TasksController,
+  ],
   providers: [CatalogReader, TenantStorage, TenantGuard],
 })
 export class AppModule {}

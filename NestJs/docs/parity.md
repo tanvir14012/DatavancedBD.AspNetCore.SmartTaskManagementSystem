@@ -11,8 +11,8 @@ status, authorization, transactional changes and invalidation all require eviden
 | 2 | Tenant resolution, immutable context, authoritative authorization | Implemented application boundary; unit tests pass; HTTP authentication wiring pending |
 | 3 | Prisma catalog and tenant model, three storage strategies, RLS transactions | Clients generated; runtime routing and RLS transaction implemented; live SQL Server acceptance pending |
 | 4 | Identity password compatibility, register/login/refresh/logout, cookies and CSRF | Pending |
-| 5 | Projects CRUD, members, assignments, pagination and permissions | CRUD routes implemented; members/assignments and SQL-backed acceptance pending |
-| 6 | Tasks CRUD, assignment, board, filters and permissions | Pending |
+| 5 | Projects CRUD, members, assignments, pagination and permissions | Routes implemented; SQL-backed and contract acceptance pending |
+| 6 | Tasks CRUD, assignment, board, filters and permissions | CRUD and assignment routes implemented; board and SQL-backed acceptance pending |
 | 7 | Users CRUD, dashboard, menus, AI description improvement | Pending |
 | 8 | Tenant caches/invalidation, admission, reauthorized background jobs | Pending |
 | 9 | Admin provisioning/migration, release fencing, deployment and recovery | Pending |
