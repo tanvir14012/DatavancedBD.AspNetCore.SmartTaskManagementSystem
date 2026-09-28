@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { jwtVerify } from 'jose';
 import type { FastifyRequest } from 'fastify';
+import { mayUseTenantAccount } from '../domain/account-access.js';
 import {
   TenantContext,
   TenantAccess,
@@ -110,11 +111,14 @@ export class TenantGuard implements CanActivate {
         where: { tenantId, userId },
         include: { role: { select: { name: true } } },
       });
-      return new Set(
+      const currentRoles = new Set(
         rows
           .map((row) => row.role.name)
           .filter((value): value is string => value !== null),
       );
+      if (!mayUseTenantAccount(user.lockoutEnd, [...currentRoles], new Date()))
+        throw new ForbiddenException();
+      return currentRoles;
     });
     request.userId = userId;
     request.roles = roles;

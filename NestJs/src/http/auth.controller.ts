@@ -15,6 +15,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { TenantRequestResolver } from '../application/tenancy/resolver.js';
 import { TenantLifecycle, TenantPlacement } from '../domain/tenancy.js';
 import { verifyIdentityPassword } from '../domain/identity-password.js';
+import { mayUseTenantAccount } from '../domain/account-access.js';
 import {
   CatalogReader,
   TenantStorage,
@@ -95,6 +96,12 @@ export class AuthController {
   ) {
     const settings = authConfig();
     const roles = await rolesFor(db, placement.tenantId, userId);
+    const account = await db.user.findUnique({
+      where: { tenantId_id: { tenantId: placement.tenantId, id: userId } },
+      select: { lockoutEnd: true },
+    });
+    if (!account || !mayUseTenantAccount(account.lockoutEnd, roles, new Date()))
+      throw new UnauthorizedException();
     const accessToken = await new SignJWT({
       tenant_id: placement.tenantId,
       [roleClaim]: roles,
