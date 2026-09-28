@@ -14,7 +14,7 @@ status, authorization, transactional changes and invalidation all require eviden
 | 5 | Projects CRUD, members, assignments, pagination and permissions | Routes, status filters, sorting and bounded pagination implemented; SQL-backed and contract acceptance pending |
 | 6 | Tasks CRUD, assignment, board, filters and permissions | Routes and role-specific list scope implemented; colliding-ID two-tenant query-scope test passes; SQL-backed and HTTP contract acceptance pending |
 | 7 | Users CRUD, dashboard, menus, AI description improvement | User list/get/update, account deactivation, dashboard, menus, optional Groq description provider and local fallback implemented; user creation pending; SQL-backed, provider, and HTTP contract acceptance pending |
-| 8 | Tenant caches/invalidation, admission, reauthorized background jobs | Pending |
+| 8 | Tenant caches/invalidation, admission, reauthorized background jobs | Worker authorization/fencing core and two-tenant test implemented; durable queue, deduplication, admission, handler, caches and invalidation pending |
 | 9 | Admin provisioning/migration, release fencing, deployment and recovery | Pending |
 | 10 | SQL Server/Redis and HTTP parity acceptance across all strategies | Pending |
 
