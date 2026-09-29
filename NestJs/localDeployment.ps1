@@ -44,10 +44,20 @@ function Stop-PortListener {
 
 function Invoke-Checked {
     param([string]$File, [string[]]$Arguments)
-    $output = & $File @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $command = Get-Command $File -CommandType Application -ErrorAction Stop | Select-Object -First 1
+    $previousPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell 5.1 wraps native stderr as ErrorRecords, including
+        # Prisma's informational messages. Judge native success by its exit code.
+        $ErrorActionPreference = 'Continue'
+        $output = & $command.Source @Arguments 2>&1 | ForEach-Object { $_.ToString() }
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+    if ($exitCode -ne 0) {
         # Arguments can contain SQL passwords; never echo the command line.
-        throw "$File failed with exit code $LASTEXITCODE.`n$($output -join [Environment]::NewLine)"
+        throw "$File failed with exit code $exitCode.`n$($output -join [Environment]::NewLine)"
     }
     return $output
 }
