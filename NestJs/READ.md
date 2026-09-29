@@ -1,6 +1,6 @@
-# NestJS backend: architecture and developer onboarding
+# NestJS backend: architecture reference
 
-This tutorial describes the code in this directory, reviewed on 2026-09-29. It is a
+This reference describes the code in this directory, reviewed on 2026-09-29. It is a
 parallel implementation of the .NET backend using NestJS, Fastify, Prisma and SQL Server.
 Read this alongside [the parity ledger](docs/parity.md), which records incomplete areas.
 A successful local login does not establish complete .NET parity or production readiness.
@@ -8,7 +8,7 @@ A successful local login does not establish complete .NET parity or production r
 Paths below are relative to this folder unless they begin with `../`. Examples marked
 **proposed** explain how to extend the design; they are not existing registered services.
 
-## Learning route
+## Architecture entry points
 
 1. Run the local deployment and follow a login request in the API log.
 2. Read `main.ts`, `bootstrap.ts`, `app.module.ts`, then `http/tenant.guard.ts` under `src/`.
@@ -69,7 +69,7 @@ cd E:\Dev\DatavancedBD.AspNetCore.SmartTaskManagementSystem\NestJs
 
 The script retains a generated local password in `.local/secrets.json`. To set a chosen
 local password, use `-TestPassword` with your own value; this updates the seeded account
-on each run. Do not put a real password in a committed script, tutorial or shell transcript.
+on each run. Do not put a real password in a committed script, document or shell transcript.
 
 The default frontend is **https://localhost:5173**; the API is **http://127.0.0.1:3002**.
 The seeded email is `accept0@example.test`. The API root `/` has no handler, so 404 there
@@ -214,8 +214,7 @@ sequenceDiagram
 
 Fastify owns the low-level HTTP lifecycle. This project installs an `onRequest` hook for exact-origin CORS. Cookies use `@fastify/cookie`. There are
 no custom Nest middleware classes, global ValidationPipe, global interceptor chain or
-custom exception filter registered today. Do not assume a tutorial's generic Nest
-middleware stack is present here.
+custom exception filter registered today. Only the components registered in the composition root participate in this host.
 
 Conceptually, Nest middleware precedes guards; guards decide route admission; interceptors
 can wrap execution; pipes parse/validate arguments; controllers execute; exception filters
@@ -499,9 +498,9 @@ Do not enqueue request objects or Prisma transaction clients. Serialize a tenant
 contract, reauthorize later, and open fresh storage scope. For reliable external publication,
 design a tenant transaction outbox and idempotent consumer before claiming durable delivery.
 
-## 13. Tutorial: add a field and an endpoint safely
+## 13. Feature and schema change workflow
 
-Suppose a product request adds a project label. Start with the API contract: required or
+For a project-label change, define the API contract: required or
 optional, maximum length, edit permission, default, list/filter behavior and old-client
 compatibility. Find the existing project controller and corresponding .NET contract.
 
