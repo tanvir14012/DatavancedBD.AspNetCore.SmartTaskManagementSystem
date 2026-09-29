@@ -28,7 +28,11 @@ class Authority implements TenantAuthorityReader {
 
   findTenant(host: string): Promise<string | null> {
     return Promise.resolve(
-      host === 'a.example.test' ? a : host === 'b.example.test' ? b : null,
+      host === 'a.example.test' || host === 'a.example.test:3002'
+        ? a
+        : host === 'b.example.test'
+          ? b
+          : null,
     );
   }
   isActiveMember(access: TenantAccess): Promise<boolean> {
@@ -107,6 +111,18 @@ void test('unknown hosts, conflicting selectors, missing and malformed selectors
   assert.equal(
     await resolver.resolve('A.EXAMPLE.TEST', a.toUpperCase(), signal),
     a,
+  );
+});
+
+void test('port-qualified local browser authorities resolve only when registered', async () => {
+  const resolver = new TenantRequestResolver(new Authority(), []);
+  assert.equal(
+    await resolver.resolve('a.example.test:3002', undefined, signal),
+    a,
+  );
+  await assert.rejects(
+    resolver.resolve('a.example.test:3003', undefined, signal),
+    TenantAccessDenied,
   );
 });
 

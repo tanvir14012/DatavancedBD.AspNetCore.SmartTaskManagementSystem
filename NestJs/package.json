@@ -8,7 +8,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-generated.mjs",
     "start": "node dist/src/main.js",
+    "seed:local": "node scripts/seed-local-user.mjs",
     "test": "npm run build && node --test dist/test/*.test.js",
+    "test:sql": "npm run build && node --env-file=.env --test dist/test/*.acceptance.js",
     "lint": "eslint src test",
     "format:check": "prettier --check src test package.json tsconfig.json",
     "format": "prettier --write src test package.json tsconfig.json",

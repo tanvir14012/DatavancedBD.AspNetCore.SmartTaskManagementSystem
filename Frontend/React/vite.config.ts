@@ -17,8 +17,18 @@ export default defineConfig({
     port: 4200,
     proxy: {
       '/services': {
-        target: 'http://localhost:5049',
+        target: process.env.VITE_DEV_API_TARGET ?? 'http://localhost:5049',
+        changeOrigin: false,
         rewrite: (url) => url.replace(/^\/services/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            // Tenant resolution is authority based. Keep the browser on the
+            // same origin while forwarding the local tenant authority.
+            if (process.env.STMS_DEV_TENANT_AUTHORITY) {
+              proxyReq.setHeader('host', process.env.STMS_DEV_TENANT_AUTHORITY)
+            }
+          })
+        },
       },
     },
   },

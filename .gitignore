@@ -36,6 +36,16 @@ appsettings.Local.json
 .env
 .env.*
 !.env.example
+.local/
+
+# Node dependencies and generated local build output
+node_modules/
+NestJs/dist/
+NestJs/generated/
+Frontend/React/dist/
+Frontend/React/dist-ssr/
+*.tsbuildinfo
+Frontend/React/certs/
 
 # OS
 Thumbs.db

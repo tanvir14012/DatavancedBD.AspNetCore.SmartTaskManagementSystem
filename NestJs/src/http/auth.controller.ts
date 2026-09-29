@@ -13,7 +13,11 @@ import { createHash, randomBytes } from 'node:crypto';
 import { SignJWT } from 'jose';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { TenantRequestResolver } from '../application/tenancy/resolver.js';
-import { TenantLifecycle, TenantPlacement } from '../domain/tenancy.js';
+import {
+  TenantAccessDenied,
+  TenantLifecycle,
+  TenantPlacement,
+} from '../domain/tenancy.js';
 import { verifyIdentityPassword } from '../domain/identity-password.js';
 import { mayUseTenantAccount } from '../domain/account-access.js';
 import {
@@ -71,15 +75,23 @@ export class AuthController {
     const shared =
       process.env.SHARED_API_AUTHORITIES?.split(',').filter(Boolean) ?? [];
     const resolver = new TenantRequestResolver(this.catalog, shared);
-    const id = await resolver.resolve(
-      request.headers.host,
-      request.headers['x-tenant-id'],
-      new AbortController().signal,
-    );
-    const placement = await this.catalog.findPlacement(
-      id,
-      new AbortController().signal,
-    );
+    let placement: TenantPlacement | null;
+    try {
+      const id = await resolver.resolve(
+        request.headers.host,
+        request.headers['x-tenant-id'],
+        new AbortController().signal,
+      );
+      placement = await this.catalog.findPlacement(
+        id,
+        new AbortController().signal,
+      );
+    } catch (error) {
+      if (error instanceof TenantAccessDenied)
+        throw new UnauthorizedException();
+      if (error instanceof UnauthorizedException) throw error;
+      throw new ServiceUnavailableException('Tenant catalog is unavailable.');
+    }
     if (
       !placement ||
       placement.lifecycle !== TenantLifecycle.Active ||
