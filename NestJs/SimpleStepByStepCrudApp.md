@@ -1,165 +1,147 @@
-# A small NestJS CRUD application, built properly
+# A small NestJS CRUD application, built in VS Code
 
-This complete Windows lesson uses one PostgreSQL database and one business entity: **Project**.
-There is no multi-tenancy. We construct the files manually to teach modules, providers, DTOs,
-controllers, services, guards, interceptors, persistence and jobs without generic repositories
-or CQRS plumbing. Existing repository code and the earlier guide remain unchanged.
+This single-tenant lesson builds registration, sign-in, rotating refresh tokens, sign-out,
+role administration and owner-authorized project CRUD on PostgreSQL. It includes Argon2,
+Passport JWT, Helmet, throttling, Pino, Redis caching, BullMQ startup seeding, Swagger,
+VS Code debugging and CMD/Docker runners. It is an Identity-style subset; email confirmation,
+MFA, password-recovery email and external login providers are outside its scope.
 
-We implement registration, JWT sign-in, rotating refresh tokens with replay detection, sign-out,
-password changes, administrator-created users, user activation, role CRUD and assignments,
-owner-authorized project CRUD, Redis response/query caching, BullMQ startup seeding, Pino logs,
-Swagger, VS Code debugging and Windows CMD/Docker run scripts. This is an Identity-style subset:
-email confirmation, MFA, recovery-email delivery and external providers are outside this lesson.
+Use **VS Code to create and edit files**. Use its integrated terminal for npm scaffolding,
+package installation, Prisma generation/migrations, checks and running the application.
+No shell script is used to author application source or hand-write package.json content.
+npm manages dependency entries and package-lock.json; the developer edits configuration
+and feature implementation in the editor. Existing repository backend code is untouched.
 
-Prerequisites: Windows 11, PowerShell 5.1/7, Node.js 24 LTS, npm, Docker Desktop in Linux-container
-mode, Git and optionally VS Code. Keep ports 3200, 55440, 56380 and debugger port 9230 free.
-Use a fresh directory from Step 1. Every authored file appears in full. npm, Prisma and TypeScript
-generate their lockfile, client and JavaScript output through the commands shown.
+Prerequisites: Windows 11, VS Code, Node.js **24.21.0 LTS**, npm, Git and Docker Desktop
+running Linux containers. Keep ports 3200, 55440, 56380 and debugger port 9230 available.
+Common command blocks work in CMD, PowerShell and Git Bash; shell-specific alternatives
+are labelled. Run one command at a time, inspect its result, and stop on any failure.
+If PowerShell blocks npm.ps1 or npx.ps1 under your execution policy, use npm.cmd or npx.cmd
+for that command. No PowerShell helper functions or session variables are required.
 
-Request flow: Pino middleware → throttling → bootstrap readiness gate → Passport JWT guard →
-role/permission guard → authentication-context interceptor → optional response cache → validation
-pipes → controller → service → Prisma/Redis. Guards authenticate and authorize. The requested
-auth interceptor safely attaches verified request context; it never replaces the JWT guard.
+Work through the numbered steps in order. Each editor step names its file and whether to
+replace its contents, insert a property, or append a small section. Use Explorer’s New File
+action with the full relative path to create missing folders. Save with Ctrl+S. While a file
+is being assembled across consecutive sections, keep Format on Save disabled and continue
+until its “File complete” note before compiling; then use the explicit formatting milestone.
+Code fences contain editor content unless the action is labelled Terminal or a shell name.
+Do not paste editor code into the terminal. Apply each append once; to restart a file, return
+to its first replacement step. For JSON property edits, retain the surrounding object and commas.
 
-Run numbered steps in order in one PowerShell terminal so its helper functions remain available.
-Each step performs one terminal action or writes a small source section. Larger files are built
-with Write-Source followed by guarded Add-Source calls; no earlier code must be copied again.
-Only run the explicit verification steps after their required files are complete.
-The final foreground startup commands use a second terminal for tests. Never paste Markdown fences.
+Request flow: logging → throttling → readiness gate → Passport JWT guard → role/permission
+guard → authentication-context interceptor → optional response cache → validation →
+controller → service → Prisma/Redis. Authentication belongs in the guard; the interceptor
+adds already verified context. Controllers stay thin and services own application behavior.
 
-## Step 1: Choose an empty application directory
+## Step 1: Check Node.js
 
-- **Goal**: I choose the location for this independent teaching application.
+- **Goal**: I verify the runtime required by this lesson and the Nest CLI.
 - **Command / Action**:
 
-```powershell
-$ErrorActionPreference = 'Stop'
-Set-StrictMode -Version Latest
-$schoolRoot = Join-Path $env:USERPROFILE 'source\nestjs-crud-school'
-if ((Test-Path $schoolRoot) -and @(Get-ChildItem $schoolRoot -Force).Count -gt 0) {
-    throw 'Choose an empty folder.'
-}
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+node --version
 ```
 
-## Step 2: Create and enter the application directory
+Use Node.js 24.21.0 LTS for this lesson. Stop and update the runtime if an older version is reported.
 
-- **Goal**: I establish the working directory used by every following relative path.
+## Step 2: Check npm
+
+- **Goal**: I verify the package manager used to scaffold and install the project.
 - **Command / Action**:
 
-```powershell
-New-Item -ItemType Directory -Path $schoolRoot -Force | Out-Null
-Set-Location -LiteralPath $schoolRoot
-Get-Location
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm --version
 ```
 
-## Step 3: Define the source-file writer
+## Step 3: Check Docker Desktop
 
-- **Goal**: I write source with predictable UTF-8 encoding and line endings.
+- **Goal**: I verify that Docker Desktop is running in Linux-container mode.
 - **Command / Action**:
 
-```powershell
-function Write-Source {
-    param([string]$Path, [string]$Content)
-    $target = Join-Path (Get-Location).Path $Path
-    $text = $Content.Replace("`r`n", "`n") + "`n"
-    [IO.File]::WriteAllText($target, $text, [Text.UTF8Encoding]::new($false))
-}
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+docker version
 ```
 
-Use this helper for the first section of a file. It replaces that file when deliberately restarting its construction.
+## Step 4: Check Docker Compose
 
-## Step 4: Define the guarded source appender
-
-- **Goal**: I add one small section at a time and reject accidentally repeated or out-of-order appends.
+- **Goal**: I verify the dependency runner is available.
 - **Command / Action**:
 
-```powershell
-function Add-Source {
-    param([string]$Path, [int]$ExpectedLines, [string]$Content)
-    $target = Join-Path (Get-Location).Path $Path
-    if (-not (Test-Path -LiteralPath $target)) { throw "Create $Path first." }
-    if ([IO.File]::ReadAllLines($target).Count -ne $ExpectedLines) {
-        throw "Unexpected file length: $Path. Follow its steps in order."
-    }
-    $text = $Content.Replace("`r`n", "`n") + "`n"
-    [IO.File]::AppendAllText($target, $text, [Text.UTF8Encoding]::new($false))
-}
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+docker compose version
 ```
 
-Keep this PowerShell session open. Files assembled across several steps are intentionally incomplete until their final section. Do not format, compile or run them between those sections. To repeat a file, restart at its Write-Source step and then repeat all of its Add-Source steps.
+## Step 5: Choose the parent folder in VS Code
 
-## Step 5: Define native-command error handling
-
-- **Goal**: I stop the lesson immediately when a terminal tool fails.
+- **Goal**: I keep the teaching application separate from the existing repository.
 - **Command / Action**:
 
-```powershell
-function Invoke-Checked {
-    param([string]$Program, [string[]]$Arguments)
-    & $Program @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "$Program failed with exit code $LASTEXITCODE." }
-}
-```
+In VS Code, choose **File → Open Folder** and open the parent directory where you keep practice projects. Open **Terminal → New Terminal**. Confirm that this parent directory does not already contain a `nestjs-crud-school` folder. The next command creates it.
 
-## Step 6: Check the Node runtime
+Use one of CMD, PowerShell, or Git Bash. All subsequent commands run in the new application directory unless explicitly stated otherwise.
 
-- **Goal**: I confirm the supported runtime before installing native packages.
+## Step 6: Scaffold the application with npm and the Nest CLI
+
+- **Goal**: I let the official template create the initial NestJS project.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked node @('--version')
-if ([int](& node -p 'parseInt(process.versions.node)') -lt 24) {
-    throw 'Use Node.js 24 LTS or newer supported LTS.'
-}
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npx --yes @nestjs/cli@12 new nestjs-crud-school --package-manager npm --skip-install --skip-tests --no-observe
 ```
 
-The pinned image uses the [official Node 24.21.0 LTS release](https://nodejs.org/en/blog/release/v24.21.0).
+Choose **ESM** if prompted for the module system. Installation is deferred until the lesson versions are configured. The CLI initializes Git by default. The [official CLI reference](https://docs.nestjs.com/cli/usages) documents these options; the CLI is constrained to major version 12, while application packages below are pinned exactly.
 
-## Step 7: Check npm
+## Step 7: Enter the generated application
 
-- **Goal**: I verify the package manager is available.
+- **Goal**: I make the application root the terminal working directory.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('--version')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+cd nestjs-crud-school
 ```
 
-## Step 8: Check Docker Desktop
+## Step 8: Open the application in VS Code
 
-- **Goal**: I confirm the Docker engine is running.
+- **Goal**: I make file edits relative to the application root.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked docker @('version')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+code .
 ```
 
-Start Docker Desktop in Linux-container mode before continuing.
+If the code command is not on PATH, use File → Open Folder and select nestjs-crud-school. In the new VS Code window, open Terminal → New Terminal.
 
-## Step 9: Check Docker Compose
+## Step 9: Remove the generated sample application
 
-- **Goal**: I confirm the container orchestration command is available.
+- **Goal**: I clear the Hello World example before introducing each lesson feature.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked docker @('compose', 'version')
-```
+In **VS Code Explorer**, delete the generated files inside `src` and `test`, keeping the two directories. Delete `nest-cli.json`, `tsconfig.build.json`, `.prettierrc` (the extensionless file), and any generated `vitest.config.*`, `jest*.json`, or `.oxlintrc.json` files if present. Keep `package.json`, `tsconfig.json`, `.gitignore`, and the Git repository.
 
-## Step 10: Initialize the lesson repository
+This applies only to the newly generated teaching project. We build with TypeScript directly and use Node’s test runner. The composition root and entrypoint are introduced after their dependencies; compilation checkpoints appear only after their required files are complete. The CLI template is a starting point, and the final configuration below is authoritative. The lesson creates .prettierrc.json so there is only one formatting configuration.
 
-- **Goal**: I prepare version control for the authored source and lockfile.
-- **Command / Action**:
-
-```powershell
-Invoke-Checked git @('init')
-```
-
-## Step 11: Exclude secrets and generated output
+## Step 10: Exclude secrets and generated output
 
 - **Goal**: I prevent local credentials and build output from entering Git.
 - **Command / Action**:
 
-```powershell
-Write-Source '.gitignore' @'
+In VS Code Explorer, create `.gitignore` if it does not exist, then open it. Replace its contents with the following code.
+
+```text
 node_modules/
 dist/
 generated/
@@ -168,16 +150,16 @@ generated/
 .local/
 coverage/
 *.log
-'@
 ```
 
-## Step 12: Set portable source formatting
+## Step 11: Set portable source formatting
 
 - **Goal**: I make formatting independent of the Windows editor.
 - **Command / Action**:
 
-```powershell
-Write-Source '.editorconfig' @'
+In VS Code Explorer, create `.editorconfig` if it does not exist, then open it. Replace its contents with the following code.
+
+```text
 root = true
 [*]
 charset = utf-8
@@ -186,27 +168,27 @@ insert_final_newline = true
 indent_style = space
 indent_size = 2
 trim_trailing_whitespace = true
-'@
 ```
 
-## Step 13: Configure readable formatting
+## Step 12: Configure readable formatting
 
 - **Goal**: I use one style for all lesson files.
 - **Command / Action**:
 
-```powershell
-Write-Source '.prettierrc.json' @'
+In VS Code Explorer, create `.prettierrc.json` if it does not exist, then open it. Replace its contents with the following code.
+
+```json
 { "singleQuote": true, "trailingComma": "all" }
-'@
 ```
 
-## Step 14: Pin the compatible toolchain — section 1 of 2
+## Step 13: Set the package identity and module system
 
-- **Goal**: I declare every package before installing framework code.
+- **Goal**: I adapt the generated package metadata to the lesson runtime.
 - **Command / Action**:
 
-```powershell
-Write-Source 'package.json' @'
+In VS Code Explorer, create `package.json` if it does not exist, then open it. Replace its contents with the following code.
+
+```json
 {
   "name": "nestjs-crud-school",
   "version": "1.0.0",
@@ -214,7 +196,20 @@ Write-Source 'package.json' @'
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
-  },
+  }
+}
+```
+
+This temporarily removes the template dependencies and scripts. The following focused edits and npm commands supply the complete lesson configuration.
+
+## Step 14: Add the application npm scripts
+
+- **Goal**: I define the commands used throughout the rest of the lesson.
+- **Command / Action**:
+
+In VS Code, edit `package.json`. Add the following **top-level property** inside the root object. Add a comma after the preceding property, and keep all existing properties. Save with **Ctrl+S**.
+
+```json
   "scripts": {
     "generate": "prisma generate",
     "build": "tsc -p tsconfig.json && node scripts/copy-client.mjs",
@@ -230,72 +225,34 @@ Write-Source 'package.json' @'
     "format:check": "prettier --check src test scripts/*.mjs package.json tsconfig.json eslint.config.mjs .vscode/*.json",
     "test": "node --test dist/test/security.test.js",
     "test:e2e": "node --env-file=.env dist/test/e2e.js"
-  },
-  "dependencies": {
-    "@nestjs/common": "12.1.2",
-    "@nestjs/core": "12.1.2",
-    "@nestjs/platform-express": "12.1.2",
-    "@nestjs/passport": "12.0.0",
-    "passport": "0.7.0",
-    "passport-jwt": "4.0.1",
-    "@nestjs/jwt": "12.0.2",
-    "@nestjs/throttler": "6.7.1",
-    "@nestjs/bullmq": "12.0.0",
-'@
+  }
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Keep package.json valid JSON after each edit. Dependency properties will be written by npm in the installation steps; do not type them manually.
 
-## Step 15: Pin the compatible toolchain — section 2 of 2
+## Step 15: Pin the dependency override
 
-- **Goal**: I add the next focused section of `package.json`.
+- **Goal**: I constrain the transitive dependency before resolving the lockfile.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'package.json' -ExpectedLines 34 -Content @'
-    "bullmq": "5.81.5",
-    "ioredis": "5.11.1",
-    "@nestjs/swagger": "12.0.2",
-    "nestjs-pino": "5.2.1",
-    "pino": "10.3.1",
-    "pino-http": "11.0.0",
-    "argon2": "0.45.1",
-    "helmet": "8.3.0",
-    "@prisma/client": "6.19.3",
-    "class-validator": "0.15.1",
-    "class-transformer": "0.5.1",
-    "reflect-metadata": "0.2.2",
-    "rxjs": "7.8.2"
-  },
-  "devDependencies": {
-    "@types/node": "22.20.4",
-    "@types/express": "5.0.6",
-    "@types/passport": "1.0.17",
-    "@types/passport-jwt": "4.0.1",
-    "typescript": "5.9.3",
-    "prisma": "6.19.3",
-    "eslint": "10.11.0",
-    "typescript-eslint": "8.70.1",
-    "prettier": "3.9.9"
-  },
+In VS Code, edit `package.json`. Add the following **top-level property** inside the root object. Add a comma after the preceding property, and keep all existing properties. Save with **Ctrl+S**.
+
+```json
   "overrides": {
     "deepmerge-ts": "8.0.0"
   }
-}
-'@
 ```
 
-File complete: `package.json`.
-
-Peer dependencies were checked for Nest 12. BullMQ stays on its v5 line. Prisma 6 uses a schema-file datasource; do not mix Prisma 7/8 instructions into this lesson. We choose Argon2id. A global Nest CLI is unnecessary because every authored file is shown.
+Keep package.json valid JSON after each edit. Dependency properties will be written by npm in the installation steps; do not type them manually.
 
 ## Step 16: Enable strict types and source maps
 
 - **Goal**: I catch unsafe contracts and support debugging the original TypeScript.
 - **Command / Action**:
 
-```powershell
-Write-Source 'tsconfig.json' @'
+In VS Code Explorer, create `tsconfig.json` if it does not exist, then open it. Replace its contents with the following code.
+
+```json
 {
   "compilerOptions": {
     "target": "ES2023",
@@ -316,7 +273,6 @@ Write-Source 'tsconfig.json' @'
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }
-'@
 ```
 
 ## Step 17: Enable typed linting
@@ -324,8 +280,9 @@ Write-Source 'tsconfig.json' @'
 - **Goal**: I detect unsafe values and unobserved promises early.
 - **Command / Action**:
 
-```powershell
-Write-Source 'eslint.config.mjs' @'
+In VS Code Explorer, create `eslint.config.mjs` if it does not exist, then open it. Replace its contents with the following code.
+
+```javascript
 import tseslint from 'typescript-eslint';
 export default tseslint.config(...tseslint.configs.recommendedTypeChecked, {
   languageOptions: {
@@ -335,54 +292,141 @@ export default tseslint.config(...tseslint.configs.recommendedTypeChecked, {
     },
   },
 });
-'@
 ```
 
-## Step 18: Resolve the dependency lockfile
+## Step 18: Install the NestJS HTTP foundation
 
-- **Goal**: I create the dependency lockfile and install its exact resolution.
+- **Goal**: I let npm add this feature’s exact package versions to package.json and package-lock.json.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('install', '--package-lock-only', '--ignore-scripts')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm install --save-exact @nestjs/common@12.1.2 @nestjs/core@12.1.2 @nestjs/platform-express@12.1.2 reflect-metadata@0.2.2 rxjs@7.8.2
 ```
 
-## Step 19: Install the locked dependencies
+## Step 19: Install Passport and JWT integration
 
-- **Goal**: I complete one verification action: install the locked dependencies.
+- **Goal**: I let npm add this feature’s exact package versions to package.json and package-lock.json.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('ci')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm install --save-exact @nestjs/passport@12.0.0 passport@0.7.0 passport-jwt@4.0.1 @nestjs/jwt@12.0.2
 ```
 
-## Step 20: Check the installed dependency tree
+## Step 20: Install password hashing and HTTP protection
+
+- **Goal**: I let npm add this feature’s exact package versions to package.json and package-lock.json.
+- **Command / Action**:
+
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm install --save-exact argon2@0.45.1 helmet@8.3.0 @nestjs/throttler@6.7.1
+```
+
+## Step 21: Install database and request-validation packages
+
+- **Goal**: I let npm add this feature’s exact package versions to package.json and package-lock.json.
+- **Command / Action**:
+
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm install --save-exact @prisma/client@6.19.3 class-validator@0.15.1 class-transformer@0.5.1
+```
+
+## Step 22: Install the Redis and background-job packages
+
+- **Goal**: I let npm add this feature’s exact package versions to package.json and package-lock.json.
+- **Command / Action**:
+
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm install --save-exact ioredis@5.11.1 @nestjs/bullmq@12.0.0 bullmq@5.81.5
+```
+
+## Step 23: Install structured logging and Swagger
+
+- **Goal**: I let npm add this feature’s exact package versions to package.json and package-lock.json.
+- **Command / Action**:
+
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm install --save-exact nestjs-pino@5.2.1 pino@10.3.1 pino-http@11.0.0 @nestjs/swagger@12.0.2
+```
+
+## Step 24: Install TypeScript and Prisma tooling
+
+- **Goal**: I install the development tools without adding them to runtime dependencies.
+- **Command / Action**:
+
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm install --save-dev --save-exact typescript@5.9.3 prisma@6.19.3 @types/node@22.20.4
+```
+
+## Step 25: Install HTTP and Passport type declarations
+
+- **Goal**: I install the development tools without adding them to runtime dependencies.
+- **Command / Action**:
+
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm install --save-dev --save-exact @types/express@5.0.6 @types/passport@1.0.17 @types/passport-jwt@4.0.1
+```
+
+## Step 26: Install linting and formatting tools
+
+- **Goal**: I install the development tools without adding them to runtime dependencies.
+- **Command / Action**:
+
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm install --save-dev --save-exact eslint@10.11.0 typescript-eslint@8.70.1 prettier@3.9.9
+```
+
+## Step 27: Verify a clean install from the lockfile
+
+- **Goal**: I prove that npm can reproduce the resolved dependencies.
+- **Command / Action**:
+
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm ci
+```
+
+npm manages package-lock.json. Commit it with package.json; use npm ci for subsequent clean installs.
+
+## Step 28: Check the installed dependency tree
 
 - **Goal**: I complete one verification action: check the installed dependency tree.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('ls', '--depth=0')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm ls --depth=0
 ```
 
 Commit package-lock.json in the new project; subsequent installs use npm ci. Argon2 ships native binaries for supported platforms. If your platform needs compilation, use node-argon2’s official build prerequisites rather than weakening password hashing.
 
-## Step 21: Create the scripts directory
-
-- **Goal**: I prepare the folder for `scripts/configure.mjs`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'scripts' -Force | Out-Null
-```
-
-## Step 22: Generate local secrets once — section 1 of 3
+## Step 29: Generate local secrets once — section 1 of 3
 
 - **Goal**: I separate API credentials from migration credentials and avoid hardcoded admin passwords.
 - **Command / Action**:
 
-```powershell
-Write-Source 'scripts/configure.mjs' @'
+In VS Code Explorer, create `scripts/configure.mjs` if it does not exist, then open it. Replace its contents with the following code.
+
+```javascript
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 const paths = [
@@ -413,18 +457,18 @@ const write = (path, content) =>
   writeFileSync(path, content + '\n', { encoding: 'utf8', mode: 0o600 });
 const database = (host, port, user, password) =>
   `postgresql://${user}:${password}@${host}:${port}/crud_school?schema=public&connection_limit=5&pool_timeout=5&connect_timeout=5&socket_timeout=10`;
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 23: Generate local secrets once — section 2 of 3
+## Step 30: Generate local secrets once — section 2 of 3
 
 - **Goal**: I add the next focused section of `scripts/configure.mjs`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'scripts/configure.mjs' -ExpectedLines 30 -Content @'
+Open `scripts/configure.mjs` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```javascript
 const runtime = (docker) =>
   [
     'NODE_ENV=development',
@@ -457,18 +501,18 @@ write(
   '.env.compose',
   `POSTGRES_PASSWORD=${databaseAdmin}\nREDIS_PASSWORD=${redisPassword}`,
 );
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 24: Generate local secrets once — section 3 of 3
+## Step 31: Generate local secrets once — section 3 of 3
 
 - **Goal**: I add the next focused section of `scripts/configure.mjs`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'scripts/configure.mjs' -ExpectedLines 62 -Content @'
+Open `scripts/configure.mjs` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```javascript
 write(
   '.local/init.sql',
   `CREATE ROLE crud_api LOGIN PASSWORD '${databaseRuntime}' NOSUPERUSER NOCREATEDB NOCREATEROLE;
@@ -491,20 +535,20 @@ maxmemory-policy noeviction`,
 console.log(
   'Private configuration created. Read .env in your editor for the generated initial admin password; never commit it.',
 );
-'@
 ```
 
 File complete: `scripts/configure.mjs`.
 
 The administrator is admin@example.test with a generated password. File modes do not replace Windows ACLs: keep settings in your private profile. Seed secrets never enter Redis jobs. After initial provisioning, disable SEED_ON_START and remove its password from deployed settings.
 
-## Step 25: Define healthy PostgreSQL and Redis services
+## Step 32: Define healthy PostgreSQL and Redis services
 
 - **Goal**: I isolate durable storage from the Node process.
 - **Command / Action**:
 
-```powershell
-Write-Source 'compose.yaml' @'
+In VS Code Explorer, create `compose.yaml` if it does not exist, then open it. Replace its contents with the following code.
+
+```yaml
 name: nestjs-crud-school
 services:
   postgres:
@@ -538,65 +582,64 @@ services:
 volumes:
   postgres-data:
   redis-data:
-'@
 ```
 
 Init SQL runs only on an empty PostgreSQL volume. Redis persistence and noeviction protect jobs; cache entries use TTL and fail open on write errors. See [BullMQ operational guidance](https://docs.bullmq.io/guide/going-to-production). Production needs scanned image digests, TLS and separately planned resources.
 
-## Step 26: Generate private development configuration
+## Step 33: Generate private development configuration
 
 - **Goal**: I check storage readiness before database administration.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked node @('scripts/configure.mjs')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+node scripts/configure.mjs
 ```
 
-## Step 27: Validate the Compose configuration
+## Step 34: Validate the Compose configuration
 
 - **Goal**: I complete one verification action: validate the compose configuration.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked docker @('compose', '--env-file', '.env.compose', 'config', '--quiet')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+docker compose --env-file .env.compose config --quiet
 ```
 
-## Step 28: Start PostgreSQL and Redis
+## Step 35: Start PostgreSQL and Redis
 
 - **Goal**: I complete one verification action: start postgresql and redis.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked docker @('compose', '--env-file', '.env.compose', 'up', '-d', '--wait', '--wait-timeout', '120', 'postgres', 'redis')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+docker compose --env-file .env.compose up -d --wait --wait-timeout 120 postgres redis
 ```
 
-## Step 29: Check the Redis connection
+## Step 36: Check the Redis connection
 
 - **Goal**: I complete one verification action: check the redis connection.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked docker @('compose', '--env-file', '.env.compose', 'exec', '-T', 'redis', 'redis-cli', 'ping')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+docker compose --env-file .env.compose exec -T redis redis-cli ping
 ```
 
 Expect PONG and healthy containers. Never print resolved Compose configuration containing secrets; use --quiet. No existing repository stack is touched or reset.
 
-## Step 30: Create the prisma directory
-
-- **Goal**: I prepare the folder for `prisma/schema.prisma`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'prisma' -Force | Out-Null
-```
-
-## Step 31: Model users, roles, sessions and projects — section 1 of 2
+## Step 37: Model users, roles, sessions and projects — section 1 of 2
 
 - **Goal**: I put identity and project relations in one ordinary PostgreSQL database.
 - **Command / Action**:
 
-```powershell
-Write-Source 'prisma/schema.prisma' @'
+In VS Code Explorer, create `prisma/schema.prisma` if it does not exist, then open it. Replace its contents with the following code.
+
+```prisma
 generator client {
   provider = "prisma-client-js"
   output = "../generated/prisma"
@@ -631,18 +674,18 @@ model Role {
   users UserRole[]
 }
 model UserRole {
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 32: Model users, roles, sessions and projects — section 2 of 2
+## Step 38: Model users, roles, sessions and projects — section 2 of 2
 
 - **Goal**: I add the next focused section of `prisma/schema.prisma`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'prisma/schema.prisma' -ExpectedLines 34 -Content @'
+Open `prisma/schema.prisma` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```prisma
   userId String @db.Uuid
   roleId String @db.Uuid
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -676,49 +719,31 @@ model Project {
   owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   @@index([ownerId, createdAt, id])
 }
-'@
 ```
 
 File complete: `prisma/schema.prisma`.
 
 AuthSession is a refresh-token family. Revoking it invalidates its access JWTs on the next request. Used refresh-token hashes remain until the session expires so reuse can be detected. Projects are private to their creator; administrator status does not bypass project ownership.
 
-## Step 33: Create the prisma/migrations directory
-
-- **Goal**: I prepare the folder for `prisma/migrations/migration_lock.toml`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'prisma/migrations' -Force | Out-Null
-```
-
-## Step 34: Pin PostgreSQL migration history
+## Step 39: Pin PostgreSQL migration history
 
 - **Goal**: I keep the migration dialect explicit.
 - **Command / Action**:
 
-```powershell
-Write-Source 'prisma/migrations/migration_lock.toml' @'
+In VS Code Explorer, create `prisma/migrations/migration_lock.toml` if it does not exist, then open it. Replace its contents with the following code.
+
+```toml
 provider = "postgresql"
-'@
 ```
 
-## Step 35: Create the prisma/migrations/202609300001_initial directory
-
-- **Goal**: I prepare the folder for `prisma/migrations/202609300001_initial/migration.sql`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'prisma/migrations/202609300001_initial' -Force | Out-Null
-```
-
-## Step 36: Write the complete initial migration — section 1 of 2
+## Step 40: Write the complete initial migration — section 1 of 2
 
 - **Goal**: I enforce relational integrity and seed readiness in the database.
 - **Command / Action**:
 
-```powershell
-Write-Source 'prisma/migrations/202609300001_initial/migration.sql' @'
+In VS Code Explorer, create `prisma/migrations/202609300001_initial/migration.sql` if it does not exist, then open it. Replace its contents with the following code.
+
+```sql
 CREATE TABLE "AppState" (
   "id" VARCHAR(32) PRIMARY KEY, "seeded" BOOLEAN NOT NULL DEFAULT false,
   "projectRevision" BIGINT NOT NULL DEFAULT 0 CHECK ("projectRevision" >= 0)
@@ -753,18 +778,18 @@ CREATE INDEX "AuthSession_userId_expiresAt_idx" ON "AuthSession"("userId", "expi
 CREATE TABLE "RefreshToken" (
   "hash" CHAR(64) PRIMARY KEY,
   "sessionId" UUID NOT NULL REFERENCES "AuthSession"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 37: Write the complete initial migration — section 2 of 2
+## Step 41: Write the complete initial migration — section 2 of 2
 
 - **Goal**: I add the next focused section of `prisma/migrations/202609300001_initial/migration.sql`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'prisma/migrations/202609300001_initial/migration.sql' -ExpectedLines 34 -Content @'
+Open `prisma/migrations/202609300001_initial/migration.sql` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```sql
   "usedAt" TIMESTAMPTZ(3)
 );
 CREATE INDEX "RefreshToken_sessionId_idx" ON "RefreshToken"("sessionId");
@@ -777,80 +802,84 @@ CREATE TABLE "Project" (
   "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX "Project_ownerId_createdAt_id_idx" ON "Project"("ownerId", "createdAt", "id");
-'@
 ```
 
 File complete: `prisma/migrations/202609300001_initial/migration.sql`.
 
-## Step 38: Grant DML without DDL
+## Step 42: Grant DML without DDL
 
 - **Goal**: I permit runtime data seeding while withholding schema and migration-history access.
 - **Command / Action**:
 
-```powershell
-Write-Source 'scripts/grants.sql' @'
+In VS Code Explorer, create `scripts/grants.sql` if it does not exist, then open it. Replace its contents with the following code.
+
+```sql
 GRANT USAGE ON SCHEMA public TO crud_api;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   "AppState", "User", "Role", "UserRole", "AuthSession", "RefreshToken", "Project"
 TO crud_api;
-'@
 ```
 
-## Step 39: Validate the Prisma schema
+## Step 43: Validate the Prisma schema
 
 - **Goal**: I prepare tables before any API or worker starts.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked node @('--env-file=.env.admin', 'node_modules/prisma/build/index.js', 'validate')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+node --env-file=.env.admin node_modules/prisma/build/index.js validate
 ```
 
-## Step 40: Generate the Prisma client
+## Step 44: Generate the Prisma client
 
 - **Goal**: I complete one verification action: generate the prisma client.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('run', 'generate')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm run generate
 ```
 
-## Step 41: Apply the database migration
+## Step 45: Apply the database migration
 
 - **Goal**: I complete one verification action: apply the database migration.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('run', 'migrate')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm run migrate
 ```
 
-## Step 42: Grant the application database permissions
+## Step 46: Grant the application database permissions
 
 - **Goal**: I complete one verification action: grant the application database permissions.
 - **Command / Action**:
 
+**PowerShell:**
+
 ```powershell
-Get-Content 'scripts/grants.sql' -Raw | & docker compose --env-file .env.compose exec -T postgres psql -U postgres -d crud_school -v ON_ERROR_STOP=1
-if ($LASTEXITCODE -ne 0) { throw 'Grant application failed.' }
+Get-Content scripts/grants.sql -Raw | docker compose --env-file .env.compose exec -T postgres psql -U postgres -d crud_school -v ON_ERROR_STOP=1
+```
+
+**CMD or Git Bash — run this alternative once:**
+
+```sh
+docker compose --env-file .env.compose exec -T postgres psql -U postgres -d crud_school -v ON_ERROR_STOP=1 < scripts/grants.sql
 ```
 
 Migrations are explicit administrator work. API startup never runs DDL. The unseeded AppState row will keep authentication and business endpoints at 503 until BullMQ commits the initial data. Future migrations require reviewed grants and representative-data upgrade tests.
 
-## Step 43: Create the src/core directory
-
-- **Goal**: I prepare the folder for `src/core/settings.ts`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'src/core' -Force | Out-Null
-```
-
-## Step 44: Validate environment configuration — section 1 of 4 (required)
+## Step 47: Validate environment configuration — section 1 of 4 (required)
 
 - **Goal**: I fail startup on missing secrets and invalid connection settings.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/core/settings.ts' @'
+In VS Code Explorer, create `src/core/settings.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Injectable } from '@nestjs/common';
 function required(name: string): string {
   const value = process.env[name];
@@ -863,18 +892,18 @@ function port(name: string): number {
     throw new Error(`Invalid ${name}.`);
   return value;
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 45: Validate environment configuration — section 2 of 4 (flag)
+## Step 48: Validate environment configuration — section 2 of 4 (flag)
 
 - **Goal**: I add the next focused section of `src/core/settings.ts`, working on `flag`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/core/settings.ts' -ExpectedLines 12 -Content @'
+Open `src/core/settings.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 function flag(name: string): boolean {
   const value = required(name);
   if (!['true', 'false'].includes(value)) throw new Error(`Invalid ${name}.`);
@@ -897,18 +926,18 @@ export class Settings {
   readonly seedEmail = required('SEED_ADMIN_EMAIL').toLowerCase();
   readonly seedPassword = process.env.SEED_ADMIN_PASSWORD;
   readonly origins = required('ALLOWED_ORIGINS').split(',');
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 46: Validate environment configuration — section 3 of 4 (constructor)
+## Step 49: Validate environment configuration — section 3 of 4 (constructor)
 
 - **Goal**: I add the next focused section of `src/core/settings.ts`, working on `constructor`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/core/settings.ts' -ExpectedLines 34 -Content @'
+Open `src/core/settings.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   constructor() {
     if (!['development', 'test', 'production'].includes(required('NODE_ENV')))
       throw new Error('Invalid NODE_ENV.');
@@ -942,18 +971,18 @@ Add-Source -Path 'src/core/settings.ts' -ExpectedLines 34 -Content @'
     if (this.production && (this.swagger || this.seedOnStart))
       throw new Error('Disable Swagger and initial seeding for production.');
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 47: Validate environment configuration — section 4 of 4 (redisConnection)
+## Step 50: Validate environment configuration — section 4 of 4 (redisConnection)
 
 - **Goal**: I add the next focused section of `src/core/settings.ts`, working on `redisConnection`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/core/settings.ts' -ExpectedLines 67 -Content @'
+Open `src/core/settings.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   redisConnection() {
     return {
       host: this.redisHost,
@@ -963,20 +992,20 @@ Add-Source -Path 'src/core/settings.ts' -ExpectedLines 67 -Content @'
     };
   }
 }
-'@
 ```
 
 File complete: `src/core/settings.ts`.
 
 Use a clean terminal without stale environment variables: Node --env-file does not override existing process variables. Local Compose explicitly uses development mode; production requires verified PostgreSQL/Redis TLS and external secret delivery.
 
-## Step 48: Export settings and an injectable clock
+## Step 51: Export settings and an injectable clock
 
 - **Goal**: I keep shared providers small and make time-dependent behavior testable.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/core/core.module.ts' @'
+In VS Code Explorer, create `src/core/core.module.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Injectable, Module } from '@nestjs/common';
 import { Settings } from './settings.js';
 @Injectable()
@@ -987,25 +1016,16 @@ export class Clock {
 }
 @Module({ providers: [Settings, Clock], exports: [Settings, Clock] })
 export class CoreModule {}
-'@
 ```
 
-## Step 49: Create the src/database directory
-
-- **Goal**: I prepare the folder for `src/database/database.module.ts`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'src/database' -Force | Out-Null
-```
-
-## Step 50: Encapsulate Prisma lifetime
+## Step 52: Encapsulate Prisma lifetime
 
 - **Goal**: I own one bounded pool and close it during graceful shutdown.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/database/database.module.ts' @'
+In VS Code Explorer, create `src/database/database.module.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Injectable, Module, type OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import { CoreModule } from '../core/core.module.js';
@@ -1025,16 +1045,16 @@ export class Database extends PrismaClient implements OnModuleDestroy {
 }
 @Module({ imports: [CoreModule], providers: [Database], exports: [Database] })
 export class DatabaseModule {}
-'@
 ```
 
-## Step 51: Bound every list request
+## Step 53: Bound every list request
 
 - **Goal**: I prevent unbounded database reads and validate pagination at the HTTP boundary.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/core/page.dto.ts' @'
+In VS Code Explorer, create `src/core/page.dto.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Type } from 'class-transformer';
 import { IsInt, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -1052,25 +1072,16 @@ export class PageDto {
   @Max(100)
   limit = 20;
 }
-'@
 ```
 
-## Step 52: Create the src/cache directory
-
-- **Goal**: I prepare the folder for `src/cache/cache.module.ts`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'src/cache' -Force | Out-Null
-```
-
-## Step 53: Build a small Redis cache service — section 1 of 3 (CacheService)
+## Step 54: Build a small Redis cache service — section 1 of 3 (CacheService)
 
 - **Goal**: I keep cache failures from turning successful business reads into failures.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/cache/cache.module.ts' @'
+In VS Code Explorer, create `src/cache/cache.module.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Injectable, Module, type OnModuleDestroy } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { CoreModule } from '../core/core.module.js';
@@ -1090,18 +1101,18 @@ export class CacheService implements OnModuleDestroy {
     // Reads are best-effort; readiness separately reports dependency failure.
     this.redis.on('error', () => undefined);
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 54: Build a small Redis cache service — section 2 of 3 (read)
+## Step 55: Build a small Redis cache service — section 2 of 3 (read)
 
 - **Goal**: I add the next focused section of `src/cache/cache.module.ts`, working on `read`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/cache/cache.module.ts' -ExpectedLines 19 -Content @'
+Open `src/cache/cache.module.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async read<T>(
     key: string,
     decode: (value: unknown) => T | undefined,
@@ -1113,18 +1124,18 @@ Add-Source -Path 'src/cache/cache.module.ts' -ExpectedLines 19 -Content @'
       return undefined;
     }
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 55: Build a small Redis cache service — section 3 of 3 (write)
+## Step 56: Build a small Redis cache service — section 3 of 3 (write)
 
 - **Goal**: I add the next focused section of `src/cache/cache.module.ts`, working on `write`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/cache/cache.module.ts' -ExpectedLines 30 -Content @'
+Open `src/cache/cache.module.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async write(key: string, value: unknown): Promise<void> {
     try {
       await this.redis.set(
@@ -1154,29 +1165,20 @@ Add-Source -Path 'src/cache/cache.module.ts' -ExpectedLines 30 -Content @'
   exports: [CacheService],
 })
 export class CacheModule {}
-'@
 ```
 
 File complete: `src/cache/cache.module.ts`.
 
 Caching is never an authorization source. Query keys will include user ID and a database revision; response keys include resource version and owner. Old keys expire after 60 seconds, so a concurrent cache fill cannot resurrect data under the new version. No Redis FLUSH command is used.
 
-## Step 56: Create the src/identity directory
-
-- **Goal**: I prepare the folder for `src/identity/contracts.ts`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'src/identity' -Force | Out-Null
-```
-
 ## Step 57: Define trusted principal and token contracts — section 1 of 2
 
 - **Goal**: I separate verified identity from raw JWT input and persistence records.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/contracts.ts' @'
+In VS Code Explorer, create `src/identity/contracts.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { UnauthorizedException } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 export const PERMISSIONS = ['projects:read', 'projects:write'] as const;
@@ -1192,18 +1194,18 @@ export interface AccessClaims {
   sid: string;
   ver: number;
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 58: Define trusted principal and token contracts — section 2 of 2 (accessClaims)
 
 - **Goal**: I add the next focused section of `src/identity/contracts.ts`, working on `accessClaims`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/contracts.ts' -ExpectedLines 15 -Content @'
+Open `src/identity/contracts.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 export function accessClaims(value: unknown): AccessClaims {
   if (!value || typeof value !== 'object') throw new UnauthorizedException();
   const row = Object.fromEntries(Object.entries(value));
@@ -1235,7 +1237,6 @@ export function permits(
     )
   );
 }
-'@
 ```
 
 File complete: `src/identity/contracts.ts`.
@@ -1245,8 +1246,9 @@ File complete: `src/identity/contracts.ts`.
 - **Goal**: I prevent overposting and document exact request contracts for beginners.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/identity.dto.ts' @'
+In VS Code Explorer, create `src/identity/identity.dto.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -1264,18 +1266,18 @@ import {
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { PERMISSIONS } from './contracts.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 60: Validate registration and administration input — section 2 of 5 (RegisterDto)
 
 - **Goal**: I add the next focused section of `src/identity/identity.dto.ts`, working on `RegisterDto`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/identity.dto.ts' -ExpectedLines 17 -Content @'
+Open `src/identity/identity.dto.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 export class RegisterDto {
   @ApiProperty({ example: 'learner@example.test' })
   @Transform(({ value }: { value: unknown }) =>
@@ -1296,18 +1298,18 @@ export class RegisterDto {
   @Length(12, 128)
   password = '';
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 61: Validate registration and administration input — section 3 of 5 (LoginDto)
 
 - **Goal**: I add the next focused section of `src/identity/identity.dto.ts`, working on `LoginDto`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/identity.dto.ts' -ExpectedLines 37 -Content @'
+Open `src/identity/identity.dto.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 export class LoginDto {
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) =>
@@ -1319,18 +1321,18 @@ export class LoginDto {
   @ApiProperty({ format: 'password' }) @IsString() @Length(12, 128) password =
     '';
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 62: Validate registration and administration input — section 4 of 5 (RefreshDto)
 
 - **Goal**: I add the next focused section of `src/identity/identity.dto.ts`, working on `RefreshDto`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/identity.dto.ts' -ExpectedLines 48 -Content @'
+Open `src/identity/identity.dto.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 export class RefreshDto {
   @ApiProperty()
   @IsString()
@@ -1347,18 +1349,18 @@ export class PasswordDto {
   @Length(12, 128)
   newPassword = '';
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 63: Validate registration and administration input — section 5 of 5 (RoleDto)
 
 - **Goal**: I add the next focused section of `src/identity/identity.dto.ts`, working on `RoleDto`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/identity.dto.ts' -ExpectedLines 64 -Content @'
+Open `src/identity/identity.dto.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 export class RoleDto {
   @ApiProperty({ example: 'Reader' })
   @IsString()
@@ -1384,7 +1386,6 @@ export class AssignRolesDto {
 export class ActiveDto {
   @ApiProperty({ type: Boolean }) @IsBoolean() active: unknown;
 }
-'@
 ```
 
 File complete: `src/identity/identity.dto.ts`.
@@ -1396,8 +1397,9 @@ RegisterDto contains no role or active fields. The global validation pipe later 
 - **Goal**: I keep memory-hard password verification asynchronous and cap concurrent hash operations.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/password.service.ts' @'
+In VS Code Explorer, create `src/identity/password.service.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   Injectable,
   ServiceUnavailableException,
@@ -1408,18 +1410,18 @@ import { argon2id, hash, verify } from 'argon2';
 export class PasswordService implements OnModuleInit {
   private active = 0;
   private dummy = '';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 65: Hash passwords with bounded Argon2id work — section 2 of 2 (onModuleInit)
 
 - **Goal**: I add the next focused section of `src/identity/password.service.ts`, working on `onModuleInit`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/password.service.ts' -ExpectedLines 10 -Content @'
+Open `src/identity/password.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async onModuleInit(): Promise<void> {
     this.dummy = await this.hash('a non-user dummy password for timing');
   }
@@ -1453,7 +1455,6 @@ Add-Source -Path 'src/identity/password.service.ts' -ExpectedLines 10 -Content @
     });
   }
 }
-'@
 ```
 
 File complete: `src/identity/password.service.ts`.
@@ -1465,8 +1466,9 @@ Argon2 stores a unique salt and parameters in its encoded hash. Unknown accounts
 - **Goal**: I keep credential handling, session revocation and replay detection out of controllers.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/auth.service.ts' @'
+In VS Code Explorer, create `src/identity/auth.service.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   ConflictException,
   HttpException,
@@ -1491,18 +1493,18 @@ const userSelect = {
   active: true,
   createdAt: true,
 } as const;
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 67: Implement authentication and rotating refresh tokens — section 2 of 10 (AuthService)
 
 - **Goal**: I add the next focused section of `src/identity/auth.service.ts`, working on `AuthService`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 24 -Content @'
+Open `src/identity/auth.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Injectable()
 export class AuthService {
   constructor(
@@ -1511,18 +1513,18 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly clock: Clock,
   ) {}
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 68: Implement authentication and rotating refresh tokens — section 3 of 10 (register)
 
 - **Goal**: I add the next focused section of `src/identity/auth.service.ts`, working on `register`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 32 -Content @'
+Open `src/identity/auth.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async register(input: RegisterDto) {
     const passwordHash = await this.passwords.hash(input.password);
     return this.db.$transaction(async (tx) => {
@@ -1540,18 +1542,18 @@ Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 32 -Content @'
       });
     });
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 69: Implement authentication and rotating refresh tokens — section 4 of 10 (login)
 
 - **Goal**: I add the next focused section of `src/identity/auth.service.ts`, working on `login`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 49 -Content @'
+Open `src/identity/auth.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async login(input: LoginDto) {
     const user = await this.db.user.findUnique({
       where: { email: input.email },
@@ -1586,18 +1588,18 @@ Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 49 -Content @'
         },
       });
       const refreshToken = `${created.id}.${randomBytes(32).toString('hex')}`;
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 70: Implement authentication and rotating refresh tokens — section 5 of 10 (login)
 
 - **Goal**: I add the next focused section of `src/identity/auth.service.ts`, working on `login`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 83 -Content @'
+Open `src/identity/auth.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
       await tx.refreshToken.create({
         data: { hash: tokenHash(refreshToken), sessionId: created.id },
       });
@@ -1615,18 +1617,18 @@ Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 83 -Content @'
       session.refreshToken,
     );
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 71: Implement authentication and rotating refresh tokens — section 6 of 10 (tokens)
 
 - **Goal**: I add the next focused section of `src/identity/auth.service.ts`, working on `tokens`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 100 -Content @'
+Open `src/identity/auth.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   private async tokens(
     id: string,
     version: number,
@@ -1640,18 +1642,18 @@ Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 100 -Content @'
     });
     return { accessToken, refreshToken, tokenType: 'Bearer', expiresIn: 300 };
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 72: Implement authentication and rotating refresh tokens — section 7 of 10 (refresh)
 
 - **Goal**: I add the next focused section of `src/identity/auth.service.ts`, working on `refresh`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 113 -Content @'
+Open `src/identity/auth.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async refresh(raw: string) {
     const sessionId = raw.split('.')[0];
     if (!sessionId || !isUUID(sessionId, '4'))
@@ -1684,18 +1686,18 @@ Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 113 -Content @'
         return null; // Commit the revocation; throw only after the transaction returns.
       }
       const refreshToken = `${sessionId}.${randomBytes(32).toString('hex')}`;
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 73: Implement authentication and rotating refresh tokens — section 8 of 10 (refresh)
 
 - **Goal**: I add the next focused section of `src/identity/auth.service.ts`, working on `refresh`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 145 -Content @'
+Open `src/identity/auth.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
       await tx.refreshToken.update({
         where: { hash: record.hash },
         data: { usedAt: now },
@@ -1718,18 +1720,18 @@ Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 145 -Content @'
       result.refreshToken,
     );
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 74: Implement authentication and rotating refresh tokens — section 9 of 10 (authenticate)
 
 - **Goal**: I add the next focused section of `src/identity/auth.service.ts`, working on `authenticate`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 167 -Content @'
+Open `src/identity/auth.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async authenticate(claims: AccessClaims): Promise<Principal> {
     const family = await this.db.authSession.findFirst({
       where: {
@@ -1753,18 +1755,18 @@ Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 167 -Content @'
       ]),
     });
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 75: Implement authentication and rotating refresh tokens — section 10 of 10 (logout)
 
 - **Goal**: I add the next focused section of `src/identity/auth.service.ts`, working on `logout`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 190 -Content @'
+Open `src/identity/auth.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async logout(principal: Principal): Promise<void> {
     await this.db.authSession.updateMany({
       where: { id: principal.sessionId, userId: principal.id, revokedAt: null },
@@ -1797,7 +1799,6 @@ Add-Source -Path 'src/identity/auth.service.ts' -ExpectedLines 190 -Content @'
     });
   }
 }
-'@
 ```
 
 File complete: `src/identity/auth.service.ts`.
@@ -1809,8 +1810,9 @@ Access JWTs last five minutes; refresh families expire absolutely after 30 days.
 - **Goal**: I serialize privileged mutations and preserve at least one active administrator.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/admin.service.ts' @'
+In VS Code Explorer, create `src/identity/admin.service.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   ConflictException,
   ForbiddenException,
@@ -1824,18 +1826,18 @@ import type { PageDto } from '../core/page.dto.js';
 import type { Principal } from './contracts.js';
 import type { RegisterDto, RoleDto } from './identity.dto.js';
 import { PasswordService } from './password.service.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 77: Implement user and role administration — section 2 of 11 (AdminService)
 
 - **Goal**: I add the next focused section of `src/identity/admin.service.ts`, working on `AdminService`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 13 -Content @'
+Open `src/identity/admin.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 
 @Injectable()
 export class AdminService {
@@ -1844,18 +1846,18 @@ export class AdminService {
     private readonly clock: Clock,
     private readonly passwords: PasswordService,
   ) {}
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 78: Implement user and role administration — section 3 of 11 (mutate)
 
 - **Goal**: I add the next focused section of `src/identity/admin.service.ts`, working on `mutate`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 21 -Content @'
+Open `src/identity/admin.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   private async mutate<T>(
     actor: Principal,
     action: (tx: Prisma.TransactionClient) => Promise<T>,
@@ -1889,18 +1891,18 @@ Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 21 -Content @'
         throw new ConflictException(
           'The last active administrator must remain.',
         );
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 79: Implement user and role administration — section 4 of 11 (users)
 
 - **Goal**: I add the next focused section of `src/identity/admin.service.ts`, working on `users`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 54 -Content @'
+Open `src/identity/admin.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
       return result;
     });
   }
@@ -1918,18 +1920,18 @@ Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 54 -Content @'
       },
     });
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 80: Implement user and role administration — section 5 of 11 (createUser)
 
 - **Goal**: I add the next focused section of `src/identity/admin.service.ts`, working on `createUser`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 71 -Content @'
+Open `src/identity/admin.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async createUser(actor: Principal, input: RegisterDto) {
     const passwordHash = await this.passwords.hash(input.password);
     return this.mutate(actor, async (tx) => {
@@ -1947,18 +1949,18 @@ Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 71 -Content @'
       });
     });
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 81: Implement user and role administration — section 6 of 11 (roles)
 
 - **Goal**: I add the next focused section of `src/identity/admin.service.ts`, working on `roles`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 88 -Content @'
+Open `src/identity/admin.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   roles(page: PageDto) {
     return this.db.role.findMany({
       skip: page.offset,
@@ -1967,18 +1969,18 @@ Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 88 -Content @'
       select: { id: true, name: true, permissions: true, system: true },
     });
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 82: Implement user and role administration — section 7 of 11 (createRole)
 
 - **Goal**: I add the next focused section of `src/identity/admin.service.ts`, working on `createRole`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 96 -Content @'
+Open `src/identity/admin.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   createRole(actor: Principal, input: RoleDto) {
     return this.mutate(actor, (tx) =>
       tx.role.create({
@@ -1991,18 +1993,18 @@ Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 96 -Content @'
       }),
     );
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 83: Implement user and role administration — section 8 of 11 (updateRole)
 
 - **Goal**: I add the next focused section of `src/identity/admin.service.ts`, working on `updateRole`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 108 -Content @'
+Open `src/identity/admin.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   updateRole(actor: Principal, id: string, input: RoleDto) {
     return this.mutate(actor, async (tx) => {
       const role = await tx.role.findUnique({ where: { id } });
@@ -2029,18 +2031,18 @@ Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 108 -Content @'
       return updated;
     });
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 84: Implement user and role administration — section 9 of 11 (deleteRole)
 
 - **Goal**: I add the next focused section of `src/identity/admin.service.ts`, working on `deleteRole`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 134 -Content @'
+Open `src/identity/admin.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async deleteRole(actor: Principal, id: string): Promise<void> {
     await this.mutate(actor, async (tx) => {
       const role = await tx.role.findUnique({
@@ -2055,18 +2057,18 @@ Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 134 -Content @'
       await tx.role.delete({ where: { id } });
     });
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 85: Implement user and role administration — section 10 of 11 (assignRoles)
 
 - **Goal**: I add the next focused section of `src/identity/admin.service.ts`, working on `assignRoles`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 148 -Content @'
+Open `src/identity/admin.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async assignRoles(
     actor: Principal,
     id: string,
@@ -2094,18 +2096,18 @@ Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 148 -Content @'
       });
     });
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 86: Implement user and role administration — section 11 of 11 (setActive)
 
 - **Goal**: I add the next focused section of `src/identity/admin.service.ts`, working on `setActive`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 175 -Content @'
+Open `src/identity/admin.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async setActive(
     actor: Principal,
     id: string,
@@ -2125,7 +2127,6 @@ Add-Source -Path 'src/identity/admin.service.ts' -ExpectedLines 175 -Content @'
     });
   }
 }
-'@
 ```
 
 File complete: `src/identity/admin.service.ts`.
@@ -2137,8 +2138,9 @@ Role changes revoke affected sessions and increment a security version. Built-in
 - **Goal**: I make protected endpoints the default and declare exceptional public routes clearly.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/access.ts' @'
+In VS Code Explorer, create `src/identity/access.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   createParamDecorator,
   ExecutionContext,
@@ -2164,7 +2166,6 @@ export const CurrentUser = createParamDecorator(
   (_data: unknown, context: ExecutionContext) =>
     principal(context.switchToHttp().getRequest<PrincipalRequest>()),
 );
-'@
 ```
 
 ## Step 88: Verify JWTs using Passport
@@ -2172,8 +2173,9 @@ export const CurrentUser = createParamDecorator(
 - **Goal**: I constrain algorithm, issuer, audience and lifetime before loading live identity state.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/jwt.strategy.ts' @'
+In VS Code Explorer, create `src/identity/jwt.strategy.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -2199,7 +2201,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     return this.auth.authenticate(accessClaims(payload));
   }
 }
-'@
 ```
 
 [Nest Passport integration](https://docs.nestjs.com/recipes/passport) supplies signature authentication through the strategy and guard. Authorization remains a separate live database decision. Roles are not accepted from the JWT payload.
@@ -2209,8 +2210,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 - **Goal**: I reject premature requests and check both roles and permissions before controllers run.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/guards.ts' @'
+In VS Code Explorer, create `src/identity/guards.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   CanActivate,
   ExecutionContext,
@@ -2229,18 +2231,18 @@ import {
   type PrincipalRequest,
 } from './access.js';
 import { permits } from './contracts.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 90: Add the bootstrap, JWT and RBAC guards — section 2 of 3 (BootstrapGuard)
 
 - **Goal**: I add the next focused section of `src/identity/guards.ts`, working on `BootstrapGuard`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/guards.ts' -ExpectedLines 18 -Content @'
+Open `src/identity/guards.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Injectable()
 export class BootstrapGuard implements CanActivate {
   constructor(
@@ -2261,18 +2263,18 @@ export class BootstrapGuard implements CanActivate {
     return true;
   }
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 91: Add the bootstrap, JWT and RBAC guards — section 3 of 3 (JwtGuard)
 
 - **Goal**: I add the next focused section of `src/identity/guards.ts`, working on `JwtGuard`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/guards.ts' -ExpectedLines 38 -Content @'
+Open `src/identity/guards.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Injectable()
 export class JwtGuard extends AuthGuard('jwt') {
   constructor(private readonly reflector: Reflector) {
@@ -2302,7 +2304,6 @@ export class RolesGuard implements CanActivate {
     );
   }
 }
-'@
 ```
 
 File complete: `src/identity/guards.ts`.
@@ -2314,8 +2315,9 @@ Required roles use OR; required permissions use AND. Admin-only routes use Roles
 - **Goal**: I enrich request logs and prevent client-side caching after identity has already been verified.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/auth-context.interceptor.ts' @'
+In VS Code Explorer, create `src/identity/auth-context.interceptor.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   CallHandler,
   ExecutionContext,
@@ -2345,7 +2347,6 @@ export class AuthContextInterceptor implements NestInterceptor<
     return next.handle();
   }
 }
-'@
 ```
 
 The interceptor runs after guards. It does not parse or trust an unverified token, silently refresh tokens, or decide access. No passwords, bearer tokens, refresh tokens or request bodies are logged.
@@ -2355,8 +2356,9 @@ The interceptor runs after guards. It does not parse or trust an unverified toke
 - **Goal**: I let DTOs and AuthService own validation and behavior.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/auth.controller.ts' @'
+In VS Code Explorer, create `src/identity/auth.controller.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -2369,18 +2371,18 @@ import {
   RegisterDto,
 } from './identity.dto.js';
 import type { Principal } from './contracts.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 94: Expose small authentication handlers — section 2 of 4 (AuthController)
 
 - **Goal**: I add the next focused section of `src/identity/auth.controller.ts`, working on `AuthController`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.controller.ts' -ExpectedLines 12 -Content @'
+Open `src/identity/auth.controller.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
@@ -2392,18 +2394,18 @@ export class AuthController {
   register(@Body() input: RegisterDto) {
     return this.auth.register(input);
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 95: Expose small authentication handlers — section 3 of 4 (login)
 
 - **Goal**: I add the next focused section of `src/identity/auth.controller.ts`, working on `login`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.controller.ts' -ExpectedLines 23 -Content @'
+Open `src/identity/auth.controller.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   @Public()
   @Post('login')
   @HttpCode(200)
@@ -2414,18 +2416,18 @@ Add-Source -Path 'src/identity/auth.controller.ts' -ExpectedLines 23 -Content @'
   login(@Body() input: LoginDto) {
     return this.auth.login(input);
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 96: Expose small authentication handlers — section 4 of 4 (refresh)
 
 - **Goal**: I add the next focused section of `src/identity/auth.controller.ts`, working on `refresh`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/auth.controller.ts' -ExpectedLines 33 -Content @'
+Open `src/identity/auth.controller.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   @Public()
   @Post('refresh')
   @HttpCode(200)
@@ -2455,7 +2457,6 @@ Add-Source -Path 'src/identity/auth.controller.ts' -ExpectedLines 33 -Content @'
     return { id: user.id, roles: user.roles, permissions: user.permissions };
   }
 }
-'@
 ```
 
 File complete: `src/identity/auth.controller.ts`.
@@ -2465,8 +2466,9 @@ File complete: `src/identity/auth.controller.ts`.
 - **Goal**: I keep access requirements visible while delegating mutations to a service.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/admin.controller.ts' @'
+In VS Code Explorer, create `src/identity/admin.controller.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   Body,
   Controller,
@@ -2491,18 +2493,18 @@ import {
   RoleDto,
 } from './identity.dto.js';
 import type { Principal } from './contracts.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 98: Expose administrator-only user and role routes — section 2 of 4 (AdminController)
 
 - **Goal**: I add the next focused section of `src/identity/admin.controller.ts`, working on `AdminController`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.controller.ts' -ExpectedLines 24 -Content @'
+Open `src/identity/admin.controller.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @ApiTags('Identity administration')
 @ApiBearerAuth()
 @Roles('Admin')
@@ -2512,18 +2514,18 @@ export class AdminController {
   @Get('users') users(@Query() page: PageDto) {
     return this.admin.users(page);
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 99: Expose administrator-only user and role routes — section 3 of 4 (createUser)
 
 - **Goal**: I add the next focused section of `src/identity/admin.controller.ts`, working on `createUser`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.controller.ts' -ExpectedLines 33 -Content @'
+Open `src/identity/admin.controller.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   @Post('users') createUser(
     @CurrentUser() actor: Principal,
     @Body() input: RegisterDto,
@@ -2539,18 +2541,18 @@ Add-Source -Path 'src/identity/admin.controller.ts' -ExpectedLines 33 -Content @
   ): Promise<void> {
     return this.admin.setActive(actor, id, input.active === true);
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 100: Expose administrator-only user and role routes — section 4 of 4 (assign)
 
 - **Goal**: I add the next focused section of `src/identity/admin.controller.ts`, working on `assign`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/admin.controller.ts' -ExpectedLines 48 -Content @'
+Open `src/identity/admin.controller.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   @Put('users/:id/roles')
   @HttpCode(204)
   assign(
@@ -2585,7 +2587,6 @@ Add-Source -Path 'src/identity/admin.controller.ts' -ExpectedLines 48 -Content @
     return this.admin.deleteRole(actor, id);
   }
 }
-'@
 ```
 
 File complete: `src/identity/admin.controller.ts`.
@@ -2595,8 +2596,9 @@ File complete: `src/identity/admin.controller.ts`.
 - **Goal**: I register the strategy, services and guards once and export only reusable providers.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/identity/identity.module.ts' @'
+In VS Code Explorer, create `src/identity/identity.module.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -2611,18 +2613,18 @@ import { BootstrapGuard, JwtGuard, RolesGuard } from './guards.js';
 import { AuthContextInterceptor } from './auth-context.interceptor.js';
 import { AuthController } from './auth.controller.js';
 import { AdminController } from './admin.controller.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 102: Compose the identity module — section 2 of 3 (IdentityModule)
 
 - **Goal**: I add the next focused section of `src/identity/identity.module.ts`, working on `IdentityModule`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/identity.module.ts' -ExpectedLines 14 -Content @'
+Open `src/identity/identity.module.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Module({
   imports: [
     CoreModule,
@@ -2657,24 +2659,23 @@ Add-Source -Path 'src/identity/identity.module.ts' -ExpectedLines 14 -Content @'
     PasswordService,
     BootstrapGuard,
     JwtGuard,
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
 ## Step 103: Compose the identity module — section 3 of 3 (IdentityModule)
 
 - **Goal**: I add the next focused section of `src/identity/identity.module.ts`, working on `IdentityModule`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/identity/identity.module.ts' -ExpectedLines 48 -Content @'
+Open `src/identity/identity.module.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
     RolesGuard,
     AuthContextInterceptor,
   ],
 })
 export class IdentityModule {}
-'@
 ```
 
 File complete: `src/identity/identity.module.ts`.
@@ -2684,8 +2685,10 @@ File complete: `src/identity/identity.module.ts`.
 - **Goal**: I check the schema-generated types and module contracts before adding projects.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('run', 'typecheck')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm run typecheck
 ```
 
 ## Step 105: Lint the completed identity foundation
@@ -2693,28 +2696,22 @@ Invoke-Checked npm.cmd @('run', 'typecheck')
 - **Goal**: I complete one verification action: lint the completed identity foundation.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked node @('node_modules/eslint/bin/eslint.js', 'src')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+node node_modules/eslint/bin/eslint.js src
 ```
 
 These checks do not prove token rotation or PostgreSQL locking. A later HTTP acceptance script exercises those behaviors against the running app. Keep password and refresh-token handling inside the service rather than moving it into controllers.
 
-## Step 106: Create the src/projects directory
-
-- **Goal**: I prepare the folder for `src/projects/project.dto.ts`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'src/projects' -Force | Out-Null
-```
-
-## Step 107: Define project input and response contracts — section 1 of 3 (CreateProjectDto)
+## Step 106: Define project input and response contracts — section 1 of 3 (CreateProjectDto)
 
 - **Goal**: I validate writes and expose only deliberately selected response fields.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/projects/project.dto.ts' @'
+In VS Code Explorer, create `src/projects/project.dto.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Transform } from 'class-transformer';
 import { IsInt, IsString, Length, Max, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
@@ -2729,18 +2726,18 @@ export class CreateProjectDto {
   @ApiProperty({ maxLength: 2000 }) @IsString() @Length(0, 2000) description =
     '';
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 108: Define project input and response contracts — section 2 of 3 (UpdateProjectDto)
+## Step 107: Define project input and response contracts — section 2 of 3 (UpdateProjectDto)
 
 - **Goal**: I add the next focused section of `src/projects/project.dto.ts`, working on `UpdateProjectDto`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/project.dto.ts' -ExpectedLines 14 -Content @'
+Open `src/projects/project.dto.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 export class UpdateProjectDto extends CreateProjectDto {
   @ApiProperty({ minimum: 1 }) @IsInt() @Min(1) @Max(2147483646) version = 0;
 }
@@ -2751,18 +2748,18 @@ export class ProjectResponse {
   @ApiProperty() version = 1;
   @ApiProperty({ format: 'date-time' }) createdAt = '';
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 109: Define project input and response contracts — section 3 of 3 (decodeProject)
+## Step 108: Define project input and response contracts — section 3 of 3 (decodeProject)
 
 - **Goal**: I add the next focused section of `src/projects/project.dto.ts`, working on `decodeProject`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/project.dto.ts' -ExpectedLines 24 -Content @'
+Open `src/projects/project.dto.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 export function decodeProject(value: unknown): ProjectResponse | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const row = Object.fromEntries(Object.entries(value));
@@ -2790,18 +2787,18 @@ export function decodeProjects(value: unknown): ProjectResponse[] | undefined {
   if (rows.some((row) => row === undefined)) return undefined;
   return rows.filter((row): row is ProjectResponse => row !== undefined);
 }
-'@
 ```
 
 File complete: `src/projects/project.dto.ts`.
 
-## Step 110: Implement transactional owner-scoped CRUD — section 1 of 5
+## Step 109: Implement transactional owner-scoped CRUD — section 1 of 5
 
 - **Goal**: I keep controllers clean and make cache invalidation part of successful database writes.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/projects/projects.service.ts' @'
+In VS Code Explorer, create `src/projects/projects.service.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   ConflictException,
   Injectable,
@@ -2824,18 +2821,18 @@ const response = (row: Project): ProjectResponse => ({
   version: row.version,
   createdAt: row.createdAt.toISOString(),
 });
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 111: Implement transactional owner-scoped CRUD — section 2 of 5 (ProjectsService)
+## Step 110: Implement transactional owner-scoped CRUD — section 2 of 5 (ProjectsService)
 
 - **Goal**: I add the next focused section of `src/projects/projects.service.ts`, working on `ProjectsService`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/projects.service.ts' -ExpectedLines 22 -Content @'
+Open `src/projects/projects.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -2860,18 +2857,18 @@ export class ProjectsService {
     await this.cache.write(key, rows);
     return rows;
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 112: Implement transactional owner-scoped CRUD — section 3 of 5 (get)
+## Step 111: Implement transactional owner-scoped CRUD — section 3 of 5 (get)
 
 - **Goal**: I add the next focused section of `src/projects/projects.service.ts`, working on `get`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/projects.service.ts' -ExpectedLines 46 -Content @'
+Open `src/projects/projects.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async get(ownerId: string, id: string): Promise<ProjectResponse> {
     const row = await this.db.project.findFirst({ where: { id, ownerId } });
     if (!row) throw new NotFoundException();
@@ -2889,18 +2886,18 @@ Add-Source -Path 'src/projects/projects.service.ts' -ExpectedLines 46 -Content @
       return response(row);
     });
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 113: Implement transactional owner-scoped CRUD — section 4 of 5 (update)
+## Step 112: Implement transactional owner-scoped CRUD — section 4 of 5 (update)
 
 - **Goal**: I add the next focused section of `src/projects/projects.service.ts`, working on `update`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/projects.service.ts' -ExpectedLines 63 -Content @'
+Open `src/projects/projects.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   update(
     ownerId: string,
     id: string,
@@ -2926,18 +2923,18 @@ Add-Source -Path 'src/projects/projects.service.ts' -ExpectedLines 63 -Content @
       return response(await tx.project.findUniqueOrThrow({ where: { id } }));
     });
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 114: Implement transactional owner-scoped CRUD — section 5 of 5 (remove)
+## Step 113: Implement transactional owner-scoped CRUD — section 5 of 5 (remove)
 
 - **Goal**: I add the next focused section of `src/projects/projects.service.ts`, working on `remove`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/projects.service.ts' -ExpectedLines 88 -Content @'
+Open `src/projects/projects.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async remove(ownerId: string, id: string, version: number): Promise<void> {
     await this.db.$transaction(async (tx) => {
       if (!(await tx.project.findFirst({ where: { id, ownerId } })))
@@ -2954,20 +2951,20 @@ Add-Source -Path 'src/projects/projects.service.ts' -ExpectedLines 88 -Content @
     });
   }
 }
-'@
 ```
 
 File complete: `src/projects/projects.service.ts`.
 
 All users—including Admin—access only their own projects. Unknown and unowned IDs both return 404. Updates/deletes require an expected version; competing writers get 409. A committed database revision changes list-cache keys even if Redis is unavailable, avoiding stale reads caused by failed cache deletion. In-flight reads may see their earlier snapshot, as with normal concurrent database reads.
 
-## Step 115: Cache authorized project responses — section 1 of 3
+## Step 114: Cache authorized project responses — section 1 of 3
 
 - **Goal**: I demonstrate response caching without letting a cache hit bypass ownership or ID validation.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/projects/project-cache.interceptor.ts' @'
+In VS Code Explorer, create `src/projects/project-cache.interceptor.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   CallHandler,
   ExecutionContext,
@@ -2982,18 +2979,18 @@ import { Database } from '../database/database.module.js';
 import { CacheService } from '../cache/cache.module.js';
 import { principal, type PrincipalRequest } from '../identity/access.js';
 import { decodeProject } from './project.dto.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 116: Cache authorized project responses — section 2 of 3 (ProjectCacheInterceptor)
+## Step 115: Cache authorized project responses — section 2 of 3 (ProjectCacheInterceptor)
 
 - **Goal**: I add the next focused section of `src/projects/project-cache.interceptor.ts`, working on `ProjectCacheInterceptor`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/project-cache.interceptor.ts' -ExpectedLines 14 -Content @'
+Open `src/projects/project-cache.interceptor.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Injectable()
 export class ProjectCacheInterceptor implements NestInterceptor<
   unknown,
@@ -3003,18 +3000,18 @@ export class ProjectCacheInterceptor implements NestInterceptor<
     private readonly db: Database,
     private readonly cache: CacheService,
   ) {}
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 117: Cache authorized project responses — section 3 of 3 (intercept)
+## Step 116: Cache authorized project responses — section 3 of 3 (intercept)
 
 - **Goal**: I add the next focused section of `src/projects/project-cache.interceptor.ts`, working on `intercept`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/project-cache.interceptor.ts' -ExpectedLines 23 -Content @'
+Open `src/projects/project-cache.interceptor.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async intercept(
     context: ExecutionContext,
     next: CallHandler<unknown>,
@@ -3046,20 +3043,20 @@ Add-Source -Path 'src/projects/project-cache.interceptor.ts' -ExpectedLines 23 -
       );
   }
 }
-'@
 ```
 
 File complete: `src/projects/project-cache.interceptor.ts`.
 
 This cache applies only to GET by ID. It still reads ownership/version metadata from SQL before returning a cached representation. JWT, session, role and permission guards have already run. This deliberately trades one small SQL check for safe caching; it is not a claim that every cache hit avoids the database.
 
-## Step 118: Expose five project endpoints — section 1 of 4
+## Step 117: Expose five project endpoints — section 1 of 4
 
 - **Goal**: I keep each handler to binding, dispatch and response mapping.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/projects/projects.controller.ts' @'
+In VS Code Explorer, create `src/projects/projects.controller.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   Body,
   Controller,
@@ -3092,18 +3089,18 @@ import {
 } from './project.dto.js';
 import { ProjectsService } from './projects.service.js';
 import { ProjectCacheInterceptor } from './project-cache.interceptor.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 119: Expose five project endpoints — section 2 of 4 (ProjectsController)
+## Step 118: Expose five project endpoints — section 2 of 4 (ProjectsController)
 
 - **Goal**: I add the next focused section of `src/projects/projects.controller.ts`, working on `ProjectsController`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/projects.controller.ts' -ExpectedLines 32 -Content @'
+Open `src/projects/projects.controller.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @ApiTags('Projects')
 @ApiBearerAuth()
 @Controller('projects')
@@ -3115,18 +3112,18 @@ export class ProjectsController {
   list(@CurrentUser() user: Principal, @Query() page: PageDto) {
     return this.projects.list(user.id, page);
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 120: Expose five project endpoints — section 3 of 4 (get)
+## Step 119: Expose five project endpoints — section 3 of 4 (get)
 
 - **Goal**: I add the next focused section of `src/projects/projects.controller.ts`, working on `get`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/projects.controller.ts' -ExpectedLines 43 -Content @'
+Open `src/projects/projects.controller.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   @Get(':id')
   @Permissions('projects:read')
   @UseInterceptors(ProjectCacheInterceptor)
@@ -3137,18 +3134,18 @@ Add-Source -Path 'src/projects/projects.controller.ts' -ExpectedLines 43 -Conten
   ) {
     return this.projects.get(user.id, id);
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 121: Expose five project endpoints — section 4 of 4 (create)
+## Step 120: Expose five project endpoints — section 4 of 4 (create)
 
 - **Goal**: I add the next focused section of `src/projects/projects.controller.ts`, working on `create`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/projects/projects.controller.ts' -ExpectedLines 53 -Content @'
+Open `src/projects/projects.controller.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   @Post()
   @Permissions('projects:write')
   @ApiCreatedResponse({ type: ProjectResponse })
@@ -3179,18 +3176,18 @@ Add-Source -Path 'src/projects/projects.controller.ts' -ExpectedLines 53 -Conten
     return this.projects.remove(user.id, id, version);
   }
 }
-'@
 ```
 
 File complete: `src/projects/projects.controller.ts`.
 
-## Step 122: Encapsulate project behavior
+## Step 121: Encapsulate project behavior
 
 - **Goal**: I import shared infrastructure without making the project service global.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/projects/projects.module.ts' @'
+In VS Code Explorer, create `src/projects/projects.module.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module.js';
 import { CacheModule } from '../cache/cache.module.js';
@@ -3203,25 +3200,16 @@ import { ProjectCacheInterceptor } from './project-cache.interceptor.js';
   providers: [ProjectsService, ProjectCacheInterceptor],
 })
 export class ProjectsModule {}
-'@
 ```
 
-## Step 123: Create the src/seeding directory
-
-- **Goal**: I prepare the folder for `src/seeding/seed.service.ts`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'src/seeding' -Force | Out-Null
-```
-
-## Step 124: Make initial enrollment transactional and idempotent — section 1 of 4 (SeedService)
+## Step 122: Make initial enrollment transactional and idempotent — section 1 of 4 (SeedService)
 
 - **Goal**: I create the administrator and examples once without resetting later user changes.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/seeding/seed.service.ts' @'
+In VS Code Explorer, create `src/seeding/seed.service.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Injectable } from '@nestjs/common';
 import { Database } from '../database/database.module.js';
 import { Settings } from '../core/settings.js';
@@ -3234,18 +3222,18 @@ export class SeedService {
     private readonly settings: Settings,
     private readonly passwords: PasswordService,
   ) {}
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 125: Make initial enrollment transactional and idempotent — section 2 of 4 (run)
+## Step 123: Make initial enrollment transactional and idempotent — section 2 of 4 (run)
 
 - **Goal**: I add the next focused section of `src/seeding/seed.service.ts`, working on `run`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/seeding/seed.service.ts' -ExpectedLines 12 -Content @'
+Open `src/seeding/seed.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   async run(): Promise<void> {
     if (
       (await this.db.appState.findUniqueOrThrow({ where: { id: 'app' } }))
@@ -3275,18 +3263,18 @@ Add-Source -Path 'src/seeding/seed.service.ts' -ExpectedLines 12 -Content @'
           permissions: [...PERMISSIONS],
         },
       });
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 126: Make initial enrollment transactional and idempotent — section 3 of 4 (run)
+## Step 124: Make initial enrollment transactional and idempotent — section 3 of 4 (run)
 
 - **Goal**: I add the next focused section of `src/seeding/seed.service.ts`, working on `run`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/seeding/seed.service.ts' -ExpectedLines 41 -Content @'
+Open `src/seeding/seed.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
       await tx.role.create({
         data: {
           name: 'Member',
@@ -3320,18 +3308,18 @@ Add-Source -Path 'src/seeding/seed.service.ts' -ExpectedLines 41 -Content @'
           },
         ],
       });
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 127: Make initial enrollment transactional and idempotent — section 4 of 4 (run)
+## Step 125: Make initial enrollment transactional and idempotent — section 4 of 4 (run)
 
 - **Goal**: I add the next focused section of `src/seeding/seed.service.ts`, working on `run`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/seeding/seed.service.ts' -ExpectedLines 74 -Content @'
+Open `src/seeding/seed.service.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
       await tx.appState.update({
         where: { id: 'app' },
         data: { seeded: true, projectRevision: { increment: 1 } },
@@ -3339,20 +3327,20 @@ Add-Source -Path 'src/seeding/seed.service.ts' -ExpectedLines 74 -Content @'
     });
   }
 }
-'@
 ```
 
 File complete: `src/seeding/seed.service.ts`.
 
 The database row lock—not a Redis-only lock—makes redelivery and concurrent workers safe. All initial data and readiness commit together. A crash rolls back the transaction; a retry can run safely. Once seeded, future startup never restores the original admin password or overwrites sample projects.
 
-## Step 128: Run initial enrollment through BullMQ after listening — section 1 of 5
+## Step 126: Run initial enrollment through BullMQ after listening — section 1 of 5
 
 - **Goal**: I separate queue scheduling from worker execution and keep secrets out of jobs.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/seeding/seeding.module.ts' @'
+In VS Code Explorer, create `src/seeding/seeding.module.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Injectable, Module } from '@nestjs/common';
 import {
   BullModule,
@@ -3368,18 +3356,18 @@ import { Settings } from '../core/settings.js';
 import { Database, DatabaseModule } from '../database/database.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { SeedService } from './seed.service.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 129: Run initial enrollment through BullMQ after listening — section 2 of 5 (SeedProcessor)
+## Step 127: Run initial enrollment through BullMQ after listening — section 2 of 5 (SeedProcessor)
 
 - **Goal**: I add the next focused section of `src/seeding/seeding.module.ts`, working on `SeedProcessor`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/seeding/seeding.module.ts' -ExpectedLines 15 -Content @'
+Open `src/seeding/seeding.module.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Processor('bootstrap', { concurrency: 1 })
 class SeedProcessor extends WorkerHost {
   constructor(
@@ -3388,18 +3376,18 @@ class SeedProcessor extends WorkerHost {
   ) {
     super();
   }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 130: Run initial enrollment through BullMQ after listening — section 3 of 5 (process)
+## Step 128: Run initial enrollment through BullMQ after listening — section 3 of 5 (process)
 
 - **Goal**: I add the next focused section of `src/seeding/seeding.module.ts`, working on `process`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/seeding/seeding.module.ts' -ExpectedLines 23 -Content @'
+Open `src/seeding/seeding.module.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   override async process(job: Job<unknown>): Promise<void> {
     if (job.name !== 'initial-data-v1')
       throw new Error('Unknown bootstrap job.');
@@ -3413,18 +3401,18 @@ Add-Source -Path 'src/seeding/seeding.module.ts' -ExpectedLines 23 -Content @'
     );
   }
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 131: Run initial enrollment through BullMQ after listening — section 4 of 5 (SeedScheduler)
+## Step 129: Run initial enrollment through BullMQ after listening — section 4 of 5 (SeedScheduler)
 
 - **Goal**: I add the next focused section of `src/seeding/seeding.module.ts`, working on `SeedScheduler`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/seeding/seeding.module.ts' -ExpectedLines 36 -Content @'
+Open `src/seeding/seeding.module.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Injectable()
 export class SeedScheduler {
   constructor(
@@ -3453,18 +3441,18 @@ export class SeedScheduler {
     );
   }
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 132: Run initial enrollment through BullMQ after listening — section 5 of 5 (SeedingModule)
+## Step 130: Run initial enrollment through BullMQ after listening — section 5 of 5 (SeedingModule)
 
 - **Goal**: I add the next focused section of `src/seeding/seeding.module.ts`, working on `SeedingModule`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/seeding/seeding.module.ts' -ExpectedLines 64 -Content @'
+Open `src/seeding/seeding.module.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Module({
   imports: [
     CoreModule,
@@ -3484,20 +3472,20 @@ Add-Source -Path 'src/seeding/seeding.module.ts' -ExpectedLines 64 -Content @'
   exports: [SeedScheduler],
 })
 export class SeedingModule {}
-'@
 ```
 
 File complete: `src/seeding/seeding.module.ts`.
 
 The worker is hosted in the same process to keep this lesson small. It still executes a durable BullMQ job after main starts listening. For heavier jobs, deploy a separate worker with the same service boundaries. The bounded retry is safe because the seed transaction is idempotent; permanent configuration failures remain failed jobs with readiness false. See [Nest BullMQ integration](https://docs.nestjs.com/techniques/queues).
 
-## Step 133: Return safe errors and correlated logs — section 1 of 2
+## Step 131: Return safe errors and correlated logs — section 1 of 2
 
 - **Goal**: I map expected failures without exposing database statements, credentials or stack traces.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/core/error.filter.ts' @'
+In VS Code Explorer, create `src/core/error.filter.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import {
   ArgumentsHost,
   Catch,
@@ -3506,18 +3494,18 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { PinoLogger } from 'nestjs-pino';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 134: Return safe errors and correlated logs — section 2 of 2 (ErrorFilter)
+## Step 132: Return safe errors and correlated logs — section 2 of 2 (ErrorFilter)
 
 - **Goal**: I add the next focused section of `src/core/error.filter.ts`, working on `ErrorFilter`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/core/error.filter.ts' -ExpectedLines 8 -Content @'
+Open `src/core/error.filter.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Catch()
 export class ErrorFilter implements ExceptionFilter {
   constructor(private readonly logger: PinoLogger) {}
@@ -3549,18 +3537,18 @@ export class ErrorFilter implements ExceptionFilter {
       .json({ statusCode: status, error: message, requestId: request.id });
   }
 }
-'@
 ```
 
 File complete: `src/core/error.filter.ts`.
 
-## Step 135: Separate liveness and readiness
+## Step 133: Separate liveness and readiness
 
 - **Goal**: I report healthy process state independently from database, Redis and seed readiness.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/core/health.controller.ts' @'
+In VS Code Explorer, create `src/core/health.controller.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -3591,16 +3579,16 @@ export class HealthController {
     throw new ServiceUnavailableException('Not ready.');
   }
 }
-'@
 ```
 
-## Step 136: Assemble modules and global security — section 1 of 3
+## Step 134: Assemble modules and global security — section 1 of 3
 
 - **Goal**: I apply security consistently instead of relying on each controller author to remember a guard.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/app.module.ts' @'
+In VS Code Explorer, create `src/app.module.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -3615,18 +3603,18 @@ import { AuthContextInterceptor } from './identity/auth-context.interceptor.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { SeedingModule } from './seeding/seeding.module.js';
 import { HealthController } from './core/health.controller.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 137: Assemble modules and global security — section 2 of 3 (AppModule)
+## Step 135: Assemble modules and global security — section 2 of 3 (AppModule)
 
 - **Goal**: I add the next focused section of `src/app.module.ts`, working on `AppModule`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/app.module.ts' -ExpectedLines 14 -Content @'
+Open `src/app.module.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 @Module({
   imports: [
     CoreModule,
@@ -3654,18 +3642,18 @@ Add-Source -Path 'src/app.module.ts' -ExpectedLines 14 -Content @'
     SeedingModule,
   ],
   controllers: [HealthController],
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 138: Assemble modules and global security — section 3 of 3 (AppModule)
+## Step 136: Assemble modules and global security — section 3 of 3 (AppModule)
 
 - **Goal**: I add the next focused section of `src/app.module.ts`, working on `AppModule`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/app.module.ts' -ExpectedLines 41 -Content @'
+Open `src/app.module.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useExisting: BootstrapGuard },
@@ -3675,20 +3663,20 @@ Add-Source -Path 'src/app.module.ts' -ExpectedLines 41 -Content @'
   ],
 })
 export class AppModule {}
-'@
 ```
 
 File complete: `src/app.module.ts`.
 
 [nestjs-pino](https://github.com/iamolegga/nestjs-pino) supplies request-context logging; the serializer omits URLs, headers and bodies that could carry credentials. The default throttler store is per-process: this guide runs one API instance. Before horizontal scaling, use a tested shared throttler store or trusted gateway limits. Proxy trust is disabled; configure exact trusted proxies only when deploying behind one.
 
-## Step 139: Configure validation, Helmet and Swagger — section 1 of 3
+## Step 137: Configure validation, Helmet and Swagger — section 1 of 3
 
 - **Goal**: I establish HTTP safety and documentation before accepting requests.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/bootstrap.ts' @'
+In VS Code Explorer, create `src/bootstrap.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
@@ -3699,18 +3687,18 @@ import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { Settings } from './core/settings.js';
 import { ErrorFilter } from './core/error.filter.js';
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 140: Configure validation, Helmet and Swagger — section 2 of 3 (createApplication)
+## Step 138: Configure validation, Helmet and Swagger — section 2 of 3 (createApplication)
 
 - **Goal**: I add the next focused section of `src/bootstrap.ts`, working on `createApplication`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/bootstrap.ts' -ExpectedLines 10 -Content @'
+Open `src/bootstrap.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 export async function createApplication() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
@@ -3744,18 +3732,18 @@ export async function createApplication() {
   app.useGlobalFilters(new ErrorFilter(app.get(PinoLogger)));
   app.enableShutdownHooks();
   if (settings.swagger) {
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 141: Configure validation, Helmet and Swagger — section 3 of 3 (createApplication)
+## Step 139: Configure validation, Helmet and Swagger — section 3 of 3 (createApplication)
 
 - **Goal**: I add the next focused section of `src/bootstrap.ts`, working on `createApplication`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'src/bootstrap.ts' -ExpectedLines 43 -Content @'
+Open `src/bootstrap.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
     const config = new DocumentBuilder()
       .setTitle('NestJS CRUD School')
       .setVersion('1.0')
@@ -3773,20 +3761,20 @@ Add-Source -Path 'src/bootstrap.ts' -ExpectedLines 43 -Content @'
   }
   return app;
 }
-'@
 ```
 
 File complete: `src/bootstrap.ts`.
 
 Swagger is available at /docs only when explicitly enabled outside production. Helmet CSP is relaxed only for that local documentation mode; production disables Swagger and restores Helmet defaults. CORS is a browser policy, never authentication. The API uses Authorization headers, not ambient authentication cookies, so this lesson does not need a cookie CSRF flow.
 
-## Step 142: Listen before scheduling initial data
+## Step 140: Listen before scheduling initial data
 
 - **Goal**: I run the requested bootstrap job asynchronously after the server starts.
 - **Command / Action**:
 
-```powershell
-Write-Source 'src/main.ts' @'
+In VS Code Explorer, create `src/main.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import { createApplication } from './bootstrap.js';
 import { Settings } from './core/settings.js';
 import { SeedScheduler } from './seeding/seeding.module.js';
@@ -3807,45 +3795,36 @@ void main().catch(() => {
   );
   process.exitCode = 1;
 });
-'@
 ```
 
 /api/health/live can succeed while /api/health/ready is still 503. Registration, login and project routes stay gated until the transaction commits. Do not race the seed by repeatedly registering the initial administrator.
 
-## Step 143: Package the generated Prisma client
+## Step 141: Package the generated Prisma client
 
 - **Goal**: I preserve relative imports in the compiled output.
 - **Command / Action**:
 
-```powershell
-Write-Source 'scripts/copy-client.mjs' @'
+In VS Code Explorer, create `scripts/copy-client.mjs` if it does not exist, then open it. Replace its contents with the following code.
+
+```javascript
 import { cpSync, mkdirSync } from 'node:fs';
 mkdirSync('dist/generated', { recursive: true });
 cpSync('generated/prisma', 'dist/generated/prisma', {
   recursive: true,
   force: true,
 });
-'@
 ```
 
 Stop running Node processes before replacing a Windows Prisma native engine. Container builds generate their own Linux client instead of copying a Windows binary.
 
-## Step 144: Create the test directory
-
-- **Goal**: I prepare the folder for `test/security.test.ts`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path 'test' -Force | Out-Null
-```
-
-## Step 145: Test authorization and password boundaries — section 1 of 2
+## Step 142: Test authorization and password boundaries — section 1 of 2
 
 - **Goal**: I test security decisions without depending on a running database.
 - **Command / Action**:
 
-```powershell
-Write-Source 'test/security.test.ts' @'
+In VS Code Explorer, create `test/security.test.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -3876,18 +3855,18 @@ await test('claims reject malformed identities, versions and missing expiry', ()
   }
 });
 await test('role alternatives and all required permissions must both pass', () => {
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 146: Test authorization and password boundaries — section 2 of 2
+## Step 143: Test authorization and password boundaries — section 2 of 2
 
 - **Goal**: I add the next focused section of `test/security.test.ts`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'test/security.test.ts' -ExpectedLines 30 -Content @'
+Open `test/security.test.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
   const member: Principal = {
     id: randomUUID(),
     sessionId: randomUUID(),
@@ -3911,18 +3890,18 @@ await test('Argon2 hashes are salted and incorrect passwords fail', async () => 
   assert.equal(await passwords.check('wrong password', first), false);
   assert.equal(await passwords.check('wrong password'), false);
 });
-'@
 ```
 
 File complete: `test/security.test.ts`.
 
-## Step 147: Exercise the real HTTP security and CRUD flows — section 1 of 8 (row)
+## Step 144: Exercise the real HTTP security and CRUD flows — section 1 of 8 (row)
 
 - **Goal**: I verify observable behavior against the actual PostgreSQL and Redis backed application.
 - **Command / Action**:
 
-```powershell
-Write-Source 'test/e2e.ts' @'
+In VS Code Explorer, create `test/e2e.ts` if it does not exist, then open it. Replace its contents with the following code.
+
+```typescript
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 const base = 'http://127.0.0.1:3200/api';
@@ -3931,18 +3910,18 @@ function row(value: unknown): Row {
   assert.ok(value && typeof value === 'object' && !Array.isArray(value));
   return Object.fromEntries(Object.entries(value));
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 148: Exercise the real HTTP security and CRUD flows — section 2 of 8 (string)
+## Step 145: Exercise the real HTTP security and CRUD flows — section 2 of 8 (string)
 
 - **Goal**: I add the next focused section of `test/e2e.ts`, working on `string`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'test/e2e.ts' -ExpectedLines 8 -Content @'
+Open `test/e2e.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 function string(value: unknown): string {
   assert.equal(typeof value, 'string');
   return String(value);
@@ -3973,18 +3952,18 @@ async function request(
     headers: response.headers,
   };
 }
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 149: Exercise the real HTTP security and CRUD flows — section 3 of 8 (login)
+## Step 146: Exercise the real HTTP security and CRUD flows — section 3 of 8 (login)
 
 - **Goal**: I add the next focused section of `test/e2e.ts`, working on `login`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'test/e2e.ts' -ExpectedLines 38 -Content @'
+Open `test/e2e.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 async function login(email: string, password: string): Promise<Row> {
   return row(
     (await request('POST', '/auth/login', 200, undefined, { email, password }))
@@ -4012,18 +3991,18 @@ const alice = row(
     })
   ).body,
 );
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 150: Exercise the real HTTP security and CRUD flows — section 4 of 8
+## Step 147: Exercise the real HTTP security and CRUD flows — section 4 of 8
 
 - **Goal**: I add the next focused section of `test/e2e.ts`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'test/e2e.ts' -ExpectedLines 65 -Content @'
+Open `test/e2e.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 const bob = row(
   (
     await request('POST', '/auth/register', 201, undefined, {
@@ -4058,18 +4037,18 @@ const project = row(
     })
   ).body,
 );
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 151: Exercise the real HTTP security and CRUD flows — section 5 of 8
+## Step 148: Exercise the real HTTP security and CRUD flows — section 5 of 8
 
 - **Goal**: I add the next focused section of `test/e2e.ts`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'test/e2e.ts' -ExpectedLines 99 -Content @'
+Open `test/e2e.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 const projectId = string(project.id);
 const listing = (await request('GET', '/projects', 200, aliceToken)).body;
 assert.ok(
@@ -4103,18 +4082,18 @@ const updates = await Promise.all(
   ),
 );
 assert.deepEqual(updates.map((response) => response.status).sort(), [200, 409]);
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 152: Exercise the real HTTP security and CRUD flows — section 6 of 8
+## Step 149: Exercise the real HTTP security and CRUD flows — section 6 of 8
 
 - **Goal**: I add the next focused section of `test/e2e.ts`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'test/e2e.ts' -ExpectedLines 132 -Content @'
+Open `test/e2e.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 assert.equal(
   row((await request('GET', `/projects/${projectId}`, 200, aliceToken)).body)
     .version,
@@ -4149,18 +4128,18 @@ const readerSession = await login(aliceEmail, password);
 await request('POST', '/projects', 403, string(readerSession.accessToken), {
   name: 'Denied',
 });
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 153: Exercise the real HTTP security and CRUD flows — section 7 of 8
+## Step 150: Exercise the real HTTP security and CRUD flows — section 7 of 8
 
 - **Goal**: I add the next focused section of `test/e2e.ts`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'test/e2e.ts' -ExpectedLines 166 -Content @'
+Open `test/e2e.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 await request(
   'DELETE',
   `/identity/roles/${string(reader.id)}`,
@@ -4193,18 +4172,18 @@ await request(
   { active: false },
 );
 const finalAlice = await login(aliceEmail, password);
-'@
 ```
 
-Continue this file in the next step; it is not ready to compile or run yet.
+Save this section, then continue editing the same file in the next step. Temporary editor errors are expected until its final section; do not run a build yet.
 
-## Step 154: Exercise the real HTTP security and CRUD flows — section 8 of 8
+## Step 151: Exercise the real HTTP security and CRUD flows — section 8 of 8
 
 - **Goal**: I add the next focused section of `test/e2e.ts`.
 - **Command / Action**:
 
-```powershell
-Add-Source -Path 'test/e2e.ts' -ExpectedLines 198 -Content @'
+Open `test/e2e.ts` in VS Code. Go to the end of the file with **Ctrl+End** and add the following section after the existing text. Keep the existing code.
+
+```typescript
 const rotated = row(
   (
     await request('POST', '/auth/refresh', 200, undefined, {
@@ -4235,20 +4214,20 @@ await request(
 console.log(
   'HTTP acceptance checks passed. Test users remain for audit; Alice and Bob are disabled.',
 );
-'@
 ```
 
 File complete: `test/e2e.ts`.
 
 Run only against this disposable lesson instance, with no other administrator accounts and no parallel manual login traffic. The test makes exactly five login requests. Repeated runs inside one minute can receive 429; let the configured rate-limit window expire. Failures are not retried or hidden.
 
-## Step 155: Wait for asynchronous bootstrap readiness
+## Step 152: Wait for asynchronous bootstrap readiness
 
 - **Goal**: I give the seed worker a bounded readiness check before sending requests.
 - **Command / Action**:
 
-```powershell
-Write-Source 'scripts/wait-ready.mjs' @'
+In VS Code Explorer, create `scripts/wait-ready.mjs` if it does not exist, then open it. Replace its contents with the following code.
+
+```javascript
 const deadline = Date.now() + 120000;
 let ready = false;
 while (Date.now() < deadline) {
@@ -4270,25 +4249,16 @@ if (!ready)
     'Application did not become ready within 120 seconds. Inspect the API and worker logs.',
   );
 console.log('Application and initial data are ready.');
-'@
 ```
 
-## Step 156: Create the .vscode directory
-
-- **Goal**: I prepare the folder for `.vscode/tasks.json`.
-- **Command / Action**:
-
-```powershell
-New-Item -ItemType Directory -Path '.vscode' -Force | Out-Null
-```
-
-## Step 157: Define the debugger build task
+## Step 153: Define the debugger build task
 
 - **Goal**: I compile TypeScript and copy the generated Prisma runtime before debugging.
 - **Command / Action**:
 
-```powershell
-Write-Source '.vscode/tasks.json' @'
+In VS Code Explorer, create `.vscode/tasks.json` if it does not exist, then open it. Replace its contents with the following code.
+
+```json
 {
   "version": "2.0.0",
   "tasks": [
@@ -4301,16 +4271,16 @@ Write-Source '.vscode/tasks.json' @'
     }
   ]
 }
-'@
 ```
 
-## Step 158: Configure launch and attach debugging
+## Step 154: Configure launch and attach debugging
 
 - **Goal**: I keep debugger ports local and load development secrets from the ignored environment file.
 - **Command / Action**:
 
-```powershell
-Write-Source '.vscode/launch.json' @'
+In VS Code Explorer, create `.vscode/launch.json` if it does not exist, then open it. Replace its contents with the following code.
+
+```json
 {
   "version": "0.2.0",
   "configurations": [
@@ -4340,18 +4310,18 @@ Write-Source '.vscode/launch.json' @'
     }
   ]
 }
-'@
 ```
 
 Launch requires the database migrations and role grants already completed. Put a breakpoint in ProjectsService.create, press F5, and submit a project through Swagger. Stop any other API process before Launch. Attach connects to the debug CMD runner shown below.
 
-## Step 159: Exclude local secrets from Docker build context
+## Step 155: Exclude local secrets from Docker build context
 
 - **Goal**: I keep credentials, dependencies and host-native Prisma binaries out of image layers.
 - **Command / Action**:
 
-```powershell
-Write-Source '.dockerignore' @'
+In VS Code Explorer, create `.dockerignore` if it does not exist, then open it. Replace its contents with the following code.
+
+```text
 .git
 .env
 .env.*
@@ -4361,16 +4331,16 @@ dist
 generated
 coverage
 *.log
-'@
 ```
 
-## Step 160: Build a non-root API image
+## Step 156: Build a non-root API image
 
 - **Goal**: I generate Prisma for the Linux image and ship only production dependencies and compiled code.
 - **Command / Action**:
 
-```powershell
-Write-Source 'Dockerfile' @'
+In VS Code Explorer, create `Dockerfile` if it does not exist, then open it. Replace its contents with the following code.
+
+```dockerfile
 FROM node:24.21.0-bookworm-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -4391,18 +4361,18 @@ USER node
 EXPOSE 3200
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 CMD node -e "fetch('http://127.0.0.1:3200/api/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 CMD ["node", "dist/src/main.js"]
-'@
 ```
 
 The Compose lesson overrides NODE_ENV to development through its environment file so local non-TLS containers work. For production use TLS, an approved secret store, controlled migrations, SEED_ON_START=false after explicit provisioning, and SWAGGER_ENABLED=false. This is a teaching deployment, not evidence of production readiness.
 
-## Step 161: Add application and one-shot migration containers
+## Step 157: Add application and one-shot migration containers
 
 - **Goal**: I separate DDL credentials from the ordinary API runtime.
 - **Command / Action**:
 
-```powershell
-Write-Source 'compose.app.yaml' @'
+In VS Code Explorer, create `compose.app.yaml` if it does not exist, then open it. Replace its contents with the following code.
+
+```yaml
 services:
   migrate:
     profiles: ["tools"]
@@ -4433,16 +4403,16 @@ services:
     security_opt: ["no-new-privileges:true"]
     init: true
     stop_grace_period: 30s
-'@
 ```
 
-## Step 162: Create the Windows CMD development runner
+## Step 158: Create the Windows CMD development runner
 
 - **Goal**: I make the full local startup sequence repeatable without PowerShell-only syntax.
 - **Command / Action**:
 
-```powershell
-Write-Source 'scripts/run-local.cmd' @'
+In VS Code Explorer, create `scripts/run-local.cmd` if it does not exist, then open it. Replace its contents with the following code.
+
+```bat
 @echo off
 setlocal
 cd /d "%~dp0.."
@@ -4466,20 +4436,20 @@ if /i "%~1"=="debug" (
   call npm run start:dev
 )
 exit /b %errorlevel%
-'@
 ```
 
 In CMD run `scripts
 un-local.cmd` or `scripts
 un-local.cmd debug`. It requires the package-lock.json generated earlier by npm install. The API stays in the foreground. The watch process watches compiled JavaScript: run `npm run build:watch` in another terminal while editing TypeScript.
 
-## Step 163: Create the Windows CMD Docker runner
+## Step 159: Create the Windows CMD Docker runner
 
 - **Goal**: I run migrations once before starting the restricted application container.
 - **Command / Action**:
 
-```powershell
-Write-Source 'scripts/run-docker.cmd' @'
+In VS Code Explorer, create `scripts/run-docker.cmd` if it does not exist, then open it. Replace its contents with the following code.
+
+```bat
 @echo off
 setlocal
 cd /d "%~dp0.."
@@ -4497,169 +4467,214 @@ docker compose --env-file .env.compose -f compose.yaml -f compose.app.yaml up -d
 if errorlevel 1 exit /b 1
 node scripts\wait-ready.mjs
 exit /b %errorlevel%
-'@
 ```
 
-## Step 164: Format the completed application
+## Step 160: Format the completed application
 
 - **Goal**: I verify the finished program before launching it.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('run', 'format')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm run format
 ```
 
-## Step 165: Check source formatting
+## Step 161: Check source formatting
 
 - **Goal**: I complete one verification action: check source formatting.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('run', 'format:check')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm run format:check
 ```
 
-## Step 166: Check TypeScript types
+## Step 162: Check TypeScript types
 
 - **Goal**: I complete one verification action: check typescript types.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('run', 'typecheck')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm run typecheck
 ```
 
-## Step 167: Lint the completed application
+## Step 163: Lint the completed application
 
 - **Goal**: I complete one verification action: lint the completed application.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('run', 'lint')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm run lint
 ```
 
-## Step 168: Compile the completed application
+## Step 164: Compile the completed application
 
 - **Goal**: I complete one verification action: compile the completed application.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('run', 'build')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm run build
 ```
 
-## Step 169: Run the focused security tests
+## Step 165: Run the focused security tests
 
 - **Goal**: I complete one verification action: run the focused security tests.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked npm.cmd @('test')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm test
 ```
 
-## Step 170: Validate the Compose configuration
+## Step 166: Validate the Compose configuration
 
 - **Goal**: I complete one verification action: validate the compose configuration.
 - **Command / Action**:
 
-```powershell
-Invoke-Checked docker @('compose', '--env-file', '.env.compose', '-f', 'compose.yaml', '-f', 'compose.app.yaml', 'config', '--quiet')
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+docker compose --env-file .env.compose -f compose.yaml -f compose.app.yaml config --quiet
 ```
 
 Commit package-lock.json and use npm ci thereafter. Investigate dependency advisories with npm audit before deployment; do not blindly run npm audit fix --force.
 
-## Step 171: Start the local application
+## Step 167: Start the local application
 
 - **Goal**: I let BullMQ provision the initial administrator and sample projects after HTTP startup.
 - **Command / Action**:
 
+**CMD:**
+
+```bat
+scripts\run-local.cmd
+```
+
+**PowerShell:**
+
 ```powershell
-Invoke-Checked cmd.exe @('/d', '/c', 'scripts\run-local.cmd')
+.\scripts\run-local.cmd
+```
+
+**Git Bash on Windows:**
+
+```bash
+MSYS_NO_PATHCONV=1 cmd.exe /d /c "scripts\run-local.cmd"
 ```
 
 This command remains in the foreground; stop it with Ctrl+C. In a second terminal, from the application directory, continue with the next step. Credentials are generated in the ignored .env file: inspect it locally in your editor, never commit or paste it into logs. Seeding runs once per database marker and does not reset an existing administrator password.
 
-## Step 172: Wait for initial data to become ready
+## Step 168: Wait for initial data to become ready
 
 - **Goal**: I test real authentication, authorization, caching, concurrency and session revocation.
 - **Command / Action**:
 
-```powershell
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
 node scripts/wait-ready.mjs
-if ($LASTEXITCODE -ne 0) { throw 'Application readiness failed.' }
 ```
 
-## Step 173: Run the HTTP acceptance tests
+## Step 169: Run the HTTP acceptance tests
 
 - **Goal**: I complete one verification action: run the http acceptance tests.
 - **Command / Action**:
 
-```powershell
-npm.cmd run test:e2e
-if ($LASTEXITCODE -ne 0) { throw 'HTTP acceptance checks failed.' }
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm run test:e2e
 ```
 
-## Step 174: Open the Swagger documentation
+## Step 170: Open the Swagger documentation
 
 - **Goal**: I complete one verification action: open the swagger documentation.
 - **Command / Action**:
 
-```powershell
-Start-Process 'http://localhost:3200/docs'
-```
+Open `http://localhost:3200/docs` in your browser.
 
 Swagger: sign in with the seeded credentials, copy only the accessToken into Authorize, then exercise projects. Refresh tokens are secrets; do not store them in logs or browser localStorage in a real client. This lesson accepts tokens in request bodies and Authorization headers, not cookies. A browser client using HttpOnly cookies also needs CSRF protections and a deliberate cookie policy. Each client must serialize refresh requests: replay revokes the entire session, including concurrently rotated tokens.
 
-## Step 175: Run the same application entirely in Docker
+## Step 171: Run the same application entirely in Docker
 
 - **Goal**: I verify the alternative execution path after stopping the local API.
 - **Command / Action**:
 
-```powershell
-cmd.exe /d /c scripts\run-docker.cmd
-if ($LASTEXITCODE -ne 0) { throw 'Docker application startup failed.' }
+**CMD:**
+
+```bat
+scripts\run-docker.cmd
 ```
 
-## Step 176: Run the HTTP acceptance tests
+**PowerShell:**
+
+```powershell
+.\scripts\run-docker.cmd
+```
+
+**Git Bash on Windows:**
+
+```bash
+MSYS_NO_PATHCONV=1 cmd.exe /d /c "scripts\run-docker.cmd"
+```
+
+## Step 172: Run the HTTP acceptance tests
 
 - **Goal**: I complete one verification action: run the http acceptance tests.
 - **Command / Action**:
 
-```powershell
-npm.cmd run test:e2e
-if ($LASTEXITCODE -ne 0) { throw 'Docker HTTP acceptance checks failed.' }
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
+npm run test:e2e
 ```
 
-## Step 177: Inspect the application logs
+## Step 173: Inspect the application logs
 
 - **Goal**: I complete one verification action: inspect the application logs.
 - **Command / Action**:
 
-```powershell
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
 docker compose --env-file .env.compose -f compose.yaml -f compose.app.yaml logs --tail 100 api
-if ($LASTEXITCODE -ne 0) { throw 'Log inspection failed.' }
 ```
 
 Do not run local and container APIs together on port 3200. They deliberately share the lesson database. The acceptance suite uses unique accounts on each run; the default administrator and original sample projects are not replaced.
 
-## Step 178: Stop the lesson without deleting data
+## Step 174: Stop the lesson without deleting data
 
 - **Goal**: I preserve PostgreSQL and Redis volumes for the next learning session.
 - **Command / Action**:
 
-```powershell
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
 docker compose --env-file .env.compose -f compose.yaml -f compose.app.yaml down
-if ($LASTEXITCODE -ne 0) { throw 'Container shutdown failed.' }
 ```
 
-## Step 179: Inspect the lesson repository status
+## Step 175: Inspect the lesson repository status
 
 - **Goal**: I complete one verification action: inspect the lesson repository status.
 - **Command / Action**:
 
-```powershell
+**Terminal — CMD, PowerShell, or Git Bash:**
+
+```sh
 git status --short
 ```
 
 Do not add --volumes unless intentionally discarding this lesson database. Common failures: 503 before seed completion means inspect worker logs and dependency health; 401 after role/password changes is expected session invalidation; 409 on stale project versions means reload before retrying; 429 means a rate limit was reached. Pino logs deliberately exclude request/response bodies and credentials. The built-in throttler is process-local, so this lesson uses one API replica. Scaling requires a shared throttler store, a separate worker deployment, measured resource limits and integration/operations evidence. Expired sessions are pruned on subsequent user sign-in; a production retention job is an explicit follow-up, not hidden startup maintenance.
 
-Earlier source verification (before this step-size revision): the extracted source was compiled and linted, Prisma schema/client generation was checked, and all three focused security tests passed on Node 24.21.0. PowerShell blocks were syntax-checked and Compose configuration validated. Live database migrations, HTTP acceptance tests and Docker image startup were not executed during documentation authoring; run the supplied commands to establish those results in your environment. The older installed Node 22.12.0 crashed loading the Argon2 native module; use the specified Node 24 runtime.
+Earlier source verification: the extracted source was compiled and linted, Prisma schema/client generation was checked, and all three focused security tests passed on Node 24.21.0. PowerShell blocks were syntax-checked and Compose configuration validated. Live database migrations, HTTP acceptance tests and Docker image startup were not executed during documentation authoring; run the supplied commands to establish those results in your environment. The older installed Node 22.12.0 crashed loading the Argon2 native module; use the specified Node 24 runtime.
 
-Step-size revision verification (3 October 2026): all 179 PowerShell blocks parse in Windows PowerShell 5.1 and PowerShell 7. Replaying the file-writing steps in separate temporary directories reproduces all 52 original source files byte-for-byte. Repeating an append is rejected. This revision changes the teaching sequence and source-writing helpers; application builds and live services were not rerun.
+Editor-workflow revision: the source sections were checked against the preceding guide, and the npm install groups reproduce the same exact dependency declarations. The scaffolding and live application commands have not been executed for this documentation revision.
